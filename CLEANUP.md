@@ -1,9 +1,15 @@
-# Cleanup plan (modern branch)
+# Cleanup plan (rewrite branch)
 
-`main` keeps the faithful reconstruction of SGI's 1.62.0 source: Ghidra's
-naming and structure, SGI's bugs where they shape output, the `sgil1` kernel
-driver. This branch turns it into maintainable C. Fixes to the historical
-reconstruction land on `main` first and are merged here.
+Branches:
+
+- `main` keeps the faithful reconstruction of SGI's 1.62.0 source: Ghidra's
+  naming and structure, SGI's bugs where they shape output, the `sgil1` kernel
+  driver. Fixes to the historical reconstruction land there first and are
+  merged forward.
+- `rewrite` (this branch) turns it into maintainable C without changing what
+  the tools do (phases 0-2).
+- `modern` will branch from the finished rewrite for the big changes
+  (phase 3: the L1 transport and libusb, portability, fixing SGI's bugs).
 
 ## Rules
 
