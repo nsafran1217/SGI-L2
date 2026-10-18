@@ -206,7 +206,7 @@ void lpbk_process_response(IRPacket *p)
     }
   }
   else {
-    sprintf(buff,"loopback packet no return data, source %08x\n");
+    sprintf(buff,"loopback packet no return data, source %08x\n",p->_src);   /* Ghidra dropped the argument */
     nvramLogInsert(buff);
   }
   return;

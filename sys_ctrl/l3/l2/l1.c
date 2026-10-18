@@ -815,7 +815,7 @@ int l1_read_usb(int fd, unsigned char **bptr, int blen)
   dev_still_open = 1;
   dev = l1_fd_device(fd);
   if (l2_debug != 0) {
-    fprintf(stderr,"l1_read_usb(%d,%x(%x),%d) in\n",fd,bptr,*bptr,blen,dev,1,uVar4);
+    fprintf(stderr,"l1_read_usb(%d,%x(%x),%d) in\n",fd,bptr,*bptr,blen);
   }
   piVar1 = __errno_location();
   *piVar1 = 0;
@@ -1070,7 +1070,7 @@ int l1_write_usb(int fd, unsigned char *bptr, int blen)
   iVar3 = blen;
   dev = l1_fd_device(fd);
   if (l2_debug != 0) {
-    fprintf(stderr,"l1_write_usb(%d,%x,%d) in\n",fd,bptr,blen,dev,1,iVar3);
+    fprintf(stderr,"l1_write_usb(%d,%x,%d) in\n",fd,bptr,blen);
   }
   status = write(fd,bptr,blen);
   if (status < 0) {
@@ -1130,7 +1130,7 @@ int l1_write_raw(int fd, unsigned char *bptr, int blen)
   int *piVar1;
   
   if (l2_debug != 0) {
-    fprintf(stderr,"l1_write_raw(%d,%x,%d) in\n",fd,bptr,blen,blen);
+    fprintf(stderr,"l1_write_raw(%d,%x,%d) in\n",fd,bptr,blen);
   }
   status = write(fd,bptr,blen);
   if (1 < l2_debug) {
@@ -1149,7 +1149,7 @@ int l1_write_socket(int fd, unsigned char *bptr, int blen)
   int *piVar1;
   
   if (l2_debug != 0) {
-    fprintf(stderr,"l1_write_socket(%d,%x,%d) in\n",fd,bptr,blen,blen);
+    fprintf(stderr,"l1_write_socket(%d,%x,%d) in\n",fd,bptr,blen);
   }
   status = SocketWrite(fd,bptr,blen);
   if (1 < l2_debug) {

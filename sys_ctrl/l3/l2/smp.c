@@ -424,7 +424,7 @@ IRAddress smp_set_conaddr(SMP *smp, IRAddress new_conaddr)
       smp->grp->conaddr = new_conaddr;
       smp->grp->confilter = 0;
       pcVar2 = format_caddress(new_conaddr,0);
-      sprintf(buff,"INFO: default system console override, changed to: %s\n",pcVar2,IVar1);
+      sprintf(buff,"INFO: default system console override, changed to: %s\n",pcVar2);
       smp_output(smp,buff,-1);
     }
     else {
@@ -1051,7 +1051,7 @@ void smp_prompt(SMP *smp)
     }
     prompt[0] = '\0';
     if (L2CfgLocal.net.msmode == 1) {
-      sprintf(prompt,"WARNING: This is a secondary L2, system controller access is limited...\n",s);
+      sprintf(prompt,"WARNING: This is a secondary L2, system controller access is limited...\n");
     }
     pptr = (char *)strlen(prompt);
     __s = prompt + (int)pptr;

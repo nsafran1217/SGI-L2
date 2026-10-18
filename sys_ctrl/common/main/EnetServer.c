@@ -270,7 +270,8 @@ int EnetServerConnect(char *host, int port)
     }
   }
   else {
-    syslog(3,"../../common/main/EnetServer.c",0x179,0,"could not get IP value for host %s:%d",host);
+    /* ORIGINAL BUG (fixed, see ORIGINAL_BUGS.md): the original omitted 'port' */
+    syslog(3,"../../common/main/EnetServer.c",0x179,0,"could not get IP value for host %s:%d",host,port);
     iVar1 = -1;
   }
   return iVar1;

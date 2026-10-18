@@ -773,7 +773,7 @@ static char *format_address(IRAddress addr)
   }
   if (false) {
 switchD_0805a610_caseD_2:
-    sprintf((char *)&buff,"address error",0,0);
+    sprintf((char *)&buff,"address error");
   }
   else {
     switch(uVar1) {

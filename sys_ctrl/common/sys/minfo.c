@@ -184,8 +184,9 @@ static void list_insert(char *addr, size_t usize, size_t size, void *caller, cha
         }
         else {
           if (pcVar1 == curr->addr) {
-            nvramLogFinsert("%s: curr %x addr %x size %x usize %x, new %x addr %x size %x usize %x")
-            ;
+            /* arguments restored from the machine code (Ghidra dropped them) */
+            nvramLogFinsert("%s: curr %x addr %x size %x usize %x, new %x addr %x size %x usize %x",
+                            who,curr,curr->addr,curr->size,curr->usize,new,addr,size,usize);
             muntrace();
                     /* WARNING: Subroutine does not return */
             abort();
@@ -288,8 +289,9 @@ static void chk_arena(void *caller, char *who, size_t arena, void *addr, size_t 
     }
   }
   if ((arena < (uint)info.arena) &&
-     (nvramLogFinsert(">>>>> 0x%x %s more core: %d -> %d (%d@%x)\n"), holecount != 0)) {
-    nvramLogFinsert(">>>>> %d holes where found (%d:%d)\n");
+     (nvramLogFinsert(">>>>> 0x%x %s more core: %d -> %d (%d@%x)\n",caller,who,arena,info.arena,size,addr),
+      holecount != 0)) {
+    nvramLogFinsert(">>>>> %d holes where found (%d:%d)\n",holecount,holemin,holemax);
   }
   return;
 }

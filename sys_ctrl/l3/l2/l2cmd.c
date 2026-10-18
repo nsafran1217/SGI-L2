@@ -1873,20 +1873,20 @@ static int l2cmd_password(CmdData *cptr, char **results, L2CMD *c)
   else if (uVar1 == 0) {
     pcVar2 = (char *)nvramGet(0x13);
     if ((pcVar2 == NULL) || (*pcVar2 == '\0')) {
-      sprintf(*results,"No L2 password set\n",pcVar2,0);
+      sprintf(*results,"No L2 password set\n");
     }
     else {
-      sprintf(*results,"L2 password set (password is required to access this L2)\n",pcVar2,0);
+      sprintf(*results,"L2 password set (password is required to access this L2)\n");
     }
   }
   else if (uVar1 < 4) {
     pw = (char *)nvramGet(0x13);
     if ((*cptr->params == 3) && (iVar3 = strcmp(pw,cptr->str_stack[0]), iVar3 != 0)) {
-      sprintf(*results,"ERROR: password specified is not the current L2 password.\n",pw,0);
+      sprintf(*results,"ERROR: password specified is not the current L2 password.\n");
       return -1;
     }
     nvramSet(0x13,0x8088990);
-    sprintf(*results,"L2 password cleared\n",pw,1);
+    sprintf(*results,"L2 password cleared\n");
   }
   return 0;
 }
@@ -3460,7 +3460,7 @@ static int l2cmd_version(CmdData *cptr, char **results)
   
   uVar1 = *cptr->params;
   response(results,0xa0);
-  sprintf(*results,"L2 version: %d.%d.%d\n",1,0x3e,0,(uint)(uVar1 == 1));
+  sprintf(*results,"L2 version: %d.%d.%d\n",1,0x3e,0);
   return 0;
 }
 

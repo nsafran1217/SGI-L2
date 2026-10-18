@@ -75,7 +75,7 @@ void l1net_accept(void *cd, int sd)
   }
   fd = SocketAcceptUnixConnection(sd,0);
   if (fd < 0) {
-    fprintf(stderr,"INFO: accept of L1 simulator connection failed\n",ctype);
+    fprintf(stderr,"INFO: accept of L1 simulator connection failed\n");
   }
   else {
     fprintf(stderr,"INFO: accepted L1 %s connection\n",ctype);
@@ -132,14 +132,14 @@ int l1net_export(void)
   memset(cmdopts + 1,0,0x3f);
   sd = SocketExportUnixConnection(port);
   if (sd == -1) {
-    fprintf(stderr,"ERROR: can\'t export L1 %s port %d\n",ctype,port,cmdopts[0]);
+    fprintf(stderr,"ERROR: can\'t export L1 %s port %d\n",ctype,port);
     iVar1 = -1;
   }
   else {
     EventAddInput(sd,l1net_accept,(EventData)0x0,"l1net_export");
     iVar1 = SocketExportInetConnection(port);
     if (iVar1 == -1) {
-      fprintf(stderr,"ERROR: can\'t export L1 %s port %d\n",ctype,port,cmdopts[0]);
+      fprintf(stderr,"ERROR: can\'t export L1 %s port %d\n",ctype,port);
       iVar1 = -1;
     }
     else {

@@ -1739,7 +1739,7 @@ void RouterPrintClientStats(RouterClient *client, FILE *fd, int reset)
   RouterCompressStats *s;
   
   if (fd != NULL) {
-    fprintf(fd,"\nINPUT SIDE STATISTICS:\n",&client->in_stats);
+    fprintf(fd,"\nINPUT SIDE STATISTICS:\n");
     RouterPrintStats(fd,&client->in_stats);
     fprintf(fd,"\nOUTPUT SIDE STATISTICS:\n");
     RouterPrintStats(fd,&client->out_stats);
