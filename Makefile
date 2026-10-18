@@ -156,7 +156,8 @@ CLEAN_SRCS := \
 	sys_ctrl/common/sys/brick_types.c \
 	sys_ctrl/common/sys/minfo.c \
 	sys_ctrl/l3/main/nvram.c \
-	sys_ctrl/l3/main/SysCfg.c
+	sys_ctrl/l3/main/SysCfg.c \
+	sys_ctrl/l3/api/SCapiConn.c
 $(CLEAN_SRCS:%.c=$(B)/%.o): CFLAGS += -Wunused-variable -Wunused-but-set-variable \
 	-Wunused-label -Wpointer-sign
 
