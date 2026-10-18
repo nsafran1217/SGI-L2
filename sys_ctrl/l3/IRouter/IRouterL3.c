@@ -378,7 +378,7 @@ int rtr_connected(RouterClient *client, int opcode, RouterArgument **arglistout)
     rtr_error = 0;
     if (((client->port != IR_PORT_BIAS + 0x1f42) && (client->port != IR_PORT_BIAS + 0x1f43)) &&
        (client->port != IR_PORT_BIAS + 0x232c)) {
-      syslog(6,"IRouterL3.c",496,0,"connection to %s:%d established.",&client->id,client->port);
+      syslog(6,"IRouterL3.c",496,0,"connection to %s:%d established.",client->id.hostname,client->port);
     }
     if ((IRouterEventLoop == 0) && (rtr_waiting_for == 1)) {
       RouterFlushOutput(client,5);

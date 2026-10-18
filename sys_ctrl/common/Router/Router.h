@@ -151,6 +151,7 @@ typedef void Router_EventCB();
 /* prototypes (not recorded in STABS; reconstructed from definitions) */
 #include <stdio.h>   /* for the prototypes */
 #include "RouterInt.h"   /* for the prototypes */
+#include "../sys/Logger.h"   /* LOGGER_PRINTF */
 /* Router.c */
 extern RouterClientList ClientList;
 extern RouterServerList ServerList;
@@ -231,7 +232,7 @@ void RouterFreeClient(RouterClient *client, int return_rel_request);
 void RouterFreeGroups(RouterClient *client);
 void RouterAddTimer(RouterClient *client, RouterFunc (*timer_func)(), int timeout);
 void RouterRemoveTimer(RouterClient *client);
-void RouterLogError(int msgnbr, char *func_name, int errnbr, RouterClient *client, char *format);
+void RouterLogError(int msgnbr, char *func_name, int errnbr, RouterClient *client, char *format, ...) LOGGER_PRINTF(5);
 int RouterCheckOutput(RouterClient *client, char *func_name);
 void RouterConnectionLost(RouterClient *client);
 void RouterConnectionTimeout(RouterClient *client);

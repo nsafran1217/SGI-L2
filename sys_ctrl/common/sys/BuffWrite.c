@@ -3,30 +3,22 @@
  *
  * Reconstructed from the STABS debug info and Ghidra decompilation of l2term.
  * Original: /data/cf/sysco/scs123.patch/sys_ctrl/common/sys/BuffWrite.c
+ *
+ * A growing string buffer: BuffWriteInit(), BuffWrite() to append, then
+ * BuffWriteDone() for the string.
  */
 
-#include "PPP.h"   /* needed by the reconstruction */
-#include <stdio.h>
-#include <stddef.h>
-#include <stdarg.h>
 #include <stdlib.h>
-#include <sys/types.h>
-#include <time.h>
 #include <string.h>
 #include "BuffWrite.h"
-#include "sysctl_types.h"
-#include <netinet/in.h>
-#include <limits.h>
-#include <syslimits.h>
-#include <linux/limits.h>
-#include <stdint.h>
-#include "brick_types.h"
-#include "decomp.h"     /* Ghidra types/macros; remove once the file is cleaned up */
+
+#define BUFF_STEP   0x400       /* grow by at least this much */
+#define BUFF_EXTRA  200         /* ... and by this beyond a longer string */
 
 BuffWrite_t *BuffWriteInit(void)
 {
   BuffWrite_t *o;
-  
+
   o = malloc(sizeof(BuffWrite_t));
   o->buff = NULL;
   o->blen = 0;
@@ -34,42 +26,43 @@ BuffWrite_t *BuffWriteInit(void)
   return o;
 }
 
+/* free the writer; returns the string, or frees it too if free_buff is set */
 char *BuffWriteDone(BuffWrite_t *o, int free_buff)
 {
-  char *buffout;
-  
-  buffout = NULL;
-  if ((free_buff == 0) || (o->buff == NULL)) {
-    buffout = o->buff;
-  }
-  else {
+  char *buffout = NULL;
+
+  if (free_buff && o->buff != NULL)
     free(o->buff);
-  }
+  else
+    buffout = o->buff;
   free(o);
   return buffout;
 }
 
-/* Append str (len bytes, or all of it if len is -1) to the buffer; data is a
- * BuffWrite_t. Grows in 1 KB steps, or len + 200 for long strings. */
+/*
+ * Append the first len bytes of str (all of it if len is -1); data is a
+ * BuffWrite_t. Returns len. (The original copied all of str whatever len
+ * said, and grew only when the text without its terminator did not fit.)
+ */
 int BuffWrite(void *data, char *str, int len)
 {
   BuffWrite_t *o = data;
   int addlen;
 
-  if (len == -1) {
+  if (len == -1)
     len = strlen(str);
-  }
-  addlen = (len < 0x400) ? 0x400 : len + 200;
+  addlen = len < BUFF_STEP ? BUFF_STEP : len + BUFF_EXTRA;
   if (o->buff == NULL) {
     o->blen = addlen;
-    o->buff = malloc(addlen);
+    o->buff = malloc(o->blen);
     o->ulen = 0;
   }
-  else if (o->blen < len + o->ulen) {
-    o->blen = addlen + o->blen;
-    o->buff = realloc(o->buff, o->blen);
+  else if (o->ulen + len >= o->blen) {
+    o->blen += addlen;
+    o->buff = realloc(o->buff,o->blen);
   }
-  strcpy(o->buff + o->ulen, str);
-  o->ulen = len + o->ulen;
+  memcpy(o->buff + o->ulen,str,len);
+  o->ulen += len;
+  o->buff[o->ulen] = '\0';
   return len;
 }

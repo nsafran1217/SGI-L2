@@ -109,7 +109,7 @@ void nvramSet(int32 location, uintptr_t value);   /* original: uint32 value */
 uintptr_t nvramGet(int32 location);   /* original: uint32 */
 void nvramLogReset(void);
 void nvramLogInsert(char *message);
-void nvramLogFinsert(char *fmt, ...);
+void nvramLogFinsert(char *fmt, ...) __attribute__((format(printf, 1, 2)));
 char *nvramLogFetch(void);
 
 #endif /* SYS_CTRL_L3_MAIN_NVRAM_H */

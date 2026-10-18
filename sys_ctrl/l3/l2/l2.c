@@ -425,7 +425,7 @@ void l2_flow_setup(int hwater, int lwater)
 
 static void l2_flow_control(void *data, RouterClient *client, int overflow)
 {
-  syslog(6,"l2.c",760,0,"RouterClient 0x%08x   flow %d\n",client,overflow);
+  syslog(6,"l2.c",760,0,"RouterClient 0x%08lx   flow %d\n",(unsigned long)(uintptr_t)client,overflow);
   l1_throttle_input(overflow);
   return;
 }

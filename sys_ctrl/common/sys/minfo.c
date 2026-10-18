@@ -184,8 +184,10 @@ static void list_insert(char *addr, size_t usize, size_t size, void *caller, cha
         else {
           if (pcVar1 == curr->addr) {
             /* arguments restored from the machine code (Ghidra dropped them) */
-            nvramLogFinsert("%s: curr %x addr %x size %x usize %x, new %x addr %x size %x usize %x",
-                            who,curr,curr->addr,curr->size,curr->usize,new,addr,size,usize);
+            nvramLogFinsert("%s: curr %lx addr %lx size %zx usize %zx, new %lx addr %lx size %zx usize %zx",
+                            who,(unsigned long)(uintptr_t)curr,(unsigned long)(uintptr_t)curr->addr,
+                            curr->size,curr->usize,(unsigned long)(uintptr_t)new,
+                            (unsigned long)(uintptr_t)addr,size,usize);
             muntrace();
             abort();
           }

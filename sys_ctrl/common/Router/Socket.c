@@ -77,7 +77,7 @@ int SocketExportUnixConnection(int port)
   length = SocketUnixLoad(&addr_unix,port);
   unlink(addr_unix.sun_path);
   if (bind(sock,(struct sockaddr *)&addr_unix,length) < 0) {
-    LogError(SOCKET_ERR_EXPORT_UNIX,"bind",errno,"%s");
+    LogError(SOCKET_ERR_EXPORT_UNIX,"bind",errno,"%s",addr_unix.sun_path);
     close(sock);
     return -1;
   }
@@ -201,7 +201,7 @@ int SocketMakeUnixConnection(int port, int no_delay)
   length = SocketUnixLoad(&addr_unix,port);
   rval = finish_connect(sock,(struct sockaddr *)&addr_unix,length,ENOENT);
   if (rval == -1) {
-    LogError(SOCKET_ERR_CONNECT_UNIX,"connect",errno,"%s");
+    LogError(SOCKET_ERR_CONNECT_UNIX,"connect",errno,"%s",addr_unix.sun_path);
     close(sock);
   }
   return rval;

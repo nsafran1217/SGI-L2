@@ -24,7 +24,10 @@ typedef struct {
     int count;
     char **message;
 } LoggerMessageRange;
+#include <stdarg.h>
 #include "../../l3/sys/LoggerMsg.h"
+
+#define LOGGER_PRINTF(f) __attribute__((format(printf, f, f + 1)))
 
 /* prototypes (not recorded in STABS; reconstructed from definitions) */
 /* Logger.c */
@@ -41,14 +44,15 @@ void LoggerHandler(void (*logger_handler)());
 int LoggerEnable(void);
 int LoggerDisable(void);
 void LoggerRestore(int value);
-void LogError(int msgnbr, char *func_name, int errnbr, char *format);
-void LogErrorHost(int msgnbr, char *func_name, int errnbr, char *host, int port, char *format);
+void LogError(int msgnbr, char *func_name, int errnbr, char *format, ...) LOGGER_PRINTF(4);
+void LogErrorHost(int msgnbr, char *func_name, int errnbr, char *host, int port, char *format, ...) LOGGER_PRINTF(6);
 char *LoggerTime(LoggerEntry *entry);
 char *LoggerFormat(LoggerEntry *entry);
 void LoggerStrFormat(LoggerEntry *entry, char *str);
 char *LoggerDefaultMessage(int msgnbr);
 char *LoggerModuleMessage(int msgnbr);
 char *LoggerErrorMessage(int msgnbr);
-void LoggerLogMessage(int msgnbr, char *func_name, int errnbr, char *host, int port, char *process, char *format, ...);
+void LoggerLogMessage(int msgnbr, char *func_name, int errnbr, char *host, int port, char *process, char *format, ...) LOGGER_PRINTF(7);
+void LoggerVLogMessage(int msgnbr, char *func_name, int errnbr, char *host, int port, char *process, char *format, va_list args);
 
 #endif /* SYS_CTRL_COMMON_SYS_LOGGER_H */

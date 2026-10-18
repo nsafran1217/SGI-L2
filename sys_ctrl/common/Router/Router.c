@@ -1582,10 +1582,15 @@ void RouterRemoveTimer(RouterClient *client)
 
 /* ---- errors ---- */
 
-void RouterLogError(int msgnbr, char *func_name, int errnbr, RouterClient *client, char *format)
+/* LogError() with the connection's host, port and process */
+void RouterLogError(int msgnbr, char *func_name, int errnbr, RouterClient *client, char *format, ...)
 {
-  LoggerLogMessage(msgnbr,func_name,errnbr,client->id.hostname,client->port,client->id.procname,
-                   format);
+  va_list args;
+
+  va_start(args,format);
+  LoggerVLogMessage(msgnbr,func_name,errnbr,client->id.hostname,client->port,client->id.procname,
+                    format,args);
+  va_end(args);
 }
 
 int RouterCheckOutput(RouterClient *client, char *func_name)

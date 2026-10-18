@@ -18,7 +18,7 @@ ARCH    ?= -m32
 CFLAGS  ?= -g -O0
 # -fsigned-char: the code was written for i386, where char is signed (not so on
 # s390x, ARM, PowerPC)
-CFLAGS  += $(ARCH) -std=gnu99 -fcommon -fno-strict-aliasing -fno-builtin -fsigned-char -Icompat -Wall -Wextra -Wno-unused-parameter \
+CFLAGS  += $(ARCH) -std=gnu99 -fcommon -fno-strict-aliasing -fno-builtin -fsigned-char -Icompat -Wall -Wextra -Wno-unused-parameter -Wno-format-zero-length \
            -Wno-unused-variable -Wno-unused-but-set-variable -Wno-unused-label -Wno-pointer-sign
 # Debian's libc6-dev-i386 puts the 32-bit glibc headers under the x86_64 multiarch dir
 ifeq ($(ARCH),-m32)
@@ -130,7 +130,7 @@ FLTK_LDFLAGS  := $(if $(filter 32,$(FLTK_BITS)),-L$(abspath ../tools/fltk/i386-l
                  $(shell $(FLTK_CONFIG) --ldstaticflags)
 endif
 CXXFLAGS ?= -g -O0
-CXXFLAGS += $(ARCH) -fno-strict-aliasing -fsigned-char -Icompat -Wall -Wextra -Wno-unused-parameter -Wno-write-strings \
+CXXFLAGS += $(ARCH) -fno-strict-aliasing -fsigned-char -Icompat -Wall -Wextra -Wno-unused-parameter -Wno-format-zero-length -Wno-write-strings \
             -Wno-unused-variable -Wno-unused-but-set-variable -Wno-unused-function \
             $(ISYSTEM) $(FLTK_CXXFLAGS) $(WERROR) $(EXTRA_CFLAGS)
 
@@ -145,7 +145,12 @@ CLEAN_SRCS := \
 	sys_ctrl/common/Router/RouterCl.c \
 	sys_ctrl/common/Router/RouterSv.c \
 	sys_ctrl/common/IRouter/IRouter.c \
-	sys_ctrl/common/IRouter/IRouter2Router.c
+	sys_ctrl/common/IRouter/IRouter2Router.c \
+	sys_ctrl/common/sys/Logger.c \
+	sys_ctrl/common/sys/BuffWrite.c \
+	sys_ctrl/common/sys/MemUsage.c \
+	sys_ctrl/common/sys/ipmi.c \
+	sys_ctrl/common/sys/l3paths.c
 $(CLEAN_SRCS:%.c=$(B)/%.o): CFLAGS += -Wunused-variable -Wunused-but-set-variable \
 	-Wunused-label -Wpointer-sign
 

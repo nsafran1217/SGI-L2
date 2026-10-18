@@ -200,7 +200,7 @@ int enet_client_connected(RouterClient *client, int opcode, int id, int retrys, 
     if (((client->port != IR_PORT_BIAS + 0x1f42) && (client->port != IR_PORT_BIAS + 0x1f43)) &&
        (client->port != IR_PORT_BIAS + 0x232c)) {
       syslog(6,"../../common/main/EnetServer.c",291,0,"Connection - %s (%s) @ %s running \'%s\'.",
-             (client->id).username,(client->id).fullname,&client->id,(client->id).procname);
+             (client->id).username,(client->id).fullname,client->id.hostname,(client->id).procname);
     }
     if (client->port != IR_PORT_BIAS + 0x2329) {
       enet_client_add(0,0,client);
@@ -223,7 +223,7 @@ LAB_080681b0:
        (port != IR_PORT_BIAS + 0x232c)) {
       syslog(6,"../../common/main/EnetServer.c",328,0,
              "Disconnection - %s (%s) @ %s running \'%s\'.",(client->id).username,
-             (client->id).fullname,&client->id,(client->id).procname);
+             (client->id).fullname,client->id.hostname,(client->id).procname);
     }
     L2CfgMDeleteNode(&L2CfgLocal,client);
     if (enet_disconnect_cb != NULL) {
@@ -238,7 +238,7 @@ LAB_080681b0:
     pcVar1 = LoggerDefaultMessage(msgnbr);
     syslog(6,"../../common/main/EnetServer.c",343,0,
            "UNHANDLED CONNECTION ERR - %s (%s) @ %s running \'%s\'.  (%d: %s)",(client->id).username
-           ,(client->id).fullname,&client->id,(client->id).procname,msgnbr,pcVar1);
+           ,(client->id).fullname,client->id.hostname,(client->id).procname,msgnbr,pcVar1);
     L2CfgMDeleteNode(&L2CfgLocal,client);
   }
   return;
@@ -284,7 +284,7 @@ int enet_established(RouterClient *client, int opcode, RouterArgument **arglisto
   
   if (((client->port != IR_PORT_BIAS + 0x1f42) && (client->port != IR_PORT_BIAS + 0x1f43)) &&
      (client->port != IR_PORT_BIAS + 0x232c)) {
-    syslog(6,"../../common/main/EnetServer.c",423,0,"connection to %s:%d established.",&client->id
+    syslog(6,"../../common/main/EnetServer.c",423,0,"connection to %s:%d established.",client->id.hostname
            ,client->port);
   }
   if (client->port == IR_PORT_BIAS + 0x2329) {
@@ -341,7 +341,7 @@ int enet_request(RouterClient *client, int request, int argcountin, RouterArgume
   int argcountout;
   
   syslog(4,"../../common/main/EnetServer.c",524,0,
-         "Router request %d (%d args) packet received from %s!",request,argcountin,&client->id);
+         "Router request %d (%d args) packet received from %s!",request,argcountin,client->id.hostname);
   *arglistout = (RouterArgument *)&arglist;
   return 0;
 }
@@ -357,7 +357,7 @@ void enet_event(RouterClient *client, int event, int argcountin, RouterArgument 
   if (npkt == NULL) {
     syslog(4,"../../common/main/EnetServer.c",549,0,
            "Invalid Router event %d (%d args) received (not IRouter format) from %s",event,
-           argcountin,&client->id);
+           argcountin,client->id.hostname);
   }
   else {
     if (client->port != IR_PORT_BIAS + 0x2329) {
@@ -376,7 +376,7 @@ void enet_event(RouterClient *client, int event, int argcountin, RouterArgument 
     status = (*enet_packet_cb)(enet_id,npkt);
     if (status == -0x259) {
       syslog(4,"../../common/main/EnetServer.c",585,0,
-             "Invalid IRouter packet class (%d) received from %s",(unsigned int)npkt->_clas,&client->id);
+             "Invalid IRouter packet class (%d) received from %s",(unsigned int)npkt->_clas,client->id.hostname);
     }
   }
   return;

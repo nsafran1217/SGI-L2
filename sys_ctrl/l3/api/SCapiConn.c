@@ -125,7 +125,7 @@ int sn1SCConnReconnect(sn1SCConn *conn)
   }
   else {
     pcVar1 = LoggerDefaultMessage(rval);
-    syslog(3,"SCapiConn.c",173,0,"IRouterConnect to %s failed: %s",conn,pcVar1);
+    syslog(3,"SCapiConn.c",173,0,"IRouterConnect to %s failed: %s",conn->host,pcVar1);
   }
   return rval;
 }

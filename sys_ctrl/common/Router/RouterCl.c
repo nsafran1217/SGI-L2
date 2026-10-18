@@ -120,7 +120,7 @@ static int RouterGetConRequest(RouterClient *client)
   int rvalue;
 
   if (client->in_buf->opcode != client->process_id) {
-    RouterLogError(ROUTER_ERR_PROCESS_ID,"",0,client,"ID = %d");
+    RouterLogError(ROUTER_ERR_PROCESS_ID,"",0,client,"ID = %d",client->in_buf->opcode);
     RouterConnectionError(client);
     return -1;
   }
