@@ -475,7 +475,7 @@ int IRouterReadPacket(IRIdent *id, int (*rfcn)(), void *fd, IRPacket **pkt)
       firstframe = currframe;
     }
     else {
-      if ((uint)(currframe->_fnum & 0x7f) != next_expected_framenum) {
+      if ((currframe->_fnum & 0x7f) != next_expected_framenum) {
         while (pIVar2 = firstframe, firstframe != NULL) {
           firstframe = firstframe->_next_frame;
           free(pIVar2);
@@ -671,7 +671,7 @@ uintptr_t IRArg(IRPacket *pkt, int arg)
                   fptr = fptr->_next_frame;
                   dptr = &fptr->_argv[0]._clas;
                   dlen = argsize;
-                  if (fptr->_size - 0x14 <= (uint)argsize) {
+                  if ((uint)(fptr->_size - 0x14) <= (uint)argsize) {
                     dlen = fptr->_size - 0x14;
                   }
                 }

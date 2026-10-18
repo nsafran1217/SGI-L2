@@ -1389,7 +1389,7 @@ void L2CfgMPrintY(L2Cfg *head, char **rrptr)
             rs = (uint)l1c->slot + (uint)l1c->rack * 100;
             found = false;
             for (n = 0; (!found && (n < count)); n = n + 1) {
-              if (rsl[n * 3] == rs) {
+              if (rsl[n * 3] == (uint)rs) {
                 found = true;
               }
             }
@@ -2313,13 +2313,13 @@ int L2CfgMFindBrickRS(L2Cfg *head, int ip, int port, int index, int *rack, int *
     if (l2node == NULL) {
       return -1;
     }
-    if ((l2node->ip_addr == ip) && (port < 0x28)) {
+    if ((l2node->ip_addr == (uint32)ip) && (port < 0x28)) {
       l2port = &L2CFG_OF(l2node)->port_list[port];
       if (l2port->state != 2) {
         return -1;
       }
       for (l1 = 0; l1 < l2port->l1count; l1 = l1 + 1) {
-        if (((uint)l2port->l1cfg[l1].index == index) && (l2port->l1cfg[l1].configured != '\0')) {
+        if ((l2port->l1cfg[l1].index == index) && (l2port->l1cfg[l1].configured != '\0')) {
           *rack = (uint)L2CFG_OF(l2node)->port_list[port].l1cfg[l1].rack;
           *slot = (uint)L2CFG_OF(l2node)->port_list[port].l1cfg[l1].slot;
           return 0;
@@ -2345,8 +2345,8 @@ int L2CfgMFindBrickIP(L2Cfg *head, int rack, int slot, int *ip, int *p, int *l)
       l2port = &L2CFG_OF(l2node)->port_list[port];
       if (l2port->state == 2) {
         for (l1 = 0; l1 < l2port->l1count; l1 = l1 + 1) {
-          if ((((l2port->l1cfg[l1].configured != '\0') && ((uint)l2port->l1cfg[l1].rack == rack)) &&
-              ((uint)l2port->l1cfg[l1].slot == slot)) &&
+          if ((((l2port->l1cfg[l1].configured != '\0') && (l2port->l1cfg[l1].rack == rack)) &&
+              (l2port->l1cfg[l1].slot == slot)) &&
              ((*l == -1 || ((int)(uint)l2port->l1cfg[l1].index < *l)))) {
             *ip = l2node->ip_addr;
             *p = port;
@@ -2375,8 +2375,8 @@ L2CfgNode *L2CfgMFindBrickL2(L2Cfg *head, int rack, int slot)
       l2port = &L2CFG_OF(l2node)->port_list[port];
       if (l2port->state == 2) {
         for (l1 = 0; l1 < l2port->l1count; l1 = l1 + 1) {
-          if (((l2port->l1cfg[l1].configured != '\0') && ((uint)l2port->l1cfg[l1].rack == rack)) &&
-             ((uint)l2port->l1cfg[l1].slot == slot)) {
+          if (((l2port->l1cfg[l1].configured != '\0') && (l2port->l1cfg[l1].rack == rack)) &&
+             (l2port->l1cfg[l1].slot == slot)) {
             return l2node;
           }
         }
@@ -2406,7 +2406,7 @@ L2CfgL1 *L2CfgMFindBrickCfg(L2Cfg *head, int rack, int slot, int local)
         l2port = &L2CFG_OF(l2node)->port_list[port];
         if (l2port->state == 2) {
           for (l1 = 0; l1 < l2port->l1count; l1 = l1 + 1) {
-            if (((uint)l2port->l1cfg[l1].rack == rack) && ((uint)l2port->l1cfg[l1].slot == slot)) {
+            if ((l2port->l1cfg[l1].rack == rack) && (l2port->l1cfg[l1].slot == slot)) {
               return l2port->l1cfg + l1;
             }
           }
@@ -2433,7 +2433,7 @@ int L2CfgMFindBrickType(L2Cfg *head, int rack, int slot)
       l2port = &L2CFG_OF(l2node)->port_list[port];
       if (l2port->state == 2) {
         for (l1 = 0; l1 < l2port->l1count; l1 = l1 + 1) {
-          if (((uint)l2port->l1cfg[l1].rack == rack) && ((uint)l2port->l1cfg[l1].slot == slot)) {
+          if ((l2port->l1cfg[l1].rack == rack) && (l2port->l1cfg[l1].slot == slot)) {
             return (uint)l2port->l1cfg[l1].type;
           }
         }
@@ -2829,6 +2829,7 @@ switchD_0806fc1f_caseD_6:
       strcpy((char *)&buff,pcVar4);
       sVar2 = strlen((char *)&buff);
       bptr = buff + sVar2;
+      /* fall through */
     case 0:
       rack = addr >> 0x12 & 0x3ff;
       slot = addr >> 0xc & 0x3f;
@@ -2950,7 +2951,7 @@ IRAddress L2CfgMGetConsole(L2Cfg *head, int partition)
                         ((type == 0x42 || (type == 0x46)))) ||
                        ((type == 0x4c || ((type == 0x4d || (type == 0x24)))))))) ||
                      ((type == 0x2c || (((type == 0x7d || (type == 0x2e)) || (type == 0x7b))))))))
-                   && ((partition == -1 || (uVar1 == partition)))) {
+                   && ((partition == -1 || ((int)uVar1 == partition)))) {
                   if (((uint)rack <= rack0[uVar1]) && (((uint)slot <= slot0[uVar1] && (subc == 4))))
                   {
                     rack0[uVar1] = rack;

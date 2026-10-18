@@ -126,7 +126,7 @@ int target_l1(L2CMD *c, int ip, int port, int l1, char *cptr, int response, int 
   
   iVar1 = L2CfgMFindBrickRS(&L2CfgLocal,ip,port,l1,&rack,&slot);
   if (iVar1 == 0) {
-    if (ip == L2CfgLocal.net.ip_addr) {
+    if ((uint32)ip == L2CfgLocal.net.ip_addr) {
       argv[0]._clas = '\0';
       argv[0]._frame = '\0';
       argv[0]._val = 0;

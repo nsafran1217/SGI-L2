@@ -323,7 +323,7 @@ int dest_pcheck(DEST *d, CmdData *cptr, char *rptr)
       if (partition == -1) {
         partition = (int)cfg->partition;
       }
-      else if ((uint)cfg->partition != partition) {
+      else if (cfg->partition != partition) {
         if (rptr != NULL) {
           if (all_current) {
             strcpy(rptr,"current destination spans partitions, explicit target required.\n");

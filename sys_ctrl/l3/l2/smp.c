@@ -1312,7 +1312,7 @@ void smp_process_event(IRPacket *p)
          (((smp->grp->conaddr != 0 || (smp->grp->partition == 0)) ||
           ((cfg = L2CfgMFindBrickCfg(&L2CfgLocal,p->_src >> 0x12 & 0x3ff,p->_src >> 0xc & 0x3f,0),
            cfg != NULL &&
-           ((cfg != NULL && ((uint)cfg->partition == smp->grp->partition)))))))) {
+           ((cfg != NULL && (cfg->partition == smp->grp->partition)))))))) {
         if (smp->grp->confilter != 0) {
           uVar1 = p->_src;
           faddr = smp_get_conaddr(smp,NULL,NULL);
@@ -1330,7 +1330,7 @@ void smp_process_event(IRPacket *p)
     else if (((smp->grp->conaddr != 0) || (smp->grp->partition == 0)) ||
             ((pLVar3 = L2CfgMFindBrickCfg(&L2CfgLocal,p->_src >> 0x12 & 0x3ff,p->_src >> 0xc & 0x3f,
                                           0), pLVar3 != NULL &&
-             ((pLVar3->partition == '\0' || ((uint)pLVar3->partition == smp->grp->partition)))))) {
+             ((pLVar3->partition == '\0' || (pLVar3->partition == smp->grp->partition)))))) {
       smp_process_packet(smp,p,1,smp_write);
     }
 LAB_080504e9:

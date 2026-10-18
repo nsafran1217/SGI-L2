@@ -29,6 +29,10 @@ reconstruction land on `main` first and are merged here.
   return-mismatch` escape hatch, then fix `-Wall` (parentheses, unused
   values, `extraout_*` maybe-uninitialized), then `-Wextra`; finally
   `-Werror` on this branch.
+- Still hidden: `-Wno-unused-variable`, `-Wno-unused-but-set-variable`,
+  `-Wno-unused-label`, `-Wno-pointer-sign`. These cover decompiler residue
+  (STABS locals the code no longer uses, `LAB_` labels) and go per file in
+  phase 2.
 
 ### 1. Tree-wide mechanical transforms (scripted, each its own commit)
 - Ghidra's types (`uint`, `uchar`, `byte`, `ushort`, `ulong`, `undefinedN`,
@@ -72,7 +76,7 @@ Per file:
 
 | Phase | State |
 |---|---|
-| 0 | |
+| 0 | done: warning-free with `-Wall -Wextra` (less `-Wunused-parameter`), `-Werror` (`WERROR=` to drop it); `tools/objcmp.sh` proves mechanical commits; `make check` / `check-all` |
 | 1 | |
 | 2 | |
 | 3 | |

@@ -503,6 +503,7 @@ static int l2cmd_rtc(CmdData *cptr, char **results, L2CMD *c)
     break;
   case 4:
     scnt = 1;
+    /* fall through */
   case 3:
     for (tzstr = cptr->str_stack[scnt]; *tzstr != '\0'; tzstr = tzstr + 1) {
       iVar5 = toupper((int)*tzstr);
@@ -2171,7 +2172,7 @@ static int l2cmd_pbay(CmdData *cptr, char **results, L2CMD *c)
     iVar1 = -1;
   }
   else {
-    data = calloc(sizeof(pbay_data),1);
+    data = calloc(1,sizeof(pbay_data));
     if (data == NULL) {
       strcpy(*results,"ERROR: could not allocate memory to store internal command data\n");
       iVar1 = -1;
@@ -2359,6 +2360,7 @@ static int l2cmd_l2dsp(CmdData *cptr, char **results)
   switch(*cptr->params) {
   case 0:
     l2dsp_debug_state = cptr->exp_stack[0];
+    /* fall through */
   case 1:
     response(results,0xa0);
     sprintf(*results,"L2 display debug flags set to \'0x%08x\'",l2dsp_debug_state);
@@ -2367,6 +2369,7 @@ static int l2cmd_l2dsp(CmdData *cptr, char **results)
   case 3:
     nvramSet(9,(uint)(*cptr->params == 3));
     L2CfgMEventDisplayDisable(&L2CfgLocal);
+    /* fall through */
   case 4:
     response(results,0xa0);
     uVar1 = nvramGet(9);
@@ -2774,7 +2777,7 @@ static int l2cmd_dhcps(CmdData *cptr, char **results)
     sprintf(*results,"DHCP server startup enabled (if no other DHCP server is found).\n");
   }
   uVar1 = nvramGet(0x10);
-  if (curval != uVar1) {
+  if ((uint32)curval != uVar1) {
     strcat(*results,"(this setting takes effect after the next L2 reboot)\n");
   }
   return 0;
@@ -3239,6 +3242,7 @@ static int l2cmd_select(CmdData *cptr, char **results, L2CMD *c)
         break;
       }
       partition = 0;
+      /* fall through */
     case 6:
       partition = smp_get_partition(c->data);
       smp_set_partition(c->data,0);
@@ -3685,7 +3689,7 @@ static int l2cmd_version_summary(CmdData *cptr, char **results, L2CMD *c)
     iVar1 = -1;
   }
   else {
-    sd = calloc(sizeof(ver_summary_data),1);
+    sd = calloc(1,sizeof(ver_summary_data));
     data = (uint *)sd;
     if (data == NULL) {
       strcpy(*results,"ERROR: could not allocate memory to store internal command data\n");

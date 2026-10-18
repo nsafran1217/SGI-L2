@@ -826,7 +826,7 @@ LAB_08076364:
       memcpy(client->in_buf,&thdr,8);
       client->in_hostbyteorder = 1;
     }
-    if ((uint)((int)(client->in_bufptr - (char *)client->in_buf)) < client->in_buf->length + 8) {
+    if ((uint)((int)(client->in_bufptr - (char *)client->in_buf)) < (uint)(client->in_buf->length + 8)) {
       client->in_bytesneeded = client->in_buf->length;
       buf_bytesneeded = client->in_bytesneeded + 8;
       if (client->in_bufsize < buf_bytesneeded) {

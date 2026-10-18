@@ -1078,7 +1078,7 @@ void cfg_check_console_events(void)
       }
     }
   }
-  if ((emsk != L2CfgLocal.net.events) ||
+  if (((unsigned int)emsk != L2CfgLocal.net.events) ||
      (iVar2 = memcmp(pselect,L2CfgLocal.net.pselect,0x100), iVar2 != 0)) {
     L2CfgLocal.net.events = emsk;
     memcpy(L2CfgLocal.net.pselect,pselect,0x100);
@@ -1101,7 +1101,7 @@ void cfg_check_smp_events(void)
       }
     }
   }
-  if (emsk != L2CfgLocal.net.events) {
+  if ((unsigned int)emsk != L2CfgLocal.net.events) {
     L2CfgLocal.net.events = emsk;
     cfg_configcheck(1);
   }

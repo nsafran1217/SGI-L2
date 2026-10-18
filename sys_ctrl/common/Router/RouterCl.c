@@ -142,7 +142,7 @@ static int RouterGetConRequest(RouterClient *client)
   int argcountin;
   char *func_name;
   
-  if ((uint)client->in_buf->opcode != client->process_id) {
+  if (client->in_buf->opcode != client->process_id) {
     RouterLogError(-0x142,"",0,client,"ID = %d");
     RouterConnectionError(client);
     return -1;

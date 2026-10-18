@@ -787,6 +787,9 @@ switchD_0805a610_caseD_2:
     switch(uVar1) {
     case 0:
       sprintf((char *)&buff,"%03d.%02d",addr >> 0x12 & 0x3ff,addr >> 0xc & 0x3f);
+      /* ORIGINAL BUG: a missing break (verified in the machine code); the
+       * rack.slot text is overwritten (ORIGINAL_BUGS.md) */
+      /* fall through */
     case 3:
       strcpy((char *)&buff,"local attached C");
       break;

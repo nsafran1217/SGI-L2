@@ -18,13 +18,16 @@ ARCH    ?= -m32
 CFLAGS  ?= -g -O0
 # -fsigned-char: the code was written for i386, where char is signed (not so on
 # s390x, ARM, PowerPC)
-CFLAGS  += $(ARCH) -std=gnu99 -fcommon -fno-strict-aliasing -fno-builtin -fsigned-char -Icompat -Wall \
+CFLAGS  += $(ARCH) -std=gnu99 -fcommon -fno-strict-aliasing -fno-builtin -fsigned-char -Icompat -Wall -Wextra -Wno-unused-parameter \
            -Wno-unused-variable -Wno-unused-but-set-variable -Wno-unused-label -Wno-pointer-sign
 # Debian's libc6-dev-i386 puts the 32-bit glibc headers under the x86_64 multiarch dir
 ifeq ($(ARCH),-m32)
 ISYSTEM := $(if $(wildcard /usr/include/i386-linux-gnu/bits),,-isystem /usr/include/x86_64-linux-gnu)
 CFLAGS  += $(ISYSTEM)
 endif
+# the tree builds warning-free with gcc 14; WERROR= for other compilers
+WERROR  ?= -Werror
+CFLAGS  += $(WERROR)
 LDFLAGS += $(ARCH) $(EXTRA_LDFLAGS)
 CFLAGS  += $(EXTRA_CFLAGS)   # e.g. EXTRA_CFLAGS=-fsanitize=address EXTRA_LDFLAGS=-fsanitize=address
 # l2passwd needs crypt(). Without the 32-bit libcrypt dev package (libcrypt-dev:i386)
@@ -121,14 +124,15 @@ FLUID       ?= $(dir $(FLTK_CONFIG))fluid
 # (native builds only: a cross build, with QEMU set, has no FLTK for its target)
 WITH_L2GUI  := $(if $(QEMU),,$(wildcard $(FLTK_CONFIG)))
 ifneq ($(WITH_L2GUI),)
-FLTK_CXXFLAGS := $(filter-out -D_FILE_OFFSET_BITS% -D_LARGEFILE%,$(shell $(FLTK_CONFIG) --cxxflags))
+FLTK_CXXFLAGS := $(patsubst -I%,-isystem %,$(filter-out -D_FILE_OFFSET_BITS% -D_LARGEFILE%,\
+                   $(shell $(FLTK_CONFIG) --cxxflags)))
 FLTK_LDFLAGS  := $(if $(filter 32,$(FLTK_BITS)),-L$(abspath ../tools/fltk/i386-lib)) \
                  $(shell $(FLTK_CONFIG) --ldstaticflags)
 endif
 CXXFLAGS ?= -g -O0
-CXXFLAGS += $(ARCH) -fno-strict-aliasing -fsigned-char -Icompat -Wall -Wno-write-strings \
+CXXFLAGS += $(ARCH) -fno-strict-aliasing -fsigned-char -Icompat -Wall -Wextra -Wno-unused-parameter -Wno-write-strings \
             -Wno-unused-variable -Wno-unused-but-set-variable -Wno-unused-function \
-            $(ISYSTEM) $(FLTK_CXXFLAGS) $(EXTRA_CFLAGS)
+            $(ISYSTEM) $(FLTK_CXXFLAGS) $(WERROR) $(EXTRA_CFLAGS)
 
 LIB_OBJS := $(LIB_SRCS:%.c=$(B)/%.o)
 TOOLS    := l2 l2term l2cmd l2passwd

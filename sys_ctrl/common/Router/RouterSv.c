@@ -497,7 +497,7 @@ static int RouterAcceptClient(RouterClient *client, int argcountin)
       LogError(-0x13f,"RouterAcceptClient",0,"");
       return -1;
     }
-    if (client->InArgList[2].size != ((client->groups).count + 7) >> 3) {
+    if ((uint)client->InArgList[2].size != ((client->groups).count + 7) >> 3) {
       LogError(-0x140,"RouterAcceptClient",0,"");
       return -1;
     }

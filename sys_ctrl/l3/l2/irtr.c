@@ -179,7 +179,7 @@ int IRouterSendTargetedPacket(IRIdent *id, IRPacket *pkt)
       }
       ip = L2CfgLocal.net.msip;
     }
-    if (ip != L2CfgLocal.net.ip_addr) {
+    if ((uint32)ip != L2CfgLocal.net.ip_addr) {
       node = L2CfgMFindNode(&L2CfgLocal,ip,0,NULL);
       if (node != NULL) {
         pkt->_use_count++;
@@ -537,7 +537,7 @@ LAB_08063fc2:
           if ((irtr_debug & 0x10U) != 0) {
             fprintf(stderr,"%d.%d %d.%d\n",rack,slot,src >> 0x12 & 0x3ff,src >> 0xc & 0x3f);
           }
-          if ((rack == (src >> 0x12 & 0x3ff)) && (slot == (src >> 0xc & 0x3f))) {
+          if ((rack == (int)(src >> 0x12 & 0x3ff)) && (slot == (int)(src >> 0xc & 0x3f))) {
             found = true;
           }
         }

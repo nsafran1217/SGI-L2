@@ -374,7 +374,7 @@ static void cmd_process_queue_int(L2CMD *c, cmd_packet_cb *pktcb, void *data, cm
     iVar3 = rspq_get(c->q,&seqn,&dest,&rsp);
     if (iVar3 == -1) break;
     iVar3 = c->q->rspq_length;
-    (*(code *)pktcb)(rsp,c,&dest,c->q->rspq_length,cmd_rsp,data);
+    (*pktcb)(rsp,c,&dest,c->q->rspq_length,cmd_rsp,data);
     if (rsp != NULL) {
       IRouterFreePacket(rsp);
     }
