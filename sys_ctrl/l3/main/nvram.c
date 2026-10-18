@@ -60,6 +60,24 @@ static char nvram_file[1024];   /* original: 40; paths are configurable now */
 /* The NVRAM image is the file's bytes: its layout must not depend on the host. */
 _Static_assert(sizeof(nvramInternalUseArea) == 2092, "NVRAM internal use area layout");
 
+_Static_assert(offsetof(nvramInternalUseArea, ip_addr) == 56 &&
+               offsetof(nvramInternalUseArea, autopower_delay) == 192 &&
+               offsetof(nvramInternalUseArea, log_start) == 2072, "NVRAM field offsets");
+
+/* multi-byte fields of the image are little-endian, as the i386 tools wrote them */
+static uint32 nv32(const nvle32 *f)
+{
+  return (uint32)f->b[0] | (uint32)f->b[1] << 8 | (uint32)f->b[2] << 16 | (uint32)f->b[3] << 24;
+}
+
+static void nv32set(nvle32 *f, uint32 v)
+{
+  f->b[0] = (uint8)v;
+  f->b[1] = (uint8)(v >> 8);
+  f->b[2] = (uint8)(v >> 16);
+  f->b[3] = (uint8)(v >> 24);
+}
+
 /* log_* fields are offsets into the NVRAM image (see nvram.h) */
 #define LOGPTR(off) ((nvramLog *)(nvramTempCopy + (off)))
 #define LOGOFF(p)   ((uint32)((uint8 *)(p) - nvramTempCopy))
@@ -119,12 +137,14 @@ int nvramInit(int mode)
     }
     nvramLogStart = (nvramLog *)(nvramIUA + 1);
     nvramLogEnd = (nvramLog *)(nvramTempCopy + 0x3ff8);
-    if (nvramIUA->log_start != LOGOFF(nvramLogStart) || nvramIUA->log_end != 0x3ff8 ||
-        nvramIUA->log_head < nvramIUA->log_start || nvramIUA->log_end <= nvramIUA->log_head ||
-        nvramIUA->log_tail < nvramIUA->log_start || nvramIUA->log_end <= nvramIUA->log_tail) {
+    if (nv32(&nvramIUA->log_start) != LOGOFF(nvramLogStart) || nv32(&nvramIUA->log_end) != 0x3ff8 ||
+        nv32(&nvramIUA->log_head) < nv32(&nvramIUA->log_start) ||
+        nv32(&nvramIUA->log_end) <= nv32(&nvramIUA->log_head) ||
+        nv32(&nvramIUA->log_tail) < nv32(&nvramIUA->log_start) ||
+        nv32(&nvramIUA->log_end) <= nv32(&nvramIUA->log_tail)) {
       bad_log = true;
-      nvramIUA->log_start = LOGOFF(nvramLogStart);
-      nvramIUA->log_end = LOGOFF(nvramLogEnd);
+      nv32set(&nvramIUA->log_start,LOGOFF(nvramLogStart));
+      nv32set(&nvramIUA->log_end,LOGOFF(nvramLogEnd));
       nvramLogReset();
     }
     if (bad_ch) {
@@ -228,34 +248,34 @@ void nvramSet(int32 location, uintptr_t value)   /* original: uint32 value; stri
       nvramIUA->multisys = value;
       break;
     case 6:
-      nvramIUA->ip_addr = value;
+      nv32set(&nvramIUA->ip_addr,(uint32)value);
       break;
     case 7:
-      nvramIUA->ip_netmask = value;
+      nv32set(&nvramIUA->ip_netmask,(uint32)value);
       break;
     case 8:
-      nvramIUA->ip_broadcast = value;
+      nv32set(&nvramIUA->ip_broadcast,(uint32)value);
       break;
     case 9:
       nvramIUA->l2dsp_disabled = value;
       break;
     case 10:
-      nvramIUA->l1usb_debug = value;
+      nv32set(&nvramIUA->l1usb_debug,(uint32)value);
       break;
     case 0xb:
-      nvramIUA->ping_min = value;
+      nv32set(&nvramIUA->ping_min,(uint32)value);
       break;
     case 0xc:
-      nvramIUA->ping_max = value;
+      nv32set(&nvramIUA->ping_max,(uint32)value);
       break;
     case 0xd:
-      nvramIUA->ping_sender = value;
+      nv32set(&nvramIUA->ping_sender,(uint32)value);
       break;
     case 0xe:
-      nvramIUA->ping_l2freq = value;
+      nv32set(&nvramIUA->ping_l2freq,(uint32)value);
       break;
     case 0xf:
-      nvramIUA->ping_l1freq = value;
+      nv32set(&nvramIUA->ping_l1freq,(uint32)value);
       break;
     case 0x10:
       nvramIUA->dhcps_disabled = value;
@@ -276,7 +296,7 @@ void nvramSet(int32 location, uintptr_t value)   /* original: uint32 value; stri
       }
       break;
     case 0x14:
-      nvramIUA->autopower_delay = value;
+      nv32set(&nvramIUA->autopower_delay,(uint32)value);
       break;
     case 0x15:
       nvramIUA->slow_pwrup = value;
@@ -291,7 +311,7 @@ void nvramSet(int32 location, uintptr_t value)   /* original: uint32 value; stri
       nvramIUA->target_timeout = (byte)value;
       break;
     case 0x19:
-      nvramIUA->ip_gateway = value;
+      nv32set(&nvramIUA->ip_gateway,(uint32)value);
       break;
     case 0x1a:
       nvramIUA->master_slave = value;
@@ -335,34 +355,34 @@ uintptr_t nvramGet(int32 location)
     val = (uintptr_t)nvramIUA->multisys;
     break;
   case 6:
-    val = (uintptr_t)nvramIUA->ip_addr;
+    val = (uintptr_t)nv32(&nvramIUA->ip_addr);
     break;
   case 7:
-    val = (uintptr_t)nvramIUA->ip_netmask;
+    val = (uintptr_t)nv32(&nvramIUA->ip_netmask);
     break;
   case 8:
-    val = (uintptr_t)nvramIUA->ip_broadcast;
+    val = (uintptr_t)nv32(&nvramIUA->ip_broadcast);
     break;
   case 9:
     val = (uintptr_t)nvramIUA->l2dsp_disabled;
     break;
   case 10:
-    val = (uintptr_t)nvramIUA->l1usb_debug;
+    val = (uintptr_t)nv32(&nvramIUA->l1usb_debug);
     break;
   case 0xb:
-    val = (uintptr_t)nvramIUA->ping_min;
+    val = (uintptr_t)nv32(&nvramIUA->ping_min);
     break;
   case 0xc:
-    val = (uintptr_t)nvramIUA->ping_max;
+    val = (uintptr_t)nv32(&nvramIUA->ping_max);
     break;
   case 0xd:
-    val = (uintptr_t)nvramIUA->ping_sender;
+    val = (uintptr_t)nv32(&nvramIUA->ping_sender);
     break;
   case 0xe:
-    val = (uintptr_t)nvramIUA->ping_l2freq;
+    val = (uintptr_t)nv32(&nvramIUA->ping_l2freq);
     break;
   case 0xf:
-    val = (uintptr_t)nvramIUA->ping_l1freq;
+    val = (uintptr_t)nv32(&nvramIUA->ping_l1freq);
     break;
   case 0x10:
     val = (uintptr_t)nvramIUA->dhcps_disabled;
@@ -377,7 +397,7 @@ uintptr_t nvramGet(int32 location)
     val = (uintptr_t)nvramIUA->password;
     break;
   case 0x14:
-    val = (uintptr_t)nvramIUA->autopower_delay;
+    val = (uintptr_t)nv32(&nvramIUA->autopower_delay);
     break;
   case 0x15:
     val = (uintptr_t)nvramIUA->slow_pwrup;
@@ -392,7 +412,7 @@ uintptr_t nvramGet(int32 location)
     val = (uintptr_t)nvramIUA->target_timeout;
     break;
   case 0x19:
-    val = (uintptr_t)nvramIUA->ip_gateway;
+    val = (uintptr_t)nv32(&nvramIUA->ip_gateway);
     break;
   case 0x1a:
     val = (uintptr_t)nvramIUA->master_slave;
@@ -408,7 +428,7 @@ void nvramLogReset(void)
   uint8 uVar1;
   
   nvramIUA->log_head = nvramIUA->log_start;
-  nvramIUA->log_tail = nvramIUA->log_start;
+  nvramIUA->log_tail = nvramIUA->log_start;   /* byte copies: no conversion */
   uVar1 = ipmiCalcCSum((uint8 *)nvramIUA,0x82c);
   nvramIUA->checksum = uVar1;
   if (nvram_initialized == 3) {
@@ -417,12 +437,17 @@ void nvramLogReset(void)
   return;
 }
 
-static void nvramLogPut(nvramInternalUseArea *iua, char c)
+/* the log ring's offsets in host order while a message is added */
+typedef struct {
+  uint32 start, end, head, tail;
+} nvramLogRing;
+
+static void nvramLogPut(nvramLogRing *r, char c)
 {
-  *LOGPTR(iua->log_tail) = c;
-  iua->log_tail++;
-  if (iua->log_end <= iua->log_tail) {
-    iua->log_tail = iua->log_start;
+  *LOGPTR(r->tail) = c;
+  r->tail++;
+  if (r->end <= r->tail) {
+    r->tail = r->start;
   }
 }
 
@@ -437,33 +462,40 @@ void nvramLogInsert(char *message)
   int add_newline = message[size - 1] != '\n';     /* as the original: no check for "" */
   int32 fre;
   int i;
+  nvramLogRing r;
 
-  fre = iua->log_end - iua->log_start;
-  if (iua->log_head < iua->log_tail) {
-    fre = iua->log_head + (iua->log_end - iua->log_tail - iua->log_start);
+  r.start = nv32(&iua->log_start);
+  r.end = nv32(&iua->log_end);
+  r.head = nv32(&iua->log_head);
+  r.tail = nv32(&iua->log_tail);
+  fre = r.end - r.start;
+  if (r.head < r.tail) {
+    fre = r.head + (r.end - r.tail - r.start);
   }
-  else if (iua->log_tail < iua->log_head) {
-    fre = iua->log_head - iua->log_tail;
+  else if (r.tail < r.head) {
+    fre = r.head - r.tail;
   }
   for (; fre <= size + 5 + add_newline; fre++) {
     /* drop the oldest message (the original only wraps head inside the loop) */
-    while (*LOGPTR(iua->log_head++) != '\n') {
+    while (*LOGPTR(r.head++) != '\n') {
       fre++;
-      if (iua->log_end <= iua->log_head) {
-        iua->log_head = iua->log_start;
+      if (r.end <= r.head) {
+        r.head = r.start;
       }
     }
   }
-  nvramLogPut(iua, (char)0xf0);
+  nvramLogPut(&r, (char)0xf0);
   for (i = 0; i < 4; i++) {
-    nvramLogPut(iua, (char)(tval >> (8 * i)));
+    nvramLogPut(&r, (char)(tval >> (8 * i)));
   }
   for (i = 0; i < size; i++) {
-    nvramLogPut(iua, message[i]);
+    nvramLogPut(&r, message[i]);
   }
   if (add_newline) {
-    nvramLogPut(iua, '\n');
+    nvramLogPut(&r, '\n');
   }
+  nv32set(&iua->log_head,r.head);
+  nv32set(&iua->log_tail,r.tail);
   iua->checksum = ipmiCalcCSum((uint8 *)iua,0x82c);
   if (nvram_initialized == 3) {
     nvramSave(nvramTempCopy,0x4000);
@@ -504,14 +536,14 @@ char *nvramLogFetch(void)
   char *messages;
   
   size = 1;
-  if (nvramIUA->log_head < nvramIUA->log_tail) {
-    block1 = LOGPTR(nvramIUA->log_head);
-    block1e = LOGPTR(nvramIUA->log_tail);
+  if (nv32(&nvramIUA->log_head) < nv32(&nvramIUA->log_tail)) {
+    block1 = LOGPTR(nv32(&nvramIUA->log_head));
+    block1e = LOGPTR(nv32(&nvramIUA->log_tail));
     block2 = NULL;
     block2e = NULL;
   }
   else {
-    if (nvramIUA->log_tail <= nvramIUA->log_head) {
+    if (nv32(&nvramIUA->log_tail) <= nv32(&nvramIUA->log_head)) {
       pcVar1 = malloc(1);
       if (pcVar1 == NULL) {
         return NULL;
@@ -519,10 +551,10 @@ char *nvramLogFetch(void)
       *pcVar1 = '\0';
       return pcVar1;
     }
-    block1 = LOGPTR(nvramIUA->log_head);
-    block1e = LOGPTR(nvramIUA->log_end);
-    block2 = LOGPTR(nvramIUA->log_start);
-    block2e = LOGPTR(nvramIUA->log_tail);
+    block1 = LOGPTR(nv32(&nvramIUA->log_head));
+    block1e = LOGPTR(nv32(&nvramIUA->log_end));
+    block2 = LOGPTR(nv32(&nvramIUA->log_start));
+    block2e = LOGPTR(nv32(&nvramIUA->log_tail));
   }
   tcnt = 0;
   blkend = block1e;

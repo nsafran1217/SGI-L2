@@ -78,7 +78,7 @@ void enet_accept(int port, int sd)
   int s;
   int iVar1;
   char *pcVar2;
-  ulong peer_addr;
+  uint32 peer_addr;
   char peer_name [256];
   IRIdent *id;
   

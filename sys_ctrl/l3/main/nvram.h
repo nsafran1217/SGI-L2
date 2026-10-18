@@ -13,54 +13,80 @@
 #include "../../common/sys/sysctl_types.h"   /* needed by the reconstruction */
 #include "../../common/sys/ipmi.h"
 typedef char nvramLog;
+/* A little-endian 32-bit field of the NVRAM image (the file is the i386 layout);
+ * read and written with nv32()/nv32set() in nvram.c. */
 typedef struct {
+    uint8 b[4];
+} nvle32;
+/* Sub-byte bitfields are declared in reverse on big-endian hosts so they land on
+ * the same bits as on i386 (gcc allocates them from the other end of the byte). */
+typedef struct {
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+    unsigned int version : 4;
+    unsigned int __anon0 : 4;
+#else
     unsigned int __anon0 : 4;
     unsigned int version : 4;
+#endif
     uint8 unused1[2];
     uint8 slot;
     uint8 rack;
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+    unsigned int master_slave : 3;
+    unsigned int slow_pwrup : 1;
+    unsigned int dhcps_disabled : 1;
+    unsigned int l2dsp_disabled : 1;
+    unsigned int multisys : 1;
+    unsigned int auto_powerup : 1;
+#else
     unsigned int auto_powerup : 1;
     unsigned int multisys : 1;
     unsigned int l2dsp_disabled : 1;
     unsigned int dhcps_disabled : 1;
     unsigned int slow_pwrup : 1;
     unsigned int master_slave : 3;
+#endif
     uint8 unused2[2];
     char system_serial_number[16];
     char system_name[32];
-    uint32 ip_addr;
-    uint32 ip_netmask;
-    uint32 ip_broadcast;
-    uint32 l1usb_debug;
-    uint32 ping_min;
-    uint32 ping_max;
-    uint32 ping_sender;
-    uint32 ping_l2freq;
-    uint32 ping_l1freq;
+    nvle32 ip_addr;
+    nvle32 ip_netmask;
+    nvle32 ip_broadcast;
+    nvle32 l1usb_debug;
+    nvle32 ping_min;
+    nvle32 ping_max;
+    nvle32 ping_sender;
+    nvle32 ping_l2freq;
+    nvle32 ping_l1freq;
     char timezone[80];
     uint8 modem_baud;
     uint8 unused3[3];
     char password[16];
-    uint32 autopower_delay;
+    nvle32 autopower_delay;
     uint8 broadcast_timeout;
     uint8 target_timeout;
     uint8 open1;
     uint8 open2;
-    uint32 ip_gateway;
-    uint32 extra[467];
+    nvle32 ip_gateway;
+    nvle32 extra[467];
     /* Original: nvramLog * (absolute 32-bit pointers in memory, rebased to
      * offsets on disk). Now always offsets into the NVRAM image, their disk
      * form, so the layout is the same on every architecture. */
-    uint32 log_start;
-    uint32 log_end;
-    uint32 log_head;
-    uint32 log_tail;
+    nvle32 log_start;
+    nvle32 log_end;
+    nvle32 log_head;
+    nvle32 log_tail;
     uint8 pad[3];
     uint8 checksum;
 } nvramInternalUseArea;
 typedef struct {
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+    unsigned int version : 4;
+    unsigned int __anon0 : 4;
+#else
     unsigned int __anon0 : 4;
     unsigned int version : 4;
+#endif
 } nvramProductInfoArea;
 struct _nvramInstance {
     int unused;

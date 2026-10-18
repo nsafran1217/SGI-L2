@@ -416,7 +416,7 @@ void MInfoReset(void)
     memset(mhist,0,0x66664);
     memset(mcurr,0,0x66664);
     memset(mhole,0,0x66664);
-    memset(pool,0,0x30000);
+    memset(pool,0,sizeof(pool));
   }
   return;
 }

@@ -114,7 +114,7 @@ void cfg_init(void)
   uint32 uVar4;
   size_t sVar5;
   char client_data [200];
-  ulong cfg_ip;
+  uint32 cfg_ip;
   int sd;
   
   cfg_start_time = time(NULL);

@@ -61,7 +61,7 @@ IRIdent l2_apwr_id;
 char l2_current_version[32];
 char l2_flash_version[32];
 char l2_display_version[32];
-long unsigned int l2_ip;
+uint32 l2_ip;
 
 void oops_handler(int sig, siginfo_t *info, void *raw_uc)
 {

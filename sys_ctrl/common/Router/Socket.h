@@ -8,6 +8,8 @@
 #ifndef SYS_CTRL_COMMON_ROUTER_SOCKET_H
 #define SYS_CTRL_COMMON_ROUTER_SOCKET_H
 
+#include <stdint.h>
+
 /* prototypes (not recorded in STABS; reconstructed from definitions) */
 /* Socket.c */
 int SocketExportInetConnection(int port);
@@ -21,13 +23,13 @@ int SocketSetBufferSize(int sock, int sendbuf, int recvbuf);
 int SocketClose(int sock);
 int SocketCloseOnly(int sock);
 int SocketCloseUnixServer(int sock, int port);
-int SocketGetAddr(char *host, long unsigned int *addr);
-int SocketGetPeerAddr(int sock, long unsigned int *addr);
-int SocketGetSockAddr(int sock, long unsigned int *addr);
-int SocketGetName(long unsigned int addr, char *name, int name_length);
+int SocketGetAddr(char *host, uint32_t *addr);
+int SocketGetPeerAddr(int sock, uint32_t *addr);
+int SocketGetSockAddr(int sock, uint32_t *addr);
+int SocketGetName(uint32_t addr, char *name, int name_length);
 int SocketIsLocalHost(char *host);
 int SocketGetHostName(char **host_name);
-int SocketGetHostAddr(long unsigned int *addr);
-char *SocketAddrStr(long unsigned int addr);
+int SocketGetHostAddr(uint32_t *addr);
+char *SocketAddrStr(uint32_t addr);
 
 #endif /* SYS_CTRL_COMMON_ROUTER_SOCKET_H */

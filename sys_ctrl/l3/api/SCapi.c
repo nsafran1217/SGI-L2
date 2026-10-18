@@ -1226,7 +1226,7 @@ static int multi_system_check(sn1SC_L2 *list, int cnt)
   int l2;
   
   syscount = 0;
-  memset(syslist,0,0x78);
+  memset(syslist,0,sizeof(syslist));
   for (l2 = 0; l2 < cnt; l2 = l2 + 1) {
     sys = syslist;
     while ((*sys != NULL &&

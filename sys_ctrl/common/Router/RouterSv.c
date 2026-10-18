@@ -327,7 +327,7 @@ static RouterFunc RouterAcceptInetConnection(RouterServer *server)
   int nodelay;
   int use;
   Hostname conn_host;
-  ulong conn_addr;
+  uint32_t conn_addr;
   int conn_socket;
   
   conn_socket = SocketAcceptInetConnection(server->inet_socket,1);
@@ -363,7 +363,7 @@ static RouterFunc RouterAcceptUnixConnection(RouterServer *server)
   RouterClient *client;
   int nodelay;
   int use;
-  ulong localaddr;
+  uint32_t localaddr;
   char *localhost;
   int conn_socket;
   
@@ -497,7 +497,7 @@ static int RouterAcceptClient(RouterClient *client, int argcountin)
       LogError(-0x13f,"RouterAcceptClient",0,"");
       return -1;
     }
-    if (*(int *)(client->InArgList + 2) >> 8 != (client->groups).count + 7 >> 3) {
+    if (client->InArgList[2].size != (client->groups).count + 7 >> 3) {
       LogError(-0x140,"RouterAcceptClient",0,"");
       return -1;
     }
@@ -505,7 +505,7 @@ static int RouterAcceptClient(RouterClient *client, int argcountin)
     client->InArgList[2].clas = 0;
     client->InArgList[2].val = 0;
     client->InArgList[2].fre = 0;
-    *(uint *)(client->InArgList + 2) = *(uint *)(client->InArgList + 2) & 0xff;
+    client->InArgList[2].size = 0;
   }
   if ((client->use & 0x4000U) != 0) {
     RouterConfigure(client);

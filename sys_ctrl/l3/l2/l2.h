@@ -65,7 +65,7 @@ extern IRIdent l2_apwr_id;
 extern char l2_current_version[32];
 extern char l2_flash_version[32];
 extern char l2_display_version[32];
-extern long unsigned int l2_ip;
+extern uint32 l2_ip;
 void oops_handler(int sig, siginfo_t *info, void *raw_uc);
 char *l2_firmware_version(void);
 void l2_flow_setup(int hwater, int lwater);

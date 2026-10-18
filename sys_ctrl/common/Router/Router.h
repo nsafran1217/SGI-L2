@@ -8,6 +8,8 @@
 #ifndef SYS_CTRL_COMMON_ROUTER_ROUTER_H
 #define SYS_CTRL_COMMON_ROUTER_ROUTER_H
 
+#include <stdint.h>
+
 typedef char Hostname[65];
 typedef char Procname[17];
 typedef char Username[9];
@@ -17,7 +19,7 @@ typedef struct {
     Procname procname;
     Username username;
     Fullname fullname;
-    long unsigned int ipaddr;
+    uint32_t ipaddr;
 } RouterID;
 typedef struct {
     unsigned int count;
@@ -90,7 +92,7 @@ struct _RouterServer {
 typedef struct _RouterServer RouterServer;
 struct _RouterClient {
     int socket;
-    long unsigned int addr;
+    uint32_t addr;
     int port;
     int process_id;
     RouterGroupSet groups;
@@ -158,7 +160,7 @@ extern int UseUnix;
 extern int ProcessID;
 extern void (*FatalCB)();
 extern void (*ClientFreeCB)();
-extern long unsigned int IPAddress;
+extern uint32_t IPAddress;
 extern RouterConfig RouterLocalConfig;
 extern int SocketSendBufsize;
 extern int SocketReceiveBufsize;
@@ -178,7 +180,7 @@ int RouterSetFreeCB(void (*free_cb)());
 int RouterClientsConnected(void);
 int RouterConnectionCount(void);
 int RouterHostConnected(char *host, int port, int process_id, RouterClient **client);
-int RouterAddrConnected(long unsigned int addr, int port, int process_id, RouterClient **client);
+int RouterAddrConnected(uint32_t addr, int port, int process_id, RouterClient **client);
 void RouterInitClient(RouterClient *client, int timeout, int limit, int (*connect_cb)(), int (*request_cb)(), void (*event_cb)(), void (*error_cb)());
 int RouterRequestOut(RouterClient *client, int opcode, int argcount, RouterArgument *arglist, void (*response_cb)(), void *response_data, int limit);
 int RouterPriRequestOut(RouterClient *client, int opcode, int argcount, RouterArgument *arglist, void (*response_cb)(), void *response_data, int limit, int priority, void *purge_data);
@@ -204,7 +206,7 @@ void RouterCloseOnlyClient(RouterClient *client);
 void RouterPing(RouterClient *client);
 int RouterSetBufferSize(int sendbuf, int recvbuf);
 int RouterClientSetBufferSize(RouterClient *client, int sendbuf, int recvbuf);
-RouterClient *RouterMakeClient(int socket, long unsigned int addr, int port, int process_id, int use, RouterServer *server, char *host, int (*in_handler)());
+RouterClient *RouterMakeClient(int socket, uint32_t addr, int port, int process_id, int use, RouterServer *server, char *host, int (*in_handler)());
 void RouterSetClientID(RouterID *client_id);
 void RouterAddClient(RouterClient *client);
 void RouterRemoveClient(RouterClient *client, int return_rel_request);

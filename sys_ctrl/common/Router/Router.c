@@ -64,7 +64,7 @@ char *ProcessName = "";
 int ProcessID;
 void (*FatalCB)();
 void (*ClientFreeCB)();
-long unsigned int IPAddress;
+uint32_t IPAddress;
 RouterConfig RouterLocalConfig = { .rev = 2, .flags = 2147483648 };
 int SocketSendBufsize;
 int SocketReceiveBufsize;
@@ -81,6 +81,22 @@ void (*MonitorCB)();
 void *MonitorCBData;
 static struct bitbuf lbitbuf;
 static struct bitbuf ubitbuf;
+
+/* argument words on the wire, independent of the host's byte order */
+static void put_be32(uchar *b, uint32_t v)
+{
+  b[0] = (uchar)(v >> 24); b[1] = (uchar)(v >> 16); b[2] = (uchar)(v >> 8); b[3] = (uchar)v;
+}
+
+static void put_le32(uchar *b, uint32_t v)
+{
+  b[0] = (uchar)v; b[1] = (uchar)(v >> 8); b[2] = (uchar)(v >> 16); b[3] = (uchar)(v >> 24);
+}
+
+static uint32_t get_be32(const uchar *b)
+{
+  return (uint32_t)b[0] << 24 | (uint32_t)b[1] << 16 | (uint32_t)b[2] << 8 | b[3];
+}
 static int bufsize_rval;
 
 int RouterInit(int max_in_args, int use_unix, char *process_name, int process_id, void (*fatal_cb)())
@@ -190,7 +206,7 @@ int RouterHostConnected(char *host, int port, int process_id, RouterClient **cli
   } while( true );
 }
 
-int RouterAddrConnected(long unsigned int addr, int port, int process_id, RouterClient **client)
+int RouterAddrConnected(uint32_t addr, int port, int process_id, RouterClient **client)
 {
   uint uVar1;
   
@@ -598,7 +614,7 @@ int RouterClientSetBufferSize(RouterClient *client, int sendbuf, int recvbuf)
   return iVar1;
 }
 
-RouterClient *RouterMakeClient(int socket, long unsigned int addr, int port, int process_id, int use, RouterServer *server, char *host, int (*in_handler)())
+RouterClient *RouterMakeClient(int socket, uint32_t addr, int port, int process_id, int use, RouterServer *server, char *host, int (*in_handler)())
 {
   RouterClient *__s;
   RouterArgument *pRVar1;
@@ -630,7 +646,7 @@ RouterClient *RouterMakeClient(int socket, long unsigned int addr, int port, int
       __s->InArgList[i].clas = 0;
       __s->InArgList[i].val = 0;
       __s->InArgList[i].fre = 0;
-      *(uint *)(__s->InArgList + i) = *(uint *)(__s->InArgList + i) & 0xff;
+      __s->InArgList[i].size = 0;
     }
   }
   return __s;
@@ -638,7 +654,7 @@ RouterClient *RouterMakeClient(int socket, long unsigned int addr, int port, int
 
 void RouterSetClientID(RouterID *client_id)
 {
-  memset(client_id,0,0x80);
+  memset(client_id,0,sizeof(*client_id));
   strncpy(client_id->procname,ProcessName,0x10);
   strncpy(client_id->username,UserName,8);
   strncpy(client_id->fullname,FullName,0x20);
@@ -1461,12 +1477,11 @@ void RouterPack(RouterClient *client, int opcode, int class, int argcount, Route
   data_start = (uchar *)((*entry)->packet + 1);
   buf_ptr = data_start;
   for (i = 0; i < argcount; i = i + 1) {
-    lbitbuf.value = htonl(arglist[i].clas << 0x18 | arglist[i].size);
-    memcpy(buf_ptr,&lbitbuf,4);
+    put_be32(buf_ptr,arglist[i].clas << 0x18 | arglist[i].size);
     buf_ptr = buf_ptr + 4;
     if (arglist[i].clas == 0) {
-      lbitbuf.value = arglist[i].val;
-      memcpy(buf_ptr,&lbitbuf,4);
+      /* the original stored inline values unconverted, i.e. little-endian (i386) */
+      put_le32(buf_ptr,(uint32_t)arglist[i].val);
       buf_ptr = buf_ptr + 4;
     }
     else {
@@ -1595,39 +1610,30 @@ int RouterUnpack(RouterClient *client, RouterHeader *packet)
         client->InArgList[j].clas = 0;
         client->InArgList[j].val = 0;
         client->InArgList[j].fre = 0;
-        *(uint *)(client->InArgList + j) = *(uint *)(client->InArgList + j) & 0xff;
+        client->InArgList[j].size = 0;
       }
     }
-    memcpy(&ubitbuf,buf_ptr,sizeof(struct bitbuf));
+    class_size = get_be32(buf_ptr);
     buf_ptr = buf_ptr + 4;
-    class_size = ntohl(ubitbuf.value);
-    pRVar12 = client->InArgList;
-    pRVar14 = pRVar12 + i;
-    pRVar14->clas = 0;
-    pRVar12 = pRVar12 + i;
-    *(byte *)pRVar12 = *(byte *)pRVar12 | (char)(class_size >> 0x18) * '\x02';
-    pRVar12 = client->InArgList;
-    pRVar14 = pRVar12 + i;
-    *(uint *)pRVar14 = *(uint *)pRVar14 & 0xff;
-    pRVar12 = pRVar12 + i;
-    *(uint *)pRVar12 = *(uint *)pRVar12 | class_size << 8;
+    client->InArgList[i].clas = class_size >> 0x18;
+    client->InArgList[i].size = class_size & 0xffffff;
     if (client->InArgList[i].clas == 0) {
-      *(uint *)(client->InArgList + i) = *(uint *)(client->InArgList + i) & 0xff;
-      memcpy(&ubitbuf,buf_ptr,sizeof(struct bitbuf));
+      client->InArgList[i].size = 0;
+      /* the original read inline values with ntohl (so i386 peers see them byte-swapped) */
+      uVar15 = get_be32(buf_ptr);
       buf_ptr = buf_ptr + 4;
-      uVar15 = ntohl(ubitbuf.value);
       client->InArgList[i].val = uVar15;
     }
     else {
-      if (buf_end < buf_ptr + (*(int *)(client->InArgList + i) >> 8)) break;
-      pvVar16 = malloc(*(int *)(client->InArgList + i) >> 8);
+      if (buf_end < buf_ptr + client->InArgList[i].size) break;
+      pvVar16 = malloc(client->InArgList[i].size);
       client->InArgList[i].val = (ulong)pvVar16;
       if (pvVar16 == NULL) {
         RouterFreeArguments(i,client->InArgList);
         RouterMemError();
       }
-      memcpy((void *)client->InArgList[i].val,buf_ptr,*(int *)(client->InArgList + i) >> 8);
-      buf_ptr = buf_ptr + ((*(int *)(client->InArgList + i) >> 8) + 3U & 0xfffffffc);
+      memcpy((void *)client->InArgList[i].val,buf_ptr,client->InArgList[i].size);
+      buf_ptr = buf_ptr + (client->InArgList[i].size + 3U & 0xfffffffc);
       client->InArgList[i].fre = 1;
     }
     i = i + 1;

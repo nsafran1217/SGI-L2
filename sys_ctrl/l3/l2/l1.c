@@ -555,7 +555,7 @@ void l1_open(void)
   
   status = 0;
   initialized = false;
-  memset(l2_l1_ports,0,0xb40);
+  memset(l2_l1_ports,0,sizeof(l2_l1_ports));
   for (device = 0; device < 0x28; device = device + 1) {
     l2_l1_ports[device].fd = -1;
   }

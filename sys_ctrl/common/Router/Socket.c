@@ -209,7 +209,7 @@ int SocketMakeInetConnection(char *host, int port, int no_delay)
   int iVar2;
   int iVar3;
   char *pcVar4;
-  ulong addr;
+  uint32_t addr;
   struct sockaddr_in addr_inet;
   
   status = SocketGetAddr(host,&addr);
@@ -421,7 +421,7 @@ int SocketCloseUnixServer(int sock, int port)
   return iVar1;
 }
 
-int SocketGetAddr(char *host, long unsigned int *addr)
+int SocketGetAddr(char *host, uint32_t *addr)
 {
   size_t sVar1;
   int iVar2;
@@ -451,7 +451,7 @@ int SocketGetAddr(char *host, long unsigned int *addr)
   return iVar2;
 }
 
-int SocketGetPeerAddr(int sock, long unsigned int *addr)
+int SocketGetPeerAddr(int sock, uint32_t *addr)
 {
   int iVar1;
   int *piVar2;
@@ -474,7 +474,7 @@ int SocketGetPeerAddr(int sock, long unsigned int *addr)
   return iVar1;
 }
 
-int SocketGetSockAddr(int sock, long unsigned int *addr)
+int SocketGetSockAddr(int sock, uint32_t *addr)
 {
   int iVar1;
   int *piVar2;
@@ -497,7 +497,7 @@ int SocketGetSockAddr(int sock, long unsigned int *addr)
   return iVar1;
 }
 
-int SocketGetName(long unsigned int addr, char *name, int name_length)
+int SocketGetName(uint32_t addr, char *name, int name_length)
 {
   struct hostent *hp;
   int iVar1;
@@ -558,10 +558,10 @@ int SocketGetHostName(char **host_name)
   return iVar1;
 }
 
-int SocketGetHostAddr(long unsigned int *addr)
+int SocketGetHostAddr(uint32_t *addr)
 {
   static char localhost[66];
-  static long unsigned int localaddr;
+  static uint32_t localaddr;
   int iVar1;
   char *host_name;
   
@@ -570,7 +570,7 @@ int SocketGetHostAddr(long unsigned int *addr)
     iVar1 = strncmp(host_name,(char *)&localhost,0x41);
     if (iVar1 != 0) {
       strcpy((char *)&localhost,host_name);
-      iVar1 = SocketGetAddr((char *)&localhost,(ulong *)&localaddr);
+      iVar1 = SocketGetAddr((char *)&localhost,&localaddr);
       if (iVar1 != 0) {
         LogErrorHost(-0x196,"",0,(char *)&localhost,0,"");
         return -1;
@@ -585,7 +585,7 @@ int SocketGetHostAddr(long unsigned int *addr)
   return iVar1;
 }
 
-char *SocketAddrStr(long unsigned int addr)
+char *SocketAddrStr(uint32_t addr)
 {
   char *pcVar1;
   struct in_addr inaddr;

@@ -478,7 +478,7 @@ L2CfgNode *L2CfgMFindNodeLocal(L2Cfg *head, uint32 ip_addr)
   int iVar1;
   uint32_t uVar2;
   uint32_t uVar3;
-  ulong saddr;
+  uint32 saddr;
   L2CfgNode *l2;
   
   if (L2CfgDebug != 0) {
@@ -1859,7 +1859,7 @@ void L2CfgMCfgL2(L2Cfg *head, IRPacket *p)
                                   l2->port_list[port].l1count = 0;
                                 }
                                 port = 0;
-                                memset(l2->port_list,0,0x460);
+                                memset(l2->port_list,0,sizeof(l2->port_list));
                                 l2->port_count = 0;
                                 if (((l2->net).msmode == 2) && ((head->net).msmode == 1)) {
                                   l2 = NULL;

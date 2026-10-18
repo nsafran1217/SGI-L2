@@ -267,7 +267,9 @@ int IRouterInit(uint32 ip)
   uint32_t uVar1;
   int status;
   
-  if (true) {
+  /* host byte order: 1 big-endian (network), 2 little-endian. Ghidra folded the
+   * original's test to a constant for i386. */
+  if (htonl(1) != 1) {
     IRByteOrder = 2;
   }
   else {
@@ -564,6 +566,8 @@ int IRouterWritePacketReliable(IRIdent *id, int (*wfcn)(), void *fd, IRPacket *p
   return -0x25c;
 }
 
+/* The original swapped with ntohs/htonl, which only swap on a little-endian host;
+ * the frame's fields always need swapping when its order differs. */
 void IRouterSetFrameByteOrder(IRFrame *frame, int byteorder)
 {
   uint16_t uVar1;
@@ -572,35 +576,35 @@ void IRouterSetFrameByteOrder(IRFrame *frame, int byteorder)
   
   if (frame->_byte_order != byteorder) {
     if (byteorder == 2) {
-      uVar1 = ntohs(frame->_size);
+      uVar1 = __builtin_bswap16(frame->_size);
       frame->_size = uVar1;
-      uVar2 = ntohl(frame->_dest);
+      uVar2 = __builtin_bswap32(frame->_dest);
       frame->_dest = uVar2;
-      uVar2 = ntohl(frame->_src);
+      uVar2 = __builtin_bswap32(frame->_src);
       frame->_src = uVar2;
-      uVar1 = ntohs(frame->_opcode);
+      uVar1 = __builtin_bswap16(frame->_opcode);
       frame->_opcode = uVar1;
       for (arg = 0; arg < (int)(uint)frame->_argc; arg = arg + 1) {
-        uVar1 = ntohs(frame->_argv[arg]._size);
+        uVar1 = __builtin_bswap16(frame->_argv[arg]._size);
         frame->_argv[arg]._size = uVar1;
-        uVar2 = ntohl(frame->_argv[arg]._val);
+        uVar2 = __builtin_bswap32(frame->_argv[arg]._val);
         frame->_argv[arg]._val = uVar2;
       }
       frame->_byte_order = 2;
     }
     else {
-      uVar1 = htons(frame->_size);
+      uVar1 = __builtin_bswap16(frame->_size);
       frame->_size = uVar1;
-      uVar2 = htonl(frame->_dest);
+      uVar2 = __builtin_bswap32(frame->_dest);
       frame->_dest = uVar2;
-      uVar2 = htonl(frame->_src);
+      uVar2 = __builtin_bswap32(frame->_src);
       frame->_src = uVar2;
-      uVar1 = htons(frame->_opcode);
+      uVar1 = __builtin_bswap16(frame->_opcode);
       frame->_opcode = uVar1;
       for (arg = 0; arg < (int)(uint)frame->_argc; arg = arg + 1) {
-        uVar1 = htons(frame->_argv[arg]._size);
+        uVar1 = __builtin_bswap16(frame->_argv[arg]._size);
         frame->_argv[arg]._size = uVar1;
-        uVar2 = htonl(frame->_argv[arg]._val);
+        uVar2 = __builtin_bswap32(frame->_argv[arg]._val);
         frame->_argv[arg]._val = uVar2;
       }
       frame->_byte_order = 1;

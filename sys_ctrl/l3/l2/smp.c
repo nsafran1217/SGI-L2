@@ -88,7 +88,7 @@ static char *smp_cc[32] = { "INTR", "QUIT", "ERASE", "KILL", "EOF", "EOL", "EOL2
 static struct __anon_struct_41 smp_tty[256];
 static char vbuf[1024];
 
-SMP *smp_init(IRIdent *id, int rfd, int wfd, void (*rfcn)(), long unsigned int host, int port)
+SMP *smp_init(IRIdent *id, int rfd, int wfd, void (*rfcn)(), uint32 host, int port)
 {
   SMP *smp;
   SMPGroup *pSVar1;

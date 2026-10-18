@@ -100,7 +100,9 @@ all: $(TOOLS:%=$(B)/bin/%)
 
 $(B)/%.o: %.c
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) -MMD -MP -c $< -o $@
+
+-include $(shell find $(B) -name '*.d' 2>/dev/null)
 
 $(B)/libsgi.a: $(LIB_OBJS)
 	$(AR) rcs $@ $^
@@ -128,6 +130,7 @@ test:
 difftest: all
 	tests/difftest.sh
 	tests/l2term_test.py
+	tests/nvram_test.py
 
 clean:
 	rm -rf $(B)

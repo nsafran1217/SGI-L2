@@ -120,7 +120,7 @@ LAB_08070f46:
 
 int sn1SCDiscoverL2Start(int sd, char *dev, char *client_info)
 {
-  ulong uVar1;
+  uint32 uVar1;
   bool bVar2;
   int *piVar3;
   char *pcVar4;

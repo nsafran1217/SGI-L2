@@ -60,7 +60,7 @@ int discover_init(void)
   char *pcVar2;
   int iVar3;
   char *ver;
-  ulong discover_ip;
+  uint32 discover_ip;
   char *name;
   int o;
   int i;

@@ -14,13 +14,13 @@
 #include "../Router/Router.h"   /* for the prototypes */
 /* EnetServer.c */
 extern RouterServer *enet_server;
-extern long unsigned int enet_ip;
+extern uint32 enet_ip;
 extern IRIdent *enet_id;
 void EnetServerInit(IRIdent *id, int (*password_cb)(), void (*connect_cb)(), void (*disconnect_cb)(), void (*establish_cb)(), int (*packet_cb)());
 void EnetServerStart(int port, int my_process_id, char *appname);
 int EnetServerCheck(int port);
 int enet_client_add(unsigned int ip, unsigned int port, RouterClient *client);
-int enet_validate(RouterClient *client, long unsigned int addr, char *host);
+int enet_validate(RouterClient *client, uint32 addr, char *host);
 int enet_client_connected(RouterClient *client, int opcode, int id, int retrys, int argcountin, RouterArgument *arglistin);
 void enet_client_disconnected(RouterClient *client, int msgnbr, char *host, int port, int retrys);
 int EnetServerConnect(char *host, int port);

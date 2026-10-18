@@ -1892,13 +1892,13 @@ int pbay_rsp(IRPacket *rsp, L2CMD *c, IRAddress *dest, int pktsleft, cmd_respons
   memset(emsg + 1,0,99);
   strlen(cmd_rsp->sptr);
   if (pd->snlist == 0) {
-    pvVar2 = calloc(pktsleft + 1,4);
+    pvVar2 = calloc(pktsleft + 1,sizeof(*pd->snlist));
     pd->snlist = pvVar2;
-    pvVar2 = calloc(pktsleft + 1,4);
+    pvVar2 = calloc(pktsleft + 1,sizeof(*pd->snconns));
     pd->snconns = pvVar2;
-    pvVar2 = calloc(pktsleft + 1,4);
+    pvVar2 = calloc(pktsleft + 1,sizeof(*pd->snnum));
     pd->snnum = pvVar2;
-    pvVar2 = calloc(pktsleft + 1,4);
+    pvVar2 = calloc(pktsleft + 1,sizeof(*pd->snaddr));
     pd->snaddr = pvVar2;
   }
   if (rsp == NULL) {
@@ -3471,9 +3471,9 @@ static int ver_summary_rsp(IRPacket *rsp, L2CMD *c, IRAddress *dest, int pktslef
   sVar2 = strlen(cmd_rsp->sptr);
   rptr = cmd_rsp->sptr + sVar2;
   if (sd->verslist == 0) {
-    pvVar3 = calloc(pktsleft + 1,4);
+    pvVar3 = calloc(pktsleft + 1,sizeof(*sd->verslist));
     sd->verslist = pvVar3;
-    pvVar3 = calloc(pktsleft + 1,4);
+    pvVar3 = calloc(pktsleft + 1,sizeof(*sd->versnum));
     sd->versnum = pvVar3;
     if (((*dest & 0x80000000) == 0) && (*dest >> 0x1c == 0)) {
       puVar7 = "L1";

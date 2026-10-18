@@ -35,7 +35,7 @@ struct SMP_s {
     IRIdent *id;
     int rfd;
     int wfd;
-    long unsigned int host;
+    uint32 host;
     int hung;
     void (*rfcn)();
     int grpid;
@@ -52,7 +52,7 @@ extern int smp_count;
 extern int smp_debug;
 extern int smp_input_debug;
 extern int smp_console_debug;
-SMP *smp_init(IRIdent *id, int rfd, int wfd, void (*rfcn)(), long unsigned int host, int port);
+SMP *smp_init(IRIdent *id, int rfd, int wfd, void (*rfcn)(), uint32 host, int port);
 void smp_free(SMP *smp);
 void smp_cleanup(void);
 void smp_reset(void);

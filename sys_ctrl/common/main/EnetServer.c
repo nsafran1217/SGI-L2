@@ -41,7 +41,7 @@
 #include "decomp.h"     /* Ghidra types/macros; remove once the file is cleaned up */
 
 RouterServer *enet_server;
-long unsigned int enet_ip;
+uint32 enet_ip;
 IRIdent *enet_id;
 static int (*enet_password_cb)();
 static void (*enet_connect_cb)();
@@ -118,7 +118,7 @@ int enet_client_add(unsigned int ip, unsigned int port, RouterClient *client)
   return rval;
 }
 
-int enet_validate(RouterClient *client, long unsigned int addr, char *host)
+int enet_validate(RouterClient *client, uint32 addr, char *host)
 {
   char *pcVar1;
   RouterClient *pRVar2;
@@ -247,7 +247,7 @@ LAB_080681b0:
 int EnetServerConnect(char *host, int port)
 {
   int iVar1;
-  ulong ip;
+  uint32 ip;
   int server_process_id;
   
   server_process_id = 2;

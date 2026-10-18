@@ -92,7 +92,7 @@ static RouterClient *RouterConnect(char *host, int port, int process_id, int use
   RouterClient *client;
   int nodelay;
   int socket;
-  ulong addr;
+  uint32_t addr;
   
   rval = SocketGetAddr(host,&addr);
   if (rval == 0) {

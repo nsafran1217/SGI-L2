@@ -288,7 +288,7 @@ int main(int argc, char **argv, char **envp)
   int extraout_EAX;
   int rack;
   int slot;
-  ulong addr;
+  uint32 addr;
   IRAddress caddress;
   int sd;
   int serial;
