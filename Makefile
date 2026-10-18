@@ -19,7 +19,10 @@ ifeq ($(ARCH),-m32)
 CFLAGS  += $(if $(wildcard /usr/include/i386-linux-gnu/bits),,-isystem /usr/include/x86_64-linux-gnu)
 endif
 LDFLAGS += $(ARCH)
-LDLIBS  += -lcrypt
+# l2passwd needs crypt(). Without the 32-bit libcrypt dev package (libcrypt-dev:i386)
+# there is no libcrypt.so to find, so link the runtime library directly.
+CRYPT   := $(if $(and $(filter -m32,$(ARCH)),$(wildcard /usr/lib/i386-linux-gnu/libcrypt.so.1)),\
+             $(if $(wildcard /usr/lib/i386-linux-gnu/libcrypt.so),-lcrypt,/usr/lib/i386-linux-gnu/libcrypt.so.1),-lcrypt)
 B       := build
 
 LIB_SRCS := \
@@ -112,7 +115,7 @@ $(B)/bin/l2cmd: $(L2CMD_SRCS:%.c=$(B)/%.o) $(B)/libsgi.a
 
 $(B)/bin/l2passwd: $(L2PASSWD_SRCS:%.c=$(B)/%.o) $(B)/libsgi.a
 	@mkdir -p $(dir $@)
-	$(CC) $(LDFLAGS) $^ $(LDLIBS) -o $@
+	$(CC) $(LDFLAGS) $^ $(LDLIBS) $(CRYPT) -o $@
 
 test:
 	$(CC) $(CFLAGS) -fsyntax-only tests/layout_check.c

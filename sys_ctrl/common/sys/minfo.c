@@ -17,6 +17,19 @@
 #include <string.h>
 #include <malloc.h>
 #include "decomp.h"     /* Ghidra types/macros; remove once the file is cleaned up */
+
+/* glibc 2.34 removed the malloc hooks this module installs. Without them the
+ * names below are plain variables: the module builds and its commands work,
+ * but nothing calls through them, so allocation tracking records nothing
+ * (see DEVIATIONS.md). With an older glibc the real hooks are used. */
+#if defined(__GLIBC__) && (__GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 34))
+static void *minfo_malloc_hook, *minfo_realloc_hook, *minfo_memalign_hook, *minfo_free_hook;
+#define __malloc_hook minfo_malloc_hook
+#define __realloc_hook minfo_realloc_hook
+#define __memalign_hook minfo_memalign_hook
+#define __free_hook minfo_free_hook
+#endif
+
 struct LIST_S {
     int inuse;
     void *addr;
@@ -236,7 +249,7 @@ static int get_arena(void)
 {
   struct mallinfo info;
   
-  mallinfo(&info);
+  info = mallinfo();
   return info.arena;
 }
 
@@ -252,7 +265,7 @@ static void chk_arena(void *caller, char *who, size_t arena, void *addr, size_t 
   LIST *curr;
   struct mallinfo info;
   
-  mallinfo(&info);
+  info = mallinfo();
   holecount = 0;
   holemax = 0;
   holemin = 0;
@@ -297,7 +310,7 @@ static void *mmalloc(size_t size, void *caller)
     ptr = NULL;
   }
   else {
-    size_00 = malloc_usable_size(ptr,size,arena,ptr);
+    size_00 = malloc_usable_size(ptr);
     list_insert(ptr,size,size_00,caller,"malloc");
     if (size_00 < 0x100000) {
       mhist[size_00 >> 10] = mhist[size_00 >> 10] + 1;
@@ -357,7 +370,7 @@ static void *mmemalign(size_t boundary, size_t size, void *caller)
     ptr = NULL;
   }
   else {
-    size_00 = malloc_usable_size(ptr,size,arena);
+    size_00 = malloc_usable_size(ptr);
     list_insert(ptr,size,size_00,caller,"memalign");
     if (size_00 < 0x100000) {
       mhist[size_00 >> 10] = mhist[size_00 >> 10] + 1;

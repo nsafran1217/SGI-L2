@@ -159,7 +159,7 @@ void lpbk_process_response(IRPacket *p)
     }
     iVar2 = memcmp(arg,Lpbk[session].bptr,Lpbk[session].blen);
     if (iVar2 != 0) {
-      sprintf(buff,"packet %d loopback miscompare\n");
+      sprintf(buff,"packet %d loopback miscompare\n",Lpbk[session].pending);   /* Ghidra dropped the argument */
       sVar3 = strlen(buff);
       smp_output(Lpbk[session].smp,buff,sVar3);
     }
@@ -175,10 +175,7 @@ void lpbk_process_response(IRPacket *p)
     if (elapsed_time < Lpbk[session].pkt_min_time) {
       Lpbk[session].pkt_min_time = elapsed_time;
     }
-    fVar1 = Lpbk[session].pkt_max_time;
-    if ((byte)(fVar1 < elapsed_time |
-               (byte)((ushort)((ushort)(NAN(fVar1) || NAN(elapsed_time)) << 10) >> 8) |
-              (byte)((ushort)((ushort)(fVar1 == elapsed_time) << 0xe) >> 8)) == 1) {
+    if (Lpbk[session].pkt_max_time < elapsed_time) {   /* Ghidra: x87 C0/C2/C3 flag test */
       Lpbk[session].pkt_max_time = elapsed_time;
     }
     Lpbk[session].pending = Lpbk[session].pending + -1;
