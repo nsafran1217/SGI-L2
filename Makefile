@@ -2,7 +2,8 @@
 #
 #   make            build everything into build/ (32-bit, matching the original ABI)
 #   make test       layout checks: every SGI struct must match the original binaries
-#   make difftest   run l2 commands through original/rebuilt l2 and l2cmd; outputs must match
+#   make difftest   l2 commands through original/rebuilt l2 + l2cmd, and l2term sessions;
+#                   every output must match the original binaries'
 #   make clean
 #
 # ARCH=-m32 keeps struct layouts identical to the originals (checked by make test).
@@ -124,6 +125,7 @@ test:
 
 difftest: all
 	tests/difftest.sh
+	tests/l2term_test.py
 
 clean:
 	rm -rf $(B)

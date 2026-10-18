@@ -1,0 +1,67 @@
+# One command per line, typed into an l2term session. Only commands that do not change state.
+hlp router
+hlp autopower
+hlp config
+hlp connect
+hlp date
+hlp demo
+hlp destination
+hlp dhcpserver
+hlp env
+hlp help
+hlp ip
+hlp l2dbg
+hlp l1
+hlp l2
+hlp l2dsp
+hlp l2find
+hlp log
+hlp loopback
+hlp route
+hlp nvram
+hlp ping
+hlp password
+hlp pbay
+hlp power
+hlp quit
+hlp halt_l2
+hlp rackid
+hlp reboot_l2
+hlp reset
+hlp select
+hlp smp
+hlp serial
+hlp multisys
+hlp share
+hlp psmode
+hlp sysname
+hlp shell
+hlp version
+help
+version
+config
+destination
+env
+ip
+l2
+l2dsp
+route
+nvram
+smp
+serial
+multisys
+share
+psmode
+sysname
+rackid
+select
+dhcpserver
+log
+autopower
+l2dbg
+bogus_command
+l2
+smp
+date
+l2find
+share
