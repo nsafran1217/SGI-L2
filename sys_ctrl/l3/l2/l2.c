@@ -26,6 +26,7 @@
 #include "broadcast.h"
 #include "target.h"
 #include "../../common/sys/l3paths.h"   /* configurable paths (new) */
+#include <ucontext.h>
 #include "decomp.h"     /* Ghidra types/macros; remove once the file is cleaned up */
 
 static void syslog_msg(int level, char *msg);
@@ -80,7 +81,12 @@ void oops_handler(int sig, siginfo_t *info, void *raw_uc)
   sprintf(rbuf,"L2 %d.%d.%d received fatal signal %d\n",1,0x3e,0,sig);
   sVar1 = strlen(rbuf);
   rptr = rbuf + sVar1;
-  bt[1] = *(void **)((int)raw_uc + 0x4c);
+  /* the faulting instruction: uc_mcontext.gregs[REG_EIP] (i386) / [REG_RIP] (x86-64) */
+#if defined(__i386__)
+  bt[1] = (void *)((ucontext_t *)raw_uc)->uc_mcontext.gregs[14];
+#elif defined(__x86_64__)
+  bt[1] = (void *)((ucontext_t *)raw_uc)->uc_mcontext.gregs[16];
+#endif
   for (i = 1; i < bt_size; i = i + 1) {
     pre = "";
     iVar2 = i;
@@ -372,7 +378,7 @@ int main(int argc, char **argv, char **envp)
                                       if ((iVar2 != 0) &&
                                          (iVar2 = EnetServerCheck(IR_PORT_BIAS + 0x232c), iVar2 == 0
                                          )) {
-                                        nvramSet(3,(uint32)pcVar4);
+                                        nvramSet(3,(uintptr_t)pcVar4);
                                       }
                     /* WARNING: Subroutine does not return */
                                       exit(0);

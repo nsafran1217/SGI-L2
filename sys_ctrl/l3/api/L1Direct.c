@@ -68,6 +68,12 @@ static char l1d_serial_device[64];
 static char l1d_serial_host[64];
 static ssize_t (*wfcn)();
 
+/* SocketWrite returns int: called through wfcn its result must widen to ssize_t */
+static ssize_t l1d_socket_write(int fd, unsigned char *buffer, int len)
+{
+  return SocketWrite(fd,buffer,len);
+}
+
 char *L1DirectUsage(void)
 {
   char *msg;
@@ -133,7 +139,7 @@ LAB_080594c1:
       *use_direct = 1;
       l1d_conn_serial = 1;
       l1d_conn_direct = 0;
-      strncpy(l1d_serial_host,__s,(int)pcVar3 - (int)__s);
+      strncpy(l1d_serial_host,__s,(int)(pcVar3 - __s));
       l1d_serial_hostport = atoi(pcVar3 + 1);
       wfcn = write;
       argsused = 2;
@@ -151,7 +157,7 @@ LAB_080594c1:
         l1d_conn_serial = 1;
         l1d_conn_direct = 1;
         strcpy(l1d_serial_device,argv[1]);
-        wfcn = SocketWrite;
+        wfcn = l1d_socket_write;
         argsused = 2;
         tmp_argc = tmp_argc + -2;
       }
@@ -168,8 +174,8 @@ LAB_080594c1:
       argv = argv + 1;
     }
     else {
-      for (sep = NULL; (int)sep < tmp_argc; sep = sep + 1) {
-        argv[(int)sep] = argv[(int)(sep + argsused)];
+      for (sep = NULL; (int)(intptr_t)sep < tmp_argc; sep = sep + 1) {   /* Ghidra: a char * reused as an int */
+        argv[(int)(intptr_t)sep] = argv[(int)(intptr_t)(sep + argsused)];
       }
       orig_argc = orig_argc - argsused;
     }
@@ -626,7 +632,7 @@ int l1d_read_ppp(int fd, uint8 **bptr, int32 blen)
   if (l1d_debug != 0) {
     fprintf(stderr,"l1d_read_ppp(%d,%x,%d) in\n",fd,bptr,blen);
   }
-  status = PPPRead(&ppp,l1d_read_data,(void *)fd,bptr,blen);
+  status = PPPRead(&ppp,l1d_read_data,(void *)(intptr_t)fd,bptr,blen);
   if (l1d_debug != 0) {
     fprintf(stderr,"l1d_read_ppp() out\n");
   }
@@ -647,7 +653,7 @@ void l1d_read_packet(int port, int fd)
   if (l1d_debug != 0) {
     fprintf(stderr,"l1d_read_packet(%x,%d) in\n",port,fd);
   }
-  status = IRouterReadPacket(&l1d_id,l1d_read_ppp,(void *)fd,&p);
+  status = IRouterReadPacket(&l1d_id,l1d_read_ppp,(void *)(intptr_t)fd,&p);
   if (status == 0) {
     if (1 < lastcnt) {
       fprintf(stderr,"WARNING: last error on L1 connection repeated %d times\n",lastcnt);
@@ -710,7 +716,7 @@ int l1d_write_ppp(int fd, uint8 *bptr, int blen)
   if (l1d_debug != 0) {
     fprintf(stderr,"l1d_write_ppp(%d,%x,%d) in\n",fd,bptr,blen);
   }
-  status = PPPWrite(&ppp,l1d_write_data,(void *)fd,bptr,blen);
+  status = PPPWrite(&ppp,l1d_write_data,(void *)(intptr_t)fd,bptr,blen);
   if (l1d_debug != 0) {
     fprintf(stderr,"l1d_write_ppp() out\n");
   }
@@ -729,7 +735,7 @@ void l1d_write_packet(int fd, IRPacket *p)
     fprintf(stderr,"l1d_write_packet(%d, %x) in\n",fd,p);
   }
   addr = p->_dest;
-  status = IRouterWritePacket(&l1d_id,l1d_write_ppp,(void *)fd,p);
+  status = IRouterWritePacket(&l1d_id,l1d_write_ppp,(void *)(intptr_t)fd,p);
   if (status != 0) {
     pcVar1 = LoggerDefaultMessage(status);
     pcVar2 = format_address(addr);

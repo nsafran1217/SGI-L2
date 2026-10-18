@@ -273,8 +273,8 @@ static void chk_arena(void *caller, char *who, size_t arena, void *addr, size_t 
   holemin = 0;
   for (curr = head; curr != NULL; curr = curr->next) {
     pLVar1 = curr->next;
-    if ((pLVar1 != NULL) && ((void *)((int)curr->addr + curr->size) < pLVar1->addr)) {
-      holesize = (int)pLVar1->addr - ((int)curr->addr + curr->size);
+    if ((pLVar1 != NULL) && ((void *)((char *)curr->addr + curr->size) < pLVar1->addr)) {
+      holesize = (int)((char *)pLVar1->addr - ((char *)curr->addr + curr->size));
       sVar2 = holemin;
       if ((size <= holesize) &&
          ((sVar2 = holesize, holemin != 0 && (sVar2 = holesize, holemin <= holesize)))) {
@@ -472,7 +472,7 @@ void MInfoStatPrint(char **rptr)
     }
     for (curr = head; curr != NULL; curr = curr->next) {
       if ((curr->next != NULL) &&
-         ((void *)((int)curr->addr + curr->size) < curr->next->addr)) {
+         ((void *)((char *)curr->addr + curr->size) < curr->next->addr)) {
         blocks = blocks + 1;
       }
     }
@@ -519,8 +519,8 @@ void MInfoStatPrint(char **rptr)
     for (curr = head; curr != NULL; curr = curr->next) {
       used = used + curr->size;
       pLVar1 = curr->next;
-      if ((pLVar1 != NULL) && ((void *)((int)curr->addr + curr->size) < pLVar1->addr)) {
-        size = (int)pLVar1->addr - ((int)curr->addr + curr->size);
+      if ((pLVar1 != NULL) && ((void *)((char *)curr->addr + curr->size) < pLVar1->addr)) {
+        size = (int)((char *)pLVar1->addr - ((char *)curr->addr + curr->size));
         mhole[size >> 10] = mhole[size >> 10] + 1;
         avail = avail + size;
       }
@@ -568,7 +568,7 @@ void MInfoMapPrint(char **rptr)
     holes = 0;
     for (curr = head; curr != NULL; curr = curr->next) {
       if ((curr->next != NULL) &&
-         ((void *)((int)curr->addr + curr->size) < curr->next->addr)) {
+         ((void *)((char *)curr->addr + curr->size) < curr->next->addr)) {
         holes = holes + 1;
       }
     }
@@ -581,14 +581,14 @@ void MInfoMapPrint(char **rptr)
     }
     else {
       for (curr = head; curr != NULL; curr = curr->next) {
-        sprintf(ptr,"%08x-%08x %10d %x\n",curr->addr,(int)curr->addr + curr->size,curr->usize,
-                curr->caller);
+        sprintf(ptr,"%08lx-%08lx %10d %lx\n",(unsigned long)curr->addr,(unsigned long)((char *)curr->addr + curr->size),curr->usize,
+                (unsigned long)curr->caller);
         sVar3 = strlen(ptr);
         ptr = ptr + sVar3;
         pLVar1 = curr->next;
-        if ((pLVar1 != NULL) && ((void *)((int)curr->addr + curr->size) < pLVar1->addr)) {
-          sprintf(ptr,"%08x-%08x %10d HOLE\n",(int)curr->addr + curr->size,pLVar1->addr,
-                  (int)pLVar1->addr - ((int)curr->addr + curr->size));
+        if ((pLVar1 != NULL) && ((void *)((char *)curr->addr + curr->size) < pLVar1->addr)) {
+          sprintf(ptr,"%08lx-%08lx %10d HOLE\n",(unsigned long)((char *)curr->addr + curr->size),(unsigned long)pLVar1->addr,
+                  (int)((char *)pLVar1->addr - ((char *)curr->addr + curr->size)));
           sVar3 = strlen(ptr);
           ptr = ptr + sVar3;
         }

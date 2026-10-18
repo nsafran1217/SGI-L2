@@ -68,7 +68,7 @@ void enet_export(int port)
     exit(1);
   }
   fprintf(stderr,"INFO: SMP listening on port: %d\n",port);
-  EventAddInput(fd,enet_accept,(EventData)port,"enet_export");
+  EventAddInput(fd,enet_accept,(EventData)(intptr_t)port,"enet_export");
   return;
 }
 

@@ -250,7 +250,7 @@ LAB_0805270c:
       ping_delay = 2;
     }
     sprintf(desc,"cfg_ping_l1 (%s)",port * 0x48 + 0x820d0a4);
-    EVar2 = EventAddTimeOut(ping_delay,0,cfg_ping_l1,(EventData)device,desc);
+    EVar2 = EventAddTimeOut(ping_delay,0,cfg_ping_l1,(EventData)(intptr_t)device,desc);
     l2_l1_ports[port].timer = EVar2;
   }
   return;
@@ -465,13 +465,13 @@ void cfg_process_response(IRPacket *p)
     }
     if (uVar1 == 0) {
       if (1 < l1usb_debug) {
-        l2port = L2CfgMGetPort(&L2CfgLocal,(int)p->_client_data);
+        l2port = L2CfgMGetPort(&L2CfgLocal,(int)(intptr_t)p->_client_data);
         ostate = l2port->state;
         pcVar2 = L2CfgMDeviceName(&L2CfgLocal,l2port->fd);
         strcpy(odname,pcVar2);
       }
       smp_chkcon_changes(0);
-      config_changed = L2CfgMCfgPort(&L2CfgLocal,(int)p->_client_data,p);
+      config_changed = L2CfgMCfgPort(&L2CfgLocal,(int)(intptr_t)p->_client_data,p);
       smp_chkcon_changes(1);
       if (((1 < l1usb_debug) && (ostate != 2)) && (l2port->state == 2)) {
         pcVar2 = L2CfgMDeviceName(&L2CfgLocal,l2port->fd);
@@ -483,9 +483,9 @@ void cfg_process_response(IRPacket *p)
       }
       if (config_changed != 0) {
         client_data = p->_client_data;
-        EventRemoveTimeOut(l2_l1_ports[(int)client_data].timer);
+        EventRemoveTimeOut(l2_l1_ports[(int)(intptr_t)client_data].timer);
         EVar3 = EventAddTimeOut(1,0,cfg_ping_l1,(EventData)client_data,"extra cfg_ping_l1");
-        l2_l1_ports[(int)client_data].timer = EVar3;
+        l2_l1_ports[(int)(intptr_t)client_data].timer = EVar3;
         cfg_configcheck(1);
       }
     }
@@ -625,7 +625,7 @@ void cfg_process_event(IRPacket *p)
     }
     if (-1 < ping_port) {
       EventRemoveTimeOut(l2_l1_ports[ping_port].timer);
-      EVar4 = EventAddTimeOut(1,0,cfg_ping_l1,(EventData)ping_port,"extra cfg_ping_l1");
+      EVar4 = EventAddTimeOut(1,0,cfg_ping_l1,(EventData)(intptr_t)ping_port,"extra cfg_ping_l1");
       l2_l1_ports[ping_port].timer = EVar4;
     }
   }

@@ -229,7 +229,7 @@ int sn1SCDiscoverL2Start(int sd, char *dev, char *client_info)
       close(sd);
       return -1;
     }
-    if ((ifr.ifr_ifru.ifru_map.mem_start & 0x10) == 0) {
+    if ((ifr.ifr_flags & 0x10) == 0) {
       icmd = 0x8919;
       istr = "SIOCGIFBRDADDR";
     }
@@ -241,7 +241,7 @@ int sn1SCDiscoverL2Start(int sd, char *dev, char *client_info)
                     /* WARNING: Ignoring partial resolution of indirect */
     ifr.ifr_ifru.ifru_addr.sa_family = 2;
     iVar5 = ioctl(sd,icmd,&ifr);
-    temp_3f98bd2185 = ifr.ifr_ifru.ifru_map.mem_end;
+    temp_3f98bd2185 = ((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr.s_addr;
     if (iVar5 < 0) {
       piVar3 = __errno_location();
       iVar5 = *piVar3;
@@ -251,7 +251,7 @@ int sn1SCDiscoverL2Start(int sd, char *dev, char *client_info)
              ,iVar5);
     }
     else {
-      uVar1 = ifr.ifr_ifru.ifru_map.mem_end;
+      uVar1 = ((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr.s_addr;
       cliaddr.sin_family = 2;
       cliaddr.sin_port = htons((short)IR_PORT_BIAS + 10000);
       cliaddr.sin_addr.s_addr = uVar1;
@@ -501,7 +501,7 @@ static char **find_interfaces(uint32 **addrlist_ptr)
     ppcVar3 = NULL;
   }
   else {
-    ic.ifc_len = 0x640;
+    ic.ifc_len = sizeof(ifrbuf);
     ic.ifc_ifcu.ifcu_buf = (char *)ifrbuf;
     status = ioctl(sd,0x8912,&ic);
     if (status < 0) {
@@ -518,9 +518,9 @@ static char **find_interfaces(uint32 **addrlist_ptr)
         *nlptr = NULL;
       }
       memset(addrlist,0,sizeof(addrlist));
-      for (i = 0; i < ic.ifc_len; i = i + 0x20) {
+      for (i = 0; i < ic.ifc_len; i = i + sizeof(struct ifreq)) {
         pcVar2 = ic.ifc_ifcu.ifcu_buf + i;
-        p = (struct sockaddr_in *)(pcVar2 + 0x10);
+        p = (struct sockaddr_in *)&((struct ifreq *)pcVar2)->ifr_addr;
         iVar4 = strncmp(pcVar2,"dummy",5);
         if (iVar4 != 0) {
           nltmp = (char **)&namelist;
@@ -541,8 +541,8 @@ static char **find_interfaces(uint32 **addrlist_ptr)
                      iVar4);
               return NULL;
             }
-            if ((ifr.ifr_ifru.ifru_map.mem_start & 1) != 0) {
-              if ((ifr.ifr_ifru.ifru_map.mem_start & 0x10) != 0) {
+            if ((ifr.ifr_flags & 1) != 0) {
+              if ((ifr.ifr_flags & 0x10) != 0) {
                 strcpy((char *)&ifr,pcVar2);
                 iVar4 = ioctl(sd,0x8917,&ifr);
                 if (iVar4 < 0) {

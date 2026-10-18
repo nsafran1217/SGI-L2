@@ -508,7 +508,7 @@ static int l2cmd_rtc(CmdData *cptr, char **results, L2CMD *c)
       iVar5 = toupper((int)*tzstr);
       *tzstr = (char)iVar5;
     }
-    nvramSet(0x11,(uint32)cptr->str_stack[scnt]);
+    nvramSet(0x11,(uintptr_t)cptr->str_stack[scnt]);
     iVar5 = 1;
     pcVar3 = (char *)nvramGet(0x11);
     setenv("TZ",pcVar3,iVar5);
@@ -647,6 +647,8 @@ static int l2cmd_l2dbg(CmdData *cptr, char **results)
   int fd_;
   struct timeval cur_time;
   EventTimerEntry *e;
+  uintptr_t dump_addr;
+  int dump_len;
   int fd;
   char *rptr;
   
@@ -827,34 +829,34 @@ static int l2cmd_l2dbg(CmdData *cptr, char **results)
     }
   }
   else if (uVar6 == 0x1b) {
-    fd_ = cptr->exp_stack[0];
-    e = (EventTimerEntry *)cptr->exp_stack[1];
+    /* memory dump: the address is a 32-bit command argument (the i386 address space) */
+    dump_addr = (uintptr_t)(uint)cptr->exp_stack[0];
+    dump_len = cptr->exp_stack[1];
     cVar1 = *cptr->str_stack[0];
-    rptr = response(results,(((uint)e >> 3) + 1) * 0x50);
-    while (e != NULL) {
-      sprintf(rptr,"%08x: ",fd_);
+    rptr = response(results,(((uint)dump_len >> 3) + 1) * 0x50);
+    while (dump_len != 0) {
+      sprintf(rptr,"%08x: ",(uint)dump_addr);
       sVar3 = strlen(rptr);
       rptr = rptr + sVar3;
       byte = 0;
-      for (; (byte < 0x10 && (e != NULL));
-          e = (EventTimerEntry *)((int)&e[-1].next + 3)) {
+      for (; (byte < 0x10 && (dump_len != 0)); dump_len = dump_len + -1) {
         if (cVar1 == 'a') {
-          iVar7 = isprint((uint)*(unsigned char *)fd_);
+          iVar7 = isprint((uint)*(unsigned char *)dump_addr);
           if (iVar7 == 0) {
             uVar6 = 0x3f;
           }
           else {
-            uVar6 = (uint)*(unsigned char *)fd_;
+            uVar6 = (uint)*(unsigned char *)dump_addr;
           }
           sprintf(rptr,"%c ",uVar6);
         }
         else {
-          sprintf(rptr,"%02x ",(uint)*(unsigned char *)fd_);
+          sprintf(rptr,"%02x ",(uint)*(unsigned char *)dump_addr);
         }
         sVar3 = strlen(rptr);
         rptr = rptr + sVar3;
         byte = byte + 1;
-        fd_ = fd_ + 1;
+        dump_addr = dump_addr + 1;
       }
       strcat(rptr,"\n");
       sVar3 = strlen(rptr);
@@ -1354,7 +1356,7 @@ static int l2cmd_loopback(CmdData *cptr, char **results, L2CMD *c)
           count = cptr->exp_stack[1];
           length = cptr->exp_stack[0];
           addr = smp_get_conaddr(c->data,NULL,NULL);
-          lpbk(*(int *)(*(int *)((int)c->data + 0x1c) + 0xc),addr,length,count,smp);
+          lpbk(smp->grp->partition,addr,length,count,smp);
         }
         else {
           lpbk(0,c->dest->list[0],cptr->exp_stack[0],cptr->exp_stack[1],c->data);
@@ -1620,59 +1622,44 @@ int l2cmd_power(CmdData *cptr, char **results, L2CMD *c)
           return -1;
         }
         if (c->dest->type == 2) {
-          p = NULL;
-          port = 0;
-          for (cptr_ = (char *)&L2CfgLocal; cptr_ != NULL; cptr_ = *(char **)(cptr_ + 0x124))
-          {
-            for (addr = 0; (int)addr < 0x28; addr = addr + 1) {
-              if (*(int *)(cptr_ + addr * 0x1c + 0x15c) == 2) {
-                for (argc = 0; argc < *(int *)(cptr_ + addr * 0x1c + 0x170); argc = argc + 1) {
+          /* power routers down only when every other brick outside the destination is off */
+          int others = 0, others_off = 0;
+          L2CfgL1 *l1c;
+          for (node = &L2CfgLocal; node != NULL; node = (L2Cfg *)(node->net).next) {
+            for (port = 0; port < 0x28; port = port + 1) {
+              if (node->port_list[port].state == 2) {
+                for (argc = 0; argc < node->port_list[port].l1count; argc = argc + 1) {
+                  l1c = &node->port_list[port].l1cfg[argc];
                   found = 0;
-                  if ((((*(char *)(*(int *)(cptr_ + addr * 0x1c + 0x174) + 1 + argc * 0x30) != '\0')
-                       && (*(char *)(*(int *)(cptr_ + addr * 0x1c + 0x174) + 5 + argc * 0x30) != 'R'
-                          )) && (*(char *)(*(int *)(cptr_ + addr * 0x1c + 0x174) + 5 + argc * 0x30)
-                                 != 'D')) &&
-                     (*(char *)(*(int *)(cptr_ + addr * 0x1c + 0x174) + 5 + argc * 0x30) != '-')) {
-                    for (node = NULL; (found == 0 && ((int)node < c->dest->count));
-                        node = (L2Cfg *)((int)&(node->net).ip_addr + 1)) {
-                      if (((c->dest->list[(int)node] >> 0x12 & 0x3ff) ==
-                           (uint)*(byte *)(*(int *)(cptr_ + addr * 0x1c + 0x174) + 3 + argc * 0x30))
-                         && ((c->dest->list[(int)node] >> 0xc & 0x3f) ==
-                             (uint)*(byte *)(*(int *)(cptr_ + addr * 0x1c + 0x174) + 4 + argc * 0x30
-                                            ))) {
+                  if (l1c->configured != '\0' && l1c->type != 'R' && l1c->type != 'D' &&
+                      l1c->type != '-') {
+                    for (addr__ = 0; found == 0 && addr__ < c->dest->count; addr__ = addr__ + 1) {
+                      if ((c->dest->list[addr__] >> 0x12 & 0x3ff) == (uint)l1c->rack &&
+                          (c->dest->list[addr__] >> 0xc & 0x3f) == (uint)l1c->slot) {
                         found = 1;
                       }
                     }
-                    if ((found == 0) &&
-                       (port = port + 1,
-                       *(char *)(*(int *)(cptr_ + addr * 0x1c + 0x174) + 0x10 + argc * 0x30) == '\0'
-                       )) {
-                      p = (IRPacket *)((int)&p->_next_frame + 1);   /* FIXME(64): Ghidra reused p as an integer counter */
+                    if (found == 0) {
+                      others = others + 1;
+                      if (l1c->power_state == '\0') {
+                        others_off = others_off + 1;
+                      }
                     }
                   }
                 }
               }
             }
           }
-          if (p == (IRPacket *)port) {
-            for (cptr_ = (char *)&L2CfgLocal; cptr_ != NULL;
-                cptr_ = *(char **)(cptr_ + 0x124)) {
-              for (addr = 0; (int)addr < 0x28; addr = addr + 1) {
-                if (*(int *)(cptr_ + addr * 0x1c + 0x15c) == 2) {
-                  for (argc = 0; argc < *(int *)(cptr_ + addr * 0x1c + 0x170); argc = argc + 1) {
-                    if (((*(char *)(*(int *)(cptr_ + addr * 0x1c + 0x174) + 1 + argc * 0x30) != '\0'
-                         ) && (((*(char *)(*(int *)(cptr_ + addr * 0x1c + 0x174) + 5 + argc * 0x30)
-                                 == 'R' ||
-                                (*(char *)(*(int *)(cptr_ + addr * 0x1c + 0x174) + 5 + argc * 0x30)
-                                 == 'D')) ||
-                               (*(char *)(*(int *)(cptr_ + addr * 0x1c + 0x174) + 5 + argc * 0x30)
-                                == '-')))) &&
-                       (*(char *)(*(int *)(cptr_ + addr * 0x1c + 0x174) + 0x10 + argc * 0x30) !=
-                        '\0')) {
-                      addr_ = ((uint)*(byte *)(*(int *)(cptr_ + addr * 0x1c + 0x174) + 3 +
-                                              argc * 0x30) << 6 |
-                              *(byte *)(*(int *)(cptr_ + addr * 0x1c + 0x174) + 4 + argc * 0x30) &
-                              0x3f) << 0xc | 3;
+          if (others_off == others) {
+            for (node = &L2CfgLocal; node != NULL; node = (L2Cfg *)(node->net).next) {
+              for (port = 0; port < 0x28; port = port + 1) {
+                if (node->port_list[port].state == 2) {
+                  for (argc = 0; argc < node->port_list[port].l1count; argc = argc + 1) {
+                    l1c = &node->port_list[port].l1cfg[argc];
+                    if (l1c->configured != '\0' &&
+                        (l1c->type == 'R' || l1c->type == 'D' || l1c->type == '-') &&
+                        l1c->power_state != '\0') {
+                      addr_ = ((uint)l1c->rack << 6 | (uint)(l1c->slot & 0x3f)) << 0xc | 3;
                       argv[1]._val = IR_PTR_VAL(strdup("power down"));
                       argv[0]._clas = '\0';
                       argv[0]._frame = '\0';
@@ -1682,8 +1669,8 @@ int l2cmd_power(CmdData *cptr, char **results, L2CMD *c)
                       argv[1]._frame = '\0';
                       sVar5 = strlen((char *)IR_VAL_PTR(argv[1]._val));
                       argv[1]._size = (short)sVar5 + 1;
-                      found = (int)IRouterMakePacket(c->id,&addr_,0,0,0,2,2,argv);
-                      reqq_put(c->q,(IRPacket *)found,1,0);
+                      pkt = IRouterMakePacket(c->id,&addr_,0,0,0,2,2,argv);
+                      reqq_put(c->q,pkt,1,0);
                     }
                   }
                 }
@@ -1698,78 +1685,65 @@ int l2cmd_power(CmdData *cptr, char **results, L2CMD *c)
         }
         break;
       case 3:
-        pcVar6 = *results;
-        addr_ = 0;
-        found = 0;
-        cptr_ = NULL;
-        addr = 0;
-        argc = 0;
-        p = NULL;
-        port = 0;
-        node = NULL;
-        margin_other = 0;
-        for (addr__ = 0; addr__ < c->dest->count; addr__ = addr__ + 1) {
-          uVar2 = c->dest->list[addr__];
-          l1cfg = L2CfgMFindBrickCfg(&L2CfgLocal,uVar2 >> 0x12 & 0x3ff,uVar2 >> 0xc & 0x3f,0);
-          if (l1cfg != NULL) {
-            uVar1 = l1cfg->power_state;
-            if (uVar1 == '\0') {
-              found = found + 1;
-            }
-            else if (uVar1 == '\0') {
-              if (false) {
-                cptr_ = cptr_ + 1;
+        {
+          int on = 0, off = 0, other = 0;
+          int m_default = 0, m_low = 0, m_normal = 0, m_high = 0, m_custom = 0, m_other = 0;
+          pcVar6 = *results;
+          for (addr__ = 0; addr__ < c->dest->count; addr__ = addr__ + 1) {
+            uVar2 = c->dest->list[addr__];
+            l1cfg = L2CfgMFindBrickCfg(&L2CfgLocal,uVar2 >> 0x12 & 0x3ff,uVar2 >> 0xc & 0x3f,0);
+            if (l1cfg != NULL) {
+              /* ORIGINAL BUG: power_state is a uint8, so the original's 'case -1' (other) never matches */
+              if (l1cfg->power_state == 0) {
+                off = off + 1;
+              }
+              else if (l1cfg->power_state == 1) {
+                on = on + 1;
+              }
+              switch(l1cfg->margin_state) {
+              case '\0':
+                m_default = m_default + 1;
+                break;
+              case '\x01':
+                m_low = m_low + 1;
+                break;
+              case '\x02':
+                m_normal = m_normal + 1;
+                break;
+              case '\x03':
+                m_high = m_high + 1;
+                break;
+              case '\x04':
+                m_custom = m_custom + 1;
+                break;
+              case '\x05':
+                m_other = m_other + 1;
               }
             }
-            else if (uVar1 == '\x01') {
-              addr_ = addr_ + 1;
-            }
-            switch(l1cfg->margin_state) {
-            case '\0':
-              addr = addr + 1;
-              break;
-            case '\x01':
-              argc = argc + 1;
-              break;
-            case '\x02':
-              p = (IRPacket *)((int)&p->_next_frame + 1);   /* FIXME(64): Ghidra reused p as an integer counter */
-              break;
-            case '\x03':
-              port = port + 1;
-              break;
-            case '\x04':
-              node = (L2Cfg *)((int)&(node->net).ip_addr + 1);
-              break;
-            case '\x05':
-              margin_other = margin_other + 1;
-            }
           }
-        }
-        if (cptr_ + found == NULL) {
-          sprintf(pcVar6,"all %d bricks appear powered on\n",c->dest->count);
-        }
-        else if (cptr_ + addr_ == NULL) {
-          sprintf(pcVar6,"all %d bricks appear powered off\n",c->dest->count);
-        }
-        else {
-          sprintf(pcVar6,"power: %d on, %d off, %d other\n",addr_,found,cptr_);
-        }
-        rptr = (char *)strlen(pcVar6);
-        pcVar6 = pcVar6 + (int)rptr;
-        if ((node->net).pselect + (int)(p->_argv + -8) + margin_other + port + addr == NULL)
-        {
-          sprintf(pcVar6,"all %d bricks appear margined low\n",c->dest->count);
-        }
-        else if ((node->net).pselect + margin_other + addr + argc + port + -0x1c == NULL) {
-          sprintf(pcVar6,"all %d bricks appear margined normal\n",c->dest->count);
-        }
-        else if ((node->net).pselect + (int)(p->_argv + -8) + margin_other + addr + argc ==
-                 NULL) {
-          sprintf(pcVar6,"all %d bricks appear margined high\n",c->dest->count);
-        }
-        else {
-          sprintf(pcVar6,"margin: %d default, %d low, %d normal, %d high, %d custom, %d other\n",
-                  addr,argc,p,port,node,margin_other);
+          if (other + off == 0) {
+            sprintf(pcVar6,"all %d bricks appear powered on\n",c->dest->count);
+          }
+          else if (other + on == 0) {
+            sprintf(pcVar6,"all %d bricks appear powered off\n",c->dest->count);
+          }
+          else {
+            sprintf(pcVar6,"power: %d on, %d off, %d other\n",on,off,other);
+          }
+          pcVar6 = pcVar6 + strlen(pcVar6);
+          if (m_custom + m_normal + m_other + m_high + m_default == 0) {
+            sprintf(pcVar6,"all %d bricks appear margined low\n",c->dest->count);
+          }
+          else if (m_custom + m_other + m_default + m_low + m_high == 0) {
+            sprintf(pcVar6,"all %d bricks appear margined normal\n",c->dest->count);
+          }
+          else if (m_custom + m_normal + m_other + m_default + m_low == 0) {
+            sprintf(pcVar6,"all %d bricks appear margined high\n",c->dest->count);
+          }
+          else {
+            sprintf(pcVar6,"margin: %d default, %d low, %d normal, %d high, %d custom, %d other\n",
+                    m_default,m_low,m_normal,m_high,m_custom,m_other);
+          }
         }
         break;
       case 4:
@@ -1870,7 +1844,7 @@ static int l2cmd_password(CmdData *cptr, char **results, L2CMD *c)
   response(results,0x140);
   uVar1 = *cptr->params;
   if (uVar1 == 1) {
-    nvramSet(0x13,(uint32)cptr->str_stack[0]);
+    nvramSet(0x13,(uintptr_t)cptr->str_stack[0]);
     sprintf(*results,"L2 password changed\n");
   }
   else if (uVar1 == 0) {
@@ -1888,7 +1862,7 @@ static int l2cmd_password(CmdData *cptr, char **results, L2CMD *c)
       sprintf(*results,"ERROR: password specified is not the current L2 password.\n");
       return -1;
     }
-    nvramSet(0x13,0x8088990);
+    nvramSet(0x13,(uintptr_t)"");   /* clear the password */
     sprintf(*results,"L2 password cleared\n");
   }
   return 0;
@@ -2202,16 +2176,16 @@ static int l2cmd_pbay(CmdData *cptr, char **results, L2CMD *c)
     iVar1 = -1;
   }
   else {
-    data = calloc(0x24,1);
+    data = calloc(sizeof(pbay_data),1);
     if (data == NULL) {
       strcpy(*results,"ERROR: could not allocate memory to store internal command data\n");
       iVar1 = -1;
     }
     else {
-      *(L2CMD **)((int)data + 0x1c) = c;
+      ((pbay_data *)data)->orig_c = c;
       if (cptr->str_max != 0) {
         pcVar2 = strdup(cptr->str_stack[0]);
-        *(char **)((int)data + 0x20) = pcVar2;
+        ((pbay_data *)data)->cmd = pcVar2;
       }
       cptr_00 = cptr;
       if (*cptr->params == 0) {
@@ -2227,7 +2201,7 @@ static int l2cmd_pbay(CmdData *cptr, char **results, L2CMD *c)
         tc = cmd_setup_usr_response(pbay_rsp,data);
         if (tc == NULL) {
           strcpy(*results,"ERROR: user command processor is busy\n");
-          free(*(void **)((int)data + 0x20));
+          free(((pbay_data *)data)->cmd);
           free(data);
           iVar1 = -1;
         }
@@ -2237,7 +2211,7 @@ static int l2cmd_pbay(CmdData *cptr, char **results, L2CMD *c)
           iVar1 = dest_l1(tc->dest,cptr);
           if (iVar1 == 0) {
             strcat(*results,"WARNING: no L1s found to match that destination\n");
-            free(*(void **)((int)data + 0x20));
+            free(((pbay_data *)data)->cmd);
             free(data);
             iVar1 = -1;
           }
@@ -2249,7 +2223,7 @@ static int l2cmd_pbay(CmdData *cptr, char **results, L2CMD *c)
             else {
               response(results,0xa0);
               strcpy(*results,"ERROR: no (L1) destination set.\n");
-              free(*(void **)((int)data + 0x20));
+              free(((pbay_data *)data)->cmd);
               free(data);
               iVar1 = -1;
             }
@@ -2326,7 +2300,8 @@ static int l2cmd_haltl2(CmdData *cptr, char **results, L2CMD *c)
   EventAddTimeOut(5,0,haltl2,(EventData)0x0,"l2cmd_halt");
   response(results,0xa0);
   pcVar1 = strcpy(*results,"will halt in 5 seconds...\n");
-  return (int)pcVar1;
+  /* the original returned strcpy's result: a (positive) i386 heap address */
+  return (int)((uintptr_t)pcVar1 & 0x7fffffff);
 }
 
 static int l2cmd_ping(CmdData *cptr, char **results)
@@ -2664,7 +2639,7 @@ static int l2cmd_serial(CmdData *cptr, char **results)
              "System serial number must be [LMNPRTUWYZ]0000000 through [LMNPRTUWYZ]3999999\n");
       return -1;
     }
-    nvramSet(3,(uint32)__s);
+    nvramSet(3,(uintptr_t)__s);
     L2CfgMEventSystemSN(&L2CfgLocal);
   }
   ssn = (char *)nvramGet(3);
@@ -2684,11 +2659,11 @@ static int l2cmd_sysname(CmdData *cptr, char **results)
   response(results,0xa0);
   uVar1 = *cptr->params;
   if (uVar1 == 1) {
-    nvramSet(4,(uint32)cptr->str_stack[0]);
+    nvramSet(4,(uintptr_t)cptr->str_stack[0]);
     L2CfgMEventSystemName(&L2CfgLocal);
   }
   else if ((uVar1 != 0) && (uVar1 == 2)) {
-    nvramSet(4,0x8088990);
+    nvramSet(4,(uintptr_t)"");   /* clear the system name */
     L2CfgMEventSystemName(&L2CfgLocal);
   }
   name = (char *)nvramGet(4);
@@ -2761,8 +2736,7 @@ static int l2cmd_psmode(CmdData *cptr, char **results)
   else {
     sprintf(pcVar2,"WARNING: unknown primary/secondary mode %d.\n",L2CfgLocal.net.msmode);
   }
-  rptr = (char *)strlen(pcVar2);
-  pcVar2 = pcVar2 + (int)rptr;
+  pcVar2 = pcVar2 + strlen(pcVar2);
   uVar3 = nvramGet(0x1a);
   if (uVar3 != L2CfgLocal.net.msmode) {
     uVar3 = nvramGet(0x1a);
@@ -2979,6 +2953,7 @@ static int l2cmd_select(CmdData *cptr, char **results, L2CMD *c)
   size_t sVar6;
   uint uVar7;
   IRAddress detected_;
+  char *endp;
   IRAddress detected;
   int first;
   int locate;
@@ -3187,12 +3162,12 @@ static int l2cmd_select(CmdData *cptr, char **results, L2CMD *c)
             sprintf(*results,"ERROR: bad subchanel selection.\n");
             return -1;
           }
-          detected = strtol(cptr->str_stack[0],(char **)&detected_,0);
-          if (detected_ == 0) {
+          detected = strtol(cptr->str_stack[0],&endp,0);
+          if (endp == NULL) {
             first = 0;
           }
           else {
-            iVar2 = tolower((int)*(char *)detected_);
+            iVar2 = tolower((int)*endp);
             first = iVar2 + -0x61;
           }
           if (((cfg->type == ',') || (cfg->type == '}')) || (cfg->type == '.')) {
@@ -3349,12 +3324,12 @@ static int l2cmd_select(CmdData *cptr, char **results, L2CMD *c)
             sprintf(*results,"ERROR: bad subchanel selection.\n");
             return -1;
           }
-          first = strtol(cptr->str_stack[0],(char **)&detected,0);
-          if (detected == 0) {
+          first = strtol(cptr->str_stack[0],&endp,0);
+          if (endp == NULL) {
             iVar2 = 0;
           }
           else {
-            iVar2 = tolower((int)*(char *)detected);
+            iVar2 = tolower((int)*endp);
             iVar2 = iVar2 + -0x61;
           }
           if (((cfg->type == ',') || (cfg->type == '}')) || (cfg->type == '.')) {
@@ -3449,8 +3424,8 @@ static int l2cmd_tty(CmdData *cptr, char **results, L2CMD *c)
       iVar1 = 0;
     }
     else {
-      smp_tty_debug(*(int *)((int)c->data + 4));
-      smp_tty_debug(*(int *)((int)c->data + 8));
+      smp_tty_debug(((SMP *)c->data)->rfd);
+      smp_tty_debug(((SMP *)c->data)->wfd);
       iVar1 = 0;
     }
   }
@@ -3479,7 +3454,7 @@ static int ver_summary_rsp(IRPacket *rsp, L2CMD *c, IRAddress *dest, int pktslef
   char *pcVar6;
   undefined *puVar7;
   int iVar8;
-  undefined4 uVar9;
+  char *uVar9;
   char *rptr_;
   char version [16];
   char junk2 [20];
@@ -3542,8 +3517,8 @@ static int ver_summary_rsp(IRPacket *rsp, L2CMD *c, IRAddress *dest, int pktslef
         }
         if (i == sd->verscnt) {
           pcVar6 = strdup(version);
-          *(char **)(sd->verslist + sd->verscnt * 4) = pcVar6;
-          piVar1 = (int *)(sd->versnum + sd->verscnt * 4);
+          sd->verslist[sd->verscnt] = pcVar6;
+          piVar1 = &sd->versnum[sd->verscnt];
           *piVar1 = *piVar1 + 1;
           sd->verscnt = sd->verscnt + 1;
         }
@@ -3721,14 +3696,15 @@ static int l2cmd_version_summary(CmdData *cptr, char **results, L2CMD *c)
     iVar1 = -1;
   }
   else {
-    data = calloc(0x1c,1);
+    sd = calloc(sizeof(ver_summary_data),1);
+    data = (uint *)sd;
     if (data == NULL) {
       strcpy(*results,"ERROR: could not allocate memory to store internal command data\n");
       iVar1 = -1;
     }
     else {
-      *data = (uint)(*cptr->params == 1);
-      data[6] = (uint)c;
+      sd->quiet = (int)(*cptr->params == 1);
+      sd->orig_c = c;
       iVar1 = dest_l2(c->dest,cptr);
       if (iVar1 == 0) {
         strcat(emsg,"    WARNING: no L2s found to match that destination\n");

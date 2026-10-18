@@ -64,9 +64,17 @@ void syslog(int level, char *fl, int ln, int msgno, char *fmt, ...)
   case 2:
     sVar1 = vsprintf(slog_usrmsg,fmt,ap);
     /* ORIGINAL BUG (kept, see ORIGINAL_BUGS.md): 5 arguments for 3 conversions; msgno lands
-     * in the second %s. Verified against the machine code. */
-    iVar2 = sprintf(slog_fullmsg,"%s: %s line %d ; ",hwType,msgno,syslog_txt[local_level],stripfl,ln
-                   );
+     * in the second %s and the level text's address in %d. Verified against the machine code.
+     * Spelled out so it means the same on every ABI: msgno 0 is glibc's "(null)", and a
+     * nonzero msgno (a wild pointer on i386) prints as its number. */
+    if (msgno == 0) {
+      iVar2 = sprintf(slog_fullmsg,"%s: %s line %d ; ",hwType,"(null)",
+                      (int)(uintptr_t)syslog_txt[local_level]);
+    }
+    else {
+      iVar2 = sprintf(slog_fullmsg,"%s: %d line %d ; ",hwType,msgno,
+                      (int)(uintptr_t)syslog_txt[local_level]);
+    }
     strncpy(slog_fullmsg + iVar2,slog_usrmsg,sVar1);
     if (syslog_cb != NULL) {
       (*syslog_cb)(local_level,slog_fullmsg);

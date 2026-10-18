@@ -124,7 +124,7 @@ SMP *smp_init(IRIdent *id, int rfd, int wfd, void (*rfcn)(), long unsigned int h
   smp->grpid = iVar5;
   pSVar1 = malloc(sizeof(SMPGroup));
   smp->grp = pSVar1;
-  memset(smp->grp,0,0xb8);
+  memset(smp->grp,0,sizeof(*smp->grp));
   smp->grp->id = smp->grpid;
   smp->grp->confilter = 0;
   smp->grp->count = 1;
@@ -710,7 +710,7 @@ int smp_leave(SMP *smp)
       }
       pSVar2 = malloc(sizeof(SMPGroup));
       smp->grp = pSVar2;
-      memset(smp->grp,0,0xb8);
+      memset(smp->grp,0,sizeof(*smp->grp));
       smp->grp->id = smp->grpid;
       smp->grp->confilter = 0;
       smp->grp->count = 1;
@@ -1055,8 +1055,7 @@ void smp_prompt(SMP *smp)
     if (L2CfgLocal.net.msmode == 1) {
       sprintf(prompt,"WARNING: This is a secondary L2, system controller access is limited...\n");
     }
-    pptr = (char *)strlen(prompt);
-    __s = prompt + (int)pptr;
+    __s = prompt + strlen(prompt);
     if ((L2CfgLocal.rack == 0) || (L2CfgLocal.rack == -1)) {
       pcVar1 = SocketAddrStr(l2_ip);
       sprintf(__s,"%s-%s-",s,pcVar1);
@@ -1731,8 +1730,8 @@ void smp_write(SMP *smp, char *ibptr, int iblen)
           sprintf(x___,"SMP %d (%d) partial write %d/%d",smp->grpid,smp_count,status,oblen);
           nvramLogFinsert(x___);
           if (status != 0) {
-            memmove((void *)&obuff,(void *)(status + 0x8096580),oblen - status);
-            obptr = (char *)(status + 0x8096580);
+            memmove(obuff,obuff + status,oblen - status);
+            obptr = obuff + status;
             oblen = status;
           }
         }

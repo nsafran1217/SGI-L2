@@ -208,7 +208,7 @@ static char *l1_usb_path_str(sgil1_cfg_t *cfg, int format)
     uVar2 = (uint)cfg->path[i];
     pcVar3 = "%d";
     sVar1 = strlen((char *)&path);
-    sprintf((char *)(sVar1 + 0x8095020),pcVar3,uVar2);
+    sprintf(path + sVar1,pcVar3,uVar2);
   }
   if (format == 0) {
     uVar2 = (uint)cfg->dev;
@@ -220,7 +220,7 @@ static char *l1_usb_path_str(sgil1_cfg_t *cfg, int format)
     uVar2 = (uint)cfg->dev;
     pcVar3 = "  dev: %d";
     sVar1 = strlen((char *)&path);
-    sprintf((char *)(sVar1 + 0x8095020),pcVar3,uVar2);
+    sprintf(path + sVar1,pcVar3,uVar2);
   }
   return (char *)&path;
 }
@@ -320,9 +320,9 @@ int l1_open_usb_device(int device)
       iVar3 = -1;
     }
     else {
-      EVar5 = EventAddTimeOut(0,750000,cfg_ping_l1,(EventData)device,"l1_open_usb_device");
+      EVar5 = EventAddTimeOut(0,750000,cfg_ping_l1,(EventData)(intptr_t)device,"l1_open_usb_device");
       l2_l1_ports[device].timer = EVar5;
-      EventAddInput(l2_l1_ports[device].fd,l1_read_packet,(EventData)device,"l1_open_usb_device");
+      EventAddInput(l2_l1_ports[device].fd,l1_read_packet,(EventData)(intptr_t)device,"l1_open_usb_device");
       if (l2_debug != 0) {
         fprintf(stderr,"l1_open_usb_device() out, fd: %d\n",iVar3);
       }
@@ -648,7 +648,7 @@ void l1_open(void)
           fprintf(stderr,"WARNING: device is already in use.\n");
           return;
         }
-        EventAddTimeOut(1,0,cfg_ping_l1,(EventData)l2_l1_ports[0].fd,"l1_open");
+        EventAddTimeOut(1,0,cfg_ping_l1,(EventData)(intptr_t)l2_l1_ports[0].fd,"l1_open");
         EventAddInput(l2_l1_ports[0].fd,l1_read_packet,(EventData)0x0,"l1_open");
         initialized = true;
         status = 0;
@@ -1023,7 +1023,7 @@ void l1_read_packet(int port, int fd)
     }
     lastcnt[fd] = 0;
     lasterr[fd] = 0;
-    p->_client_data = (uint8 *)port;
+    p->_client_data = (uint8 *)(intptr_t)port;
     IRouterSendPacket(NULL,p);
   }
   else if (status == -0x26d) {

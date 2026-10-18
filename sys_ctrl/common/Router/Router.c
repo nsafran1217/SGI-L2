@@ -131,7 +131,7 @@ int RouterInit(int max_in_args, int use_unix, char *process_name, int process_id
 int RouterSetFreeCB(void (*free_cb)())
 {
   ClientFreeCB = free_cb;
-  return (int)free_cb;
+  return 0;   /* the original left free_cb in %eax; no caller uses the result */
 }
 
 int RouterClientsConnected(void)
@@ -810,7 +810,7 @@ LAB_08076364:
       memcpy(client->in_buf,&thdr,8);
       client->in_hostbyteorder = 1;
     }
-    if ((uint)((int)client->in_bufptr - (int)client->in_buf) < client->in_buf->length + 8) {
+    if ((uint)((int)(client->in_bufptr - (char *)client->in_buf)) < client->in_buf->length + 8) {
       client->in_bytesneeded = client->in_buf->length;
       buf_bytesneeded = client->in_bytesneeded + 8;
       if (client->in_bufsize < buf_bytesneeded) {
@@ -1747,8 +1747,8 @@ void RouterPrintClientStats(RouterClient *client, FILE *fd, int reset)
     RouterPrintStats(fd,&client->out_stats);
   }
   if (reset != 0) {
-    memset(&client->in_stats,0,0x28);
-    memset(&client->out_stats,0,0x28);
+    memset(&client->in_stats,0,sizeof(client->in_stats));
+    memset(&client->out_stats,0,sizeof(client->out_stats));
   }
   return;
 }

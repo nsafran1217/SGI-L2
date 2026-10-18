@@ -383,8 +383,8 @@ int sn1SCParseCmdline(int *argc, char **argv, int *serial)
         argv = argv + 1;
       }
       else {
-        for (mtfile = NULL; (int)mtfile < tmp_argc; mtfile = mtfile + 1) {
-          argv[(int)mtfile] = argv[(int)(mtfile + argsused)];
+        for (mtfile = NULL; (int)(intptr_t)mtfile < tmp_argc; mtfile = mtfile + 1) {   /* Ghidra: a char * reused as an int */
+          argv[(int)(intptr_t)mtfile] = argv[(int)(intptr_t)(mtfile + argsused)];
         }
         orig_argc = orig_argc - argsused;
       }
@@ -1133,6 +1133,7 @@ int sn1SCTextCmd(IRAddress *toaddr, char *cmd, char **rsp)
   char *rstr;
   size_t sVar2;
   uint32 req_id;
+  char *line;     /* Ghidra merged this into req_id */
   FILE *outf;
   int arg;
   int status;
@@ -1149,9 +1150,7 @@ int sn1SCTextCmd(IRAddress *toaddr, char *cmd, char **rsp)
   av[1]._clas = '\n';
   av[1]._frame = '\0';
   av[1]._val = IR_PTR_VAL(strdup(cmd));
-  pcVar1 = strdup(cmd);
-  rstr = (char *)strlen(pcVar1);
-  av[1]._size = (short)rstr + 1;
+  av[1]._size = (short)strlen(cmd) + 1;   /* the original measured a second, leaked strdup(cmd) */
   ac = 2;
   rptr = malloc(0xa0);
   *rsp = rptr;
@@ -1174,14 +1173,14 @@ int sn1SCTextCmd(IRAddress *toaddr, char *cmd, char **rsp)
         for (arg = 0; arg < (int)(uint)pkt->_argc; arg = arg + 1) {
           if ((pkt->_argv[arg]._clas & 7) == 2) {
             if ((pkt->_argv[arg]._clas & 7) == 0) {
-              req_id = pkt->_argv[arg]._val;
+              line = (char *)IR_VAL_PTR(pkt->_argv[arg]._val);
             }
             else {
-              req_id = IRArg(pkt,arg);
+              line = (char *)IRArg(pkt,arg);
             }
-            BuffWrite(bw,(char *)req_id,-1);
-            sVar2 = strlen((char *)req_id);
-            if (*(char *)(sVar2 + req_id + -1) != '\n') {
+            BuffWrite(bw,line,-1);
+            sVar2 = strlen(line);
+            if (line[sVar2 - 1] != '\n') {
               BuffWrite(bw,"\n",1);
             }
           }

@@ -213,7 +213,7 @@ char *LoggerModuleMessage(int msgnbr)
   
   iVar1 = (msgnbr / 100) * 100;
   if ((iVar1 < -299) && (-0x3e9 < iVar1)) {
-    pcVar2 = *(char **)(&LoggerErrorRange + ((iVar1 + 300) / 100) * -0xc);
+    pcVar2 = LoggerErrorRange[-((iVar1 + 300) / 100)].name;
   }
   else {
     pcVar2 = "Unknown";

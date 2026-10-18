@@ -28,6 +28,9 @@
 #include "../../l3/main/nvram.h"
 #include "../sys/syslog.h"
 #include "decomp.h"     /* Ghidra types/macros; remove once the file is cleaned up */
+
+/* lists of L2Cfg are walked through their first member, net (an L2CfgNode) */
+#define L2CFG_OF(node) ((L2Cfg *)(node))
 struct __anon_struct_50 {
     int state;
     int rack;
@@ -352,10 +355,10 @@ L2CfgNode *L2CfgInitNode(L2CfgNode *node, int l2, uint32 ip_addr, IRAddress ir_a
   }
   if (node == NULL) {
     if (l2 == 0) {
-      nsize = 0x128;
+      nsize = sizeof(L2CfgNode);
     }
     else {
-      nsize = 0x5c8;
+      nsize = sizeof(L2Cfg);
     }
     node = malloc(nsize);
     if (node == NULL) {
@@ -662,14 +665,14 @@ int L2CfgMDeleteL2Peer(L2Cfg *head, L2CfgNode *peer)
       p_Var1 = next->next;
       for (port = 0; port < 0x28; port = port + 1) {
         iVar2 = port * 0x1c;
-        if (*(int *)(next[1].pselect + iVar2 + 0x24) != 0) {
-          free(*(void **)(next[1].pselect + iVar2 + 0x24));
+        if (L2CFG_OF(next)->port_list[port].device != NULL) {
+          free(L2CFG_OF(next)->port_list[port].device);
         }
-        if (*(int *)(next[1].pselect + iVar2 + 0x28) != 0) {
-          free(*(void **)(next[1].pselect + iVar2 + 0x28));
+        if (L2CFG_OF(next)->port_list[port].usbpath != NULL) {
+          free(L2CFG_OF(next)->port_list[port].usbpath);
         }
-        if (*(int *)(next[1].pselect + iVar2 + 0x30) != 0) {
-          free(*(void **)(next[1].pselect + iVar2 + 0x30));
+        if (L2CFG_OF(next)->port_list[port].l1cfg != NULL) {
+          free(L2CFG_OF(next)->port_list[port].l1cfg);
         }
       }
       free(next);
@@ -785,7 +788,7 @@ static void format_l1(char *rptr, L2CfgNode *l2node, int port, int l1, int mode)
   char *sp;
   
   iVar2 = port * 0x1c;
-  uVar5 = (uint)*(byte *)(*(int *)(l2node[1].pselect + iVar2 + 0x30) + l1 * 0x30);
+  uVar5 = (uint)L2CFG_OF(l2node)->port_list[port].l1cfg[l1].index;
   pcVar3 = SocketAddrStr(l2node->ip_addr);
   sprintf(rptr,"L1 %s:%d:%d           ",pcVar3,port,uVar5);
   rptr[0x19] = '\0';
@@ -797,8 +800,8 @@ static void format_l1(char *rptr, L2CfgNode *l2node, int port, int l1, int mode)
     sVar4 = strlen(rptr);
     rptr = rptr + sVar4;
   }
-  if ((*(char *)(*(int *)(l2node[1].pselect + iVar2 + 0x30) + 1 + l1 * 0x30) == '\0') &&
-     (*(char *)(*(int *)(l2node[1].pselect + iVar2 + 0x30) + 0x12 + l1 * 0x30) == '\x01')) {
+  if ((L2CFG_OF(l2node)->port_list[port].l1cfg[l1].configured == '\0') &&
+     (L2CFG_OF(l2node)->port_list[port].l1cfg[l1].conn_state == '\x01')) {
     if (l1 == 0) {
       strcat(rptr,"C/R/G brick (USB connection)");
     }
@@ -809,16 +812,16 @@ static void format_l1(char *rptr, L2CfgNode *l2node, int port, int l1, int mode)
     strlen(rptr);
     return;
   }
-  FmtBrick(rptr,(uint)*(byte *)(*(int *)(l2node[1].pselect + iVar2 + 0x30) + 3 + l1 * 0x30),
-           (uint)*(byte *)(*(int *)(l2node[1].pselect + iVar2 + 0x30) + 5 + l1 * 0x30),
-           (uint)*(byte *)(*(int *)(l2node[1].pselect + iVar2 + 0x30) + 4 + l1 * 0x30));
-  bVar1 = *(byte *)(*(int *)(l2node[1].pselect + iVar2 + 0x30) + 5 + l1 * 0x30);
+  FmtBrick(rptr,(uint)L2CFG_OF(l2node)->port_list[port].l1cfg[l1].rack,
+           (uint)L2CFG_OF(l2node)->port_list[port].l1cfg[l1].type,
+           (uint)L2CFG_OF(l2node)->port_list[port].l1cfg[l1].slot);
+  bVar1 = L2CFG_OF(l2node)->port_list[port].l1cfg[l1].type;
   if (bVar1 != 0x44) {
     if (bVar1 < 0x45) {
       if (bVar1 != 0x2d) {
 LAB_08069ef0:
-        if (*(char *)(*(int *)(l2node[1].pselect + iVar2 + 0x30) + 6 + l1 * 0x30) != '\0') {
-          uVar5 = (uint)*(byte *)(*(int *)(l2node[1].pselect + iVar2 + 0x30) + 6 + l1 * 0x30);
+        if (L2CFG_OF(l2node)->port_list[port].l1cfg[l1].partition != '\0') {
+          uVar5 = (uint)L2CFG_OF(l2node)->port_list[port].l1cfg[l1].partition;
           pcVar3 = ".%-3d";
           sVar4 = strlen(rptr);
           rptr = rptr + sVar4;
@@ -834,8 +837,8 @@ LAB_08069f63:
   sVar4 = strlen(rptr);
   if (mode == 2) {
     sprintf(rptr + sVar4," %s(%s %s)\n","",
-            *(undefined4 *)(l2node[1].pselect + iVar2 + 0x28),
-            *(undefined4 *)(l2node[1].pselect + iVar2 + 0x24));
+            L2CFG_OF(l2node)->port_list[port].usbpath,
+            L2CFG_OF(l2node)->port_list[port].device);
   }
   else {
     strcat(rptr + sVar4,"\n");
@@ -865,11 +868,11 @@ static void format_l2(char *rptr, L2CfgNode *l2node, L2Cfg *head, int mode, int 
   l1cnt = 0;
   pcVar1 = SocketAddrStr(l2node->ip_addr);
   strcpy(ipstr,pcVar1);
-  if (l2node[1].ip_addr == 0) {
+  if (L2CFG_OF(l2node)->rack == 0) {
     strcpy(rackstr,"---- (no rack ID set)");
   }
   else {
-    sprintf(rackstr,"%04d",l2node[1].ip_addr);
+    sprintf(rackstr,"%04d",L2CFG_OF(l2node)->rack);
   }
   if (mode == 2) {
     sprintf(rptr,"L2 %s: - %s (IR %08x, C %08x)",ipstr,rackstr,l2node->ir_addr,l2node->client);
@@ -897,17 +900,17 @@ static void format_l2(char *rptr, L2CfgNode *l2node, L2Cfg *head, int mode, int 
   if (show_l1 != 0) {
     for (port = 0; port < 0x28; port = port + 1) {
       rackslot = 0;
-      if ((*(int *)(l2node[1].pselect + port * 0x1c + 0x18) != 0) &&
-         (*(int *)(l2node[1].pselect + port * 0x1c + 0x30) != 0)) {
-        if (*(int *)(l2node[1].pselect + port * 0x1c + 0x18) == 2) {
-          rackslot = (uint)*(byte *)(*(int *)(l2node[1].pselect + port * 0x1c + 0x30) + 3) << 0x10 |
-                     (uint)*(byte *)(*(int *)(l2node[1].pselect + port * 0x1c + 0x30) + 4);
+      if ((L2CFG_OF(l2node)->port_list[port].state != 0) &&
+         (L2CFG_OF(l2node)->port_list[port].l1cfg != 0)) {
+        if (L2CFG_OF(l2node)->port_list[port].state == 2) {
+          rackslot = (uint)L2CFG_OF(l2node)->port_list[port].l1cfg->rack << 0x10 |
+                     (uint)L2CFG_OF(l2node)->port_list[port].l1cfg->slot;
         }
         i = 0;
         while ((i < l1cnt &&
                (rackslot <=
-                ((uint)*(byte *)(*(int *)(l2node[1].pselect + l1list[i] * 0x1c + 0x30) + 3) << 0x10
-                | (uint)*(byte *)(*(int *)(l2node[1].pselect + l1list[i] * 0x1c + 0x30) + 4))))) {
+                ((uint)L2CFG_OF(l2node)->port_list[l1list[i]].l1cfg->rack << 0x10
+                | (uint)L2CFG_OF(l2node)->port_list[l1list[i]].l1cfg->slot)))) {
           i = i + 1;
         }
         if (i != l1cnt) {
@@ -918,7 +921,7 @@ static void format_l2(char *rptr, L2CfgNode *l2node, L2Cfg *head, int mode, int 
       }
     }
     for (i = 0; i < l1cnt; i = i + 1) {
-      l2port = (L2CfgPort *)(l2node[1].pselect + l1list[i] * 0x1c + 0x18);
+      l2port = &L2CFG_OF(l2node)->port_list[l1list[i]];
       if (l2port->state == 2) {
         for (l1 = 0; l1 < l2port->l1count; l1 = l1 + 1) {
           if ((l2port->l1cfg[l1].configured != '\0') || (l2port->l1cfg[l1].conn_state != '\0')) {
@@ -946,6 +949,7 @@ static void format_l2(char *rptr, L2CfgNode *l2node, L2Cfg *head, int mode, int 
 
 void L2CfgMPrint(L2Cfg *head, char **rrptr, int mode, int show_l1)
 {
+  L2CfgL1 *l1c;   /* Ghidra kept this element pointer in an int */
   RouterClient *pRVar1;
   char *pcVar2;
   size_t sVar3;
@@ -1002,28 +1006,28 @@ void L2CfgMPrint(L2Cfg *head, char **rrptr, int mode, int show_l1)
     for (l2node = &head->net; l2node != NULL; l2node = l2node->next) {
       l2s = l2s + 1;
       for (port = 0; port < 0x28; port = port + 1) {
-        if ((*(int *)(l2node[1].pselect + port * 0x1c + 0x18) != 0) &&
+        if ((L2CFG_OF(l2node)->port_list[port].state != 0) &&
            (ports_connected = ports_connected + 1,
-           *(int *)(l2node[1].pselect + port * 0x1c + 0x18) == 2)) {
+           L2CFG_OF(l2node)->port_list[port].state == 2)) {
           ports_configured = ports_configured + 1;
-          for (l1 = 0; l1 < *(int *)(l2node[1].pselect + port * 0x1c + 0x2c); l1 = l1 + 1) {
-            iVar4 = *(int *)(l2node[1].pselect + port * 0x1c + 0x30) + l1 * 0x30;
-            if ((*(char *)(iVar4 + 1) == '\0') && (*(char *)(iVar4 + 0x12) == '\0'))
+          for (l1 = 0; l1 < L2CFG_OF(l2node)->port_list[port].l1count; l1 = l1 + 1) {
+            l1c = &L2CFG_OF(l2node)->port_list[port].l1cfg[l1];
+            if ((l1c->configured == '\0') && (l1c->conn_state == '\0'))
             goto LAB_0806a7f0;
-            sVar3 = strlen((char *)(iVar4 + 0x18));
+            sVar3 = strlen(l1c->brick_sn);
             if (sVar3 != 0) {
-              pcVar2 = strstr(found,(char *)(iVar4 + 0x18));
+              pcVar2 = strstr(found,l1c->brick_sn);
               if (pcVar2 != NULL) goto LAB_0806a7f0;
               sVar3 = strlen(found);
               if (sVar3 + 7 < 0x1000) {
-                strcat(found,(char *)(iVar4 + 0x18));
+                strcat(found,l1c->brick_sn);
                 strcat(found,",");
               }
             }
             l1s = l1s + 1;
             if (false) {
 switchD_0806a788_caseD_26:
-              if (*(char *)(iVar4 + 1) == '\0') {
+              if (l1c->configured == '\0') {
                 noconfig = noconfig + 1;
               }
               else {
@@ -1031,7 +1035,7 @@ switchD_0806a788_caseD_26:
               }
             }
             else {
-              switch(*(undefined1 *)(iVar4 + 5)) {
+              switch(l1c->type) {
               case 0x23:
               case 0x4a:
               case 0x50:
@@ -1165,10 +1169,10 @@ LAB_0806a7f0:
     count = 0;
     for (l2node = &head->net; l2node != NULL; l2node = l2node->next) {
       count = count + 1;
-      for (l1cfg = NULL; (int)l1cfg < 0x28; l1cfg = (L2CfgL1 *)&l1cfg->configured) {
-        if ((*(int *)(l2node[1].pselect + (int)l1cfg * 0x1c + 0x18) != 0) &&
-           (*(int *)(l2node[1].pselect + (int)l1cfg * 0x1c + 0x18) == 2)) {
-          count = count + *(int *)(l2node[1].pselect + (int)l1cfg * 0x1c + 0x2c);
+      for (port = 0; port < 0x28; port = port + 1) {
+        if ((L2CFG_OF(l2node)->port_list[port].state != 0) &&
+           (L2CFG_OF(l2node)->port_list[port].state == 2)) {
+          count = count + L2CFG_OF(l2node)->port_list[port].l1count;
         }
       }
     }
@@ -1187,11 +1191,11 @@ LAB_0806a7f0:
       *rptr = '\0';
       for (l2node = &head->net; l2node != NULL; l2node = l2node->next) {
         l1 = 0;
-        while ((l1 < l2cnt && ((int)l2list[l1][1].ip_addr <= (int)l2node[1].ip_addr))) {
+        while ((l1 < l2cnt && ((int)L2CFG_OF(l2list[l1])->rack <= L2CFG_OF(l2node)->rack))) {
           l1 = l1 + 1;
         }
         if (l1 != l2cnt) {
-          memmove(l2list + l1 + 1,l2list + l1,(l2cnt - l1) * 4);
+          memmove(l2list + l1 + 1,l2list + l1,(l2cnt - l1) * sizeof(*l2list));
         }
         l2list[l1] = l2node;
         l2cnt = l2cnt + 1;
@@ -1258,6 +1262,7 @@ LAB_0806a7f0:
 
 void L2CfgMPrintX(L2Cfg *head, char **rrptr)
 {
+  L2CfgL1 *l1c;   /* Ghidra kept this element pointer in an int */
   char cVar1;
   size_t sVar2;
   int iVar3;
@@ -1282,12 +1287,12 @@ void L2CfgMPrintX(L2Cfg *head, char **rrptr)
   count = 0;
   for (l2node = &head->net; l2node != NULL; l2node = l2node->next) {
     for (port = 0; port < 0x28; port = port + 1) {
-      if ((*(int *)(l2node[1].pselect + port * 0x1c + 0x18) != 0) &&
-         (*(int *)(l2node[1].pselect + port * 0x1c + 0x18) == 2)) {
-        for (l1 = 0; l1 < *(int *)(l2node[1].pselect + port * 0x1c + 0x2c); l1 = l1 + 1) {
-          iVar3 = *(int *)(l2node[1].pselect + port * 0x1c + 0x30) + l1 * 0x30;
-          if ((*(char *)(iVar3 + 1) != '\0') || (*(char *)(iVar3 + 0x12) != '\0')) {
-            rs = (uint)*(byte *)(iVar3 + 4) + (uint)*(byte *)(iVar3 + 3) * 100;
+      if ((L2CFG_OF(l2node)->port_list[port].state != 0) &&
+         (L2CFG_OF(l2node)->port_list[port].state == 2)) {
+        for (l1 = 0; l1 < L2CFG_OF(l2node)->port_list[port].l1count; l1 = l1 + 1) {
+          l1c = &L2CFG_OF(l2node)->port_list[port].l1cfg[l1];
+          if ((l1c->configured != '\0') || (l1c->conn_state != '\0')) {
+            rs = (uint)l1c->slot + (uint)l1c->rack * 100;
             found = false;
             for (n = 0; (!found && (n < count)); n = n + 1) {
               if (list[n].rs == rs) {
@@ -1300,17 +1305,17 @@ void L2CfgMPrintX(L2Cfg *head, char **rrptr)
                 if (list[n].rs < rs) {
                   memmove(list + n + 1,list + n,(count - n) * 0x10);
                   list[n].rs = rs;
-                  list[n].type = (uint)*(byte *)(iVar3 + 5);
-                  list[n].part = (uint)*(byte *)(iVar3 + 6);
-                  list[n].l2 = l2node[1].ip_addr;
+                  list[n].type = (uint)l1c->type;
+                  list[n].part = (uint)l1c->partition;
+                  list[n].l2 = L2CFG_OF(l2node)->rack;
                   found = true;
                 }
               }
               if (!found) {
                 list[count].rs = rs;
-                list[count].type = (uint)*(byte *)(iVar3 + 5);
-                list[count].part = (uint)*(byte *)(iVar3 + 6);
-                list[count].l2 = l2node[1].ip_addr;
+                list[count].type = (uint)l1c->type;
+                list[count].part = (uint)l1c->partition;
+                list[count].l2 = L2CFG_OF(l2node)->rack;
               }
               count = count + 1;
             }
@@ -1358,6 +1363,7 @@ void L2CfgMPrintX(L2Cfg *head, char **rrptr)
 
 void L2CfgMPrintY(L2Cfg *head, char **rrptr)
 {
+  L2CfgL1 *l1c;   /* Ghidra kept this element pointer in an int */
   char cVar1;
   size_t sVar2;
   int iVar3;
@@ -1381,12 +1387,12 @@ void L2CfgMPrintY(L2Cfg *head, char **rrptr)
   count = 0;
   for (l2node = &head->net; l2node != NULL; l2node = l2node->next) {
     for (port = 0; port < 0x28; port = port + 1) {
-      if ((*(int *)(l2node[1].pselect + port * 0x1c + 0x18) != 0) &&
-         (*(int *)(l2node[1].pselect + port * 0x1c + 0x18) == 2)) {
-        for (l1 = 0; l1 < *(int *)(l2node[1].pselect + port * 0x1c + 0x2c); l1 = l1 + 1) {
-          iVar3 = *(int *)(l2node[1].pselect + port * 0x1c + 0x30) + l1 * 0x30;
-          if ((*(char *)(iVar3 + 1) != '\0') || (*(char *)(iVar3 + 0x12) != '\0')) {
-            rs = (uint)*(byte *)(iVar3 + 4) + (uint)*(byte *)(iVar3 + 3) * 100;
+      if ((L2CFG_OF(l2node)->port_list[port].state != 0) &&
+         (L2CFG_OF(l2node)->port_list[port].state == 2)) {
+        for (l1 = 0; l1 < L2CFG_OF(l2node)->port_list[port].l1count; l1 = l1 + 1) {
+          l1c = &L2CFG_OF(l2node)->port_list[port].l1cfg[l1];
+          if ((l1c->configured != '\0') || (l1c->conn_state != '\0')) {
+            rs = (uint)l1c->slot + (uint)l1c->rack * 100;
             found = false;
             for (n = 0; (!found && (n < count)); n = n + 1) {
               if (auStack_3004[n * 3] == rs) {
@@ -1399,15 +1405,15 @@ void L2CfgMPrintY(L2Cfg *head, char **rrptr)
                 if ((int)auStack_3004[n * 3] < rs) {
                   memmove(auStack_2ff8 + n * 0xc,auStack_3004 + n * 3,(count - n) * 0xc);
                   auStack_3004[n * 3] = rs;
-                  auStack_3004[n * 3 + 1] = (uint)*(byte *)(iVar3 + 5);
-                  auStack_3004[n * 3 + 2] = (uint)*(byte *)(iVar3 + 6);
+                  auStack_3004[n * 3 + 1] = (uint)l1c->type;
+                  auStack_3004[n * 3 + 2] = (uint)l1c->partition;
                   found = true;
                 }
               }
               if (!found) {
                 auStack_3004[count * 3] = rs;
-                auStack_3004[count * 3 + 1] = (uint)*(byte *)(iVar3 + 5);
-                auStack_3004[count * 3 + 2] = (uint)*(byte *)(iVar3 + 6);
+                auStack_3004[count * 3 + 1] = (uint)l1c->type;
+                auStack_3004[count * 3 + 2] = (uint)l1c->partition;
               }
               count = count + 1;
             }
@@ -1590,6 +1596,8 @@ void L2CfgMCfgL2_rev1(L2Cfg *head, IRPacket *pkt)
 
 void L2CfgMCfgL2(L2Cfg *head, IRPacket *p)
 {
+  L2CfgNode *peer;
+  L2CfgNode *next_peer;
   int *piVar1;
   byte bVar2;
   int rev;
@@ -1824,10 +1832,11 @@ void L2CfgMCfgL2(L2Cfg *head, IRPacket *p)
                               (l2->net).msmode = 2;
                               (l2->net).msip = 0;
                               (l2->net).msnode = NULL;
-                              for (c = (char *)(head->net).next; c != NULL;
-                                  c = *(char **)(c + 0x124)) {
-                                if (*(int *)(c + 0x10) == 1) {
-                                  L2CfgMDeleteL2Peer(head,(L2CfgNode *)c);
+                              /* the original read peer->next after freeing the peer */
+                              for (peer = (head->net).next; peer != NULL; peer = next_peer) {
+                                next_peer = peer->next;
+                                if (peer->msmode == 1) {
+                                  L2CfgMDeleteL2Peer(head,peer);
                                 }
                               }
                             }
@@ -2273,13 +2282,13 @@ int L2CfgMCfgPort(L2Cfg *head, int port, IRPacket *p)
         idxp = (char *)IRArg(p,4);
       }
       if ((p->_argv[5]._clas & 7) == 0) {
-        uVar2 = p->_argv[5]._val;
+        cfgp = (char *)IR_VAL_PTR(p->_argv[5]._val);
       }
       else {
-        uVar2 = IRArg(p,5);
+        cfgp = (char *)IRArg(p,5);
       }
       for (l1 = 0; l1 < count; l1 = l1 + 1) {
-        l1l2(l2port_00,l1,(int)idxp[l1],(char *)(l1 * rsp + uVar2),rsp);
+        l1l2(l2port_00,l1,(int)idxp[l1],cfgp + l1 * rsp,rsp);
       }
     }
     if (iVar3 == L2CfgLocal.port_list[port].l1count) {
@@ -2311,14 +2320,14 @@ int L2CfgMFindBrickRS(L2Cfg *head, int ip, int port, int index, int *rack, int *
       return -1;
     }
     if ((l2node->ip_addr == ip) && (port < 0x28)) {
-      l2port = (L2CfgPort *)(l2node[1].pselect + port * 0x1c + 0x18);
+      l2port = &L2CFG_OF(l2node)->port_list[port];
       if (l2port->state != 2) {
         return -1;
       }
       for (l1 = 0; l1 < l2port->l1count; l1 = l1 + 1) {
         if (((uint)l2port->l1cfg[l1].index == index) && (l2port->l1cfg[l1].configured != '\0')) {
-          *rack = (uint)*(byte *)(*(int *)(l2node[1].pselect + port * 0x1c + 0x30) + 3 + l1 * 0x30);
-          *slot = (uint)*(byte *)(*(int *)(l2node[1].pselect + port * 0x1c + 0x30) + 4 + l1 * 0x30);
+          *rack = (uint)L2CFG_OF(l2node)->port_list[port].l1cfg[l1].rack;
+          *slot = (uint)L2CFG_OF(l2node)->port_list[port].l1cfg[l1].slot;
           return 0;
         }
       }
@@ -2339,7 +2348,7 @@ int L2CfgMFindBrickIP(L2Cfg *head, int rack, int slot, int *ip, int *p, int *l)
   *l = -1;
   for (l2node = &head->net; (*p == -1 && (l2node != NULL)); l2node = l2node->next) {
     for (port = 0; port < 0x28; port = port + 1) {
-      l2port = (L2CfgPort *)(l2node[1].pselect + port * 0x1c + 0x18);
+      l2port = &L2CFG_OF(l2node)->port_list[port];
       if (l2port->state == 2) {
         for (l1 = 0; l1 < l2port->l1count; l1 = l1 + 1) {
           if ((((l2port->l1cfg[l1].configured != '\0') && ((uint)l2port->l1cfg[l1].rack == rack)) &&
@@ -2369,7 +2378,7 @@ L2CfgNode *L2CfgMFindBrickL2(L2Cfg *head, int rack, int slot)
       return NULL;
     }
     for (port = 0; port < 0x28; port = port + 1) {
-      l2port = (L2CfgPort *)(l2node[1].pselect + port * 0x1c + 0x18);
+      l2port = &L2CFG_OF(l2node)->port_list[port];
       if (l2port->state == 2) {
         for (l1 = 0; l1 < l2port->l1count; l1 = l1 + 1) {
           if (((l2port->l1cfg[l1].configured != '\0') && ((uint)l2port->l1cfg[l1].rack == rack)) &&
@@ -2400,7 +2409,7 @@ L2CfgL1 *L2CfgMFindBrickCfg(L2Cfg *head, int rack, int slot, int local)
     }
     for (l2node = &head->net; l2node != l2end; l2node = l2node->next) {
       for (port = 0; port < 0x28; port = port + 1) {
-        l2port = (L2CfgPort *)(l2node[1].pselect + port * 0x1c + 0x18);
+        l2port = &L2CFG_OF(l2node)->port_list[port];
         if (l2port->state == 2) {
           for (l1 = 0; l1 < l2port->l1count; l1 = l1 + 1) {
             if (((uint)l2port->l1cfg[l1].rack == rack) && ((uint)l2port->l1cfg[l1].slot == slot)) {
@@ -2427,7 +2436,7 @@ int L2CfgMFindBrickType(L2Cfg *head, int rack, int slot)
       return 0x3f;
     }
     for (port = 0; port < 0x28; port = port + 1) {
-      l2port = (L2CfgPort *)(l2node[1].pselect + port * 0x1c + 0x18);
+      l2port = &L2CFG_OF(l2node)->port_list[port];
       if (l2port->state == 2) {
         for (l1 = 0; l1 < l2port->l1count; l1 = l1 + 1) {
           if (((uint)l2port->l1cfg[l1].rack == rack) && ((uint)l2port->l1cfg[l1].slot == slot)) {
@@ -2484,21 +2493,21 @@ char *L2CfgMQuery(L2Cfg *head, int mode, int format)
       sVar2 = strlen(cptr);
       cptr = cptr + sVar2;
       if ((mode & 2U) == 0) {
-        sprintf(cptr,"%s:%u,","l2rack",l2node[1].ip_addr);
+        sprintf(cptr,"%s:%u,","l2rack",L2CFG_OF(l2node)->rack);
         sVar2 = strlen(cptr);
         cptr = cptr + sVar2;
-        if ((char)l2node[1].ir_addr != '\0') {
-          sprintf(cptr,"%s:%s,","l2ssn",&l2node[1].ir_addr);
+        if (L2CFG_OF(l2node)->ssn[0] != '\0') {
+          sprintf(cptr,"%s:%s,","l2ssn",L2CFG_OF(l2node)->ssn);
           sVar2 = strlen(cptr);
           cptr = cptr + sVar2;
         }
-        if (*(char *)&l2node[1].msnode != '\0') {
-          sprintf(cptr,"%s:%s,","l2name",&l2node[1].msnode);
+        if (L2CFG_OF(l2node)->sysname[0] != '\0') {
+          sprintf(cptr,"%s:%s,","l2name",L2CFG_OF(l2node)->sysname);
           sVar2 = strlen(cptr);
           cptr = cptr + sVar2;
         }
-        if ((l2node[1].pselect[0x10] & 1) != 0) {
-          sprintf(cptr,"%s:%u,","l2dspdis",l2node[1].pselect[0x10] & 1);
+        if (L2CFG_OF(l2node)->l2dsp_disabled != 0) {
+          sprintf(cptr,"%s:%u,","l2dspdis",L2CFG_OF(l2node)->l2dsp_disabled);
           sVar2 = strlen(cptr);
           cptr = cptr + sVar2;
         }
@@ -2545,7 +2554,7 @@ char *L2CfgMQuery(L2Cfg *head, int mode, int format)
           cptr = cptr + sVar2;
         }
         for (port_index = 0; port_index < 0x28; port_index = port_index + 1) {
-          port = (L2CfgPort *)(l2node[1].pselect + port_index * 0x1c + 0x18);
+          port = &L2CFG_OF(l2node)->port_list[port_index];
           if (format != 0) {
             strcat(cptr,"\n  ");
             sVar2 = strlen(cptr);
@@ -2825,7 +2834,7 @@ switchD_0806fc1f_caseD_6:
       }
       strcpy((char *)&buff,pcVar4);
       sVar2 = strlen((char *)&buff);
-      bptr = (char *)(sVar2 + 0x80a7140);
+      bptr = buff + sVar2;
     case 0:
       rack = addr >> 0x12 & 0x3ff;
       slot = addr >> 0xc & 0x3f;
@@ -2866,12 +2875,12 @@ switchD_0806fc1f_caseD_6:
         sprintf((char *)&buff,"X.%d.%d.%d-L2",(int)uVar5 >> 0x10 & 0xff,(int)uVar5 >> 8 & 0xff,
                 uVar5 & 0xff);
       }
-      else if ((int)pLVar3[1].ip_addr < 1) {
+      else if (L2CFG_OF(pLVar3)->rack < 1) {
         pcVar4 = SocketAddrStr(pLVar3->ip_addr);
         sprintf((char *)&buff,"%s-L2",pcVar4);
       }
       else {
-        sprintf((char *)&buff,"%03d-L2",pLVar3[1].ip_addr);
+        sprintf((char *)&buff,"%03d-L2",L2CFG_OF(pLVar3)->rack);
       }
       break;
     case 0xf:
@@ -2889,12 +2898,12 @@ switchD_0806fc1f_caseD_6:
         sprintf((char *)&buff,"L3 Client %d [X.%d.%d.%d-L2]",task,(int)uVar5 >> 0x10 & 0xff,
                 (int)uVar5 >> 8 & 0xff,uVar5 & 0xff);
       }
-      else if ((int)pLVar3[1].ip_addr < 1) {
+      else if (L2CFG_OF(pLVar3)->rack < 1) {
         pcVar4 = SocketAddrStr(pLVar3->ip_addr);
         sprintf((char *)&buff,"L3 Client %d [%s-L2]",task,pcVar4);
       }
       else {
-        sprintf((char *)&buff,"L3 Client %d [%03d-L2]",task,pLVar3[1].ip_addr);
+        sprintf((char *)&buff,"L3 Client %d [%03d-L2]",task,L2CFG_OF(pLVar3)->rack);
       }
     }
   }
@@ -2944,7 +2953,7 @@ IRAddress L2CfgMGetConsole(L2Cfg *head, int partition)
       memset(slot1,-1,0x400);
       for (l2node = &head->net; l2node != NULL; l2node = l2node->next) {
         for (port = 0; port < 0x28; port = port + 1) {
-          l2port = (L2CfgPort *)(l2node[1].pselect + port * 0x1c + 0x18);
+          l2port = &L2CFG_OF(l2node)->port_list[port];
           if (l2port->state == 2) {
             for (l1 = 0; l1 < l2port->l1count; l1 = l1 + 1) {
               if (l2port->l1cfg[l1].configured != '\0') {
@@ -3080,13 +3089,13 @@ int L2CfgMAdviseConsole(L2Cfg *head, char *rptr, int partition, IRAddress addr)
         pcVar2 = inet_ntoa(*(struct in_addr *)&l2node->ip_addr);
         sprintf(rptr,
                 "\nWARNING: accessing the system console at %03d.%02d from this L2 is not\nadvised!  Suggested access point is the L2 at rack ID %04d (%s)\n\n"
-                ,rack,slot,l2node[1].ip_addr,pcVar2);
+                ,rack,slot,L2CFG_OF(l2node)->rack,pcVar2);
       }
       else {
         pcVar2 = inet_ntoa(*(struct in_addr *)&l2node->ip_addr);
         sprintf(rptr,
                 "\nWARNING: accessing partition %d of the system at %03d.%02d from this\nL2 is not advised!  Suggested access point for partition %d is\nthe L2 at rack ID %04d (%s)\n\n"
-                ,partition,rack,slot,partition,l2node[1].ip_addr,pcVar2);
+                ,partition,rack,slot,partition,L2CFG_OF(l2node)->rack,pcVar2);
       }
       iVar1 = -1;
     }

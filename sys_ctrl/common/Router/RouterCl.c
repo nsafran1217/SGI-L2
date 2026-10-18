@@ -199,7 +199,7 @@ static int RouterProcessAccept(RouterClient *client, int argcountin)
   
   if (argcountin == 1) {
     if (client->InArgList->clas == 1) {
-      iVar2 = *(int *)client->InArgList;
+      iVar2 = client->InArgList->size;   /* original: *(int *) word >> 8 */
       __s = (char *)client->InArgList->val;
       sVar3 = strlen(__s);
       memcpy((client->id).procname,__s,sVar3 + 1);
@@ -212,7 +212,7 @@ static int RouterProcessAccept(RouterClient *client, int argcountin)
       sVar3 = strlen(pcVar1);
       memcpy((client->id).fullname,pcVar1,sVar3 + 1);
       sVar3 = strlen(pcVar1);
-      if ((int)(pcVar1 + sVar3 + 1) - (int)__s < iVar2 >> 8) {
+      if ((int)((pcVar1 + sVar3 + 1) - __s) < iVar2) {
         memcpy(&(client->id).ipaddr,pcVar1 + sVar3 + 1,4);
       }
       RouterSetClientID(&client_id);

@@ -620,7 +620,7 @@ static int RouterGetClientArguments(RouterClient *client)
     else {
       client->use = client->use | 0x482;
     }
-    iVar6 = *(int *)(client->InArgList + 1);
+    iVar6 = client->InArgList[1].size;   /* original: *(int *) word >> 8 */
     __s_00 = (char *)client->InArgList[1].val;
     sVar5 = strlen(__s_00);
     memcpy((client->id).procname,__s_00,sVar5 + 1);
@@ -633,7 +633,7 @@ static int RouterGetClientArguments(RouterClient *client)
     sVar5 = strlen((char *)__s);
     memcpy((client->id).fullname,__s,sVar5 + 1);
     sVar5 = strlen((char *)__s);
-    if ((int)(__s + sVar5 + 1) - (int)__s_00 < iVar6 >> 8) {
+    if ((int)((__s + sVar5 + 1) - (uchar *)__s_00) < iVar6) {
       memcpy(&(client->id).ipaddr,__s + sVar5 + 1,4);
     }
     (client->groups).count = (uint)bVar1 << 0x10 | (uint)bVar2 << 8 | (uint)bVar3;

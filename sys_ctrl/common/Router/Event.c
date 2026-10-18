@@ -66,12 +66,12 @@ static void EventIOListAlloc(int count)
       EventIOListSize = count + 1;
     }
     EventIOList = malloc(EventIOListSize * sizeof(EventIOEntry));
-    memset(EventIOList,0,EventIOListSize * 0xd8);
+    memset(EventIOList,0,EventIOListSize * sizeof(EventIOEntry));
   }
   else if (EventIOListSize <= count) {
     EventIOListSize = count + 1;
     EventIOList = realloc(EventIOList, EventIOListSize * sizeof(EventIOEntry));
-    memset(EventIOList + count,0,0xd8);
+    memset(EventIOList + count,0,sizeof(EventIOEntry));
   }
   return;
 }

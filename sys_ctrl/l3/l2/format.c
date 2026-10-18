@@ -103,19 +103,19 @@ char *format_caddress(IRAddress addr, int partition)
         pcVar1 = " CPU %d%c";
         uVar7 = uVar6;
         sVar2 = strlen((char *)&buff);
-        sprintf((char *)(sVar2 + 0x80a25e0),pcVar1,uVar7,iVar4,uVar6,iVar3,iVar5);
+        sprintf(buff + sVar2,pcVar1,uVar7,iVar4,uVar6,iVar3,iVar5);
       }
       else if (iVar3 == 4) {
         pcVar1 = " console%d";
         sVar2 = strlen((char *)&buff);
-        sprintf((char *)(sVar2 + 0x80a25e0),pcVar1,uVar6);
+        sprintf(buff + sVar2,pcVar1,uVar6);
       }
       else {
         pcVar1 = " slot %d, subchannel %d";
         uVar7 = uVar6;
         iVar4 = iVar3;
         sVar2 = strlen((char *)&buff);
-        sprintf((char *)(sVar2 + 0x80a25e0),pcVar1,uVar7,iVar3,uVar6,iVar4,iVar5);
+        sprintf(buff + sVar2,pcVar1,uVar7,iVar3,uVar6,iVar4,iVar5);
       }
     }
     else if (((((cfg->type == '5') || (cfg->type == '@')) ||
@@ -133,17 +133,17 @@ char *format_caddress(IRAddress addr, int partition)
         iVar5 = subc + 0x41;
         pcVar1 = " CPU %d%c";
         sVar2 = strlen((char *)&buff);
-        sprintf((char *)(sVar2 + 0x80a25e0),pcVar1,slab,iVar5);
+        sprintf(buff + sVar2,pcVar1,slab,iVar5);
       }
       else if (subc == 4) {
         pcVar1 = " console%d";
         sVar2 = strlen((char *)&buff);
-        sprintf((char *)(sVar2 + 0x80a25e0),pcVar1,slab);
+        sprintf(buff + sVar2,pcVar1,slab);
       }
       else {
         pcVar1 = " slab %d, subchannel %d";
         sVar2 = strlen((char *)&buff);
-        sprintf((char *)(sVar2 + 0x80a25e0),pcVar1,slab,subc);
+        sprintf(buff + sVar2,pcVar1,slab,subc);
       }
     }
     else {
@@ -178,7 +178,7 @@ char *format_caddress(IRAddress addr, int partition)
         }
         pcVar1 = " subchannel %d";
         sVar2 = strlen((char *)&buff);
-        sprintf((char *)(sVar2 + 0x80a25e0),pcVar1,uVar6);
+        sprintf(buff + sVar2,pcVar1,uVar6);
       }
     }
   }

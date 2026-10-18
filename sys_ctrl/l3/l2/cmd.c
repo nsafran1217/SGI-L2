@@ -305,8 +305,8 @@ static void cmd_send_response(L2CMD *c, void *data, char *sptr, int rval)
         else {
           nptr = pcVar2 + 1;
         }
-        if ((0xfffe < (int)nptr - (int)aptr) || (eptr = nptr, *nptr == '\0')) {
-          sVar3 = (int)eptr - (int)aptr;
+        if ((0xfffe < (int)(nptr - aptr)) || (eptr = nptr, *nptr == '\0')) {
+          sVar3 = (int)(eptr - aptr);
           pcVar2 = malloc(sVar3 + 1);
           memcpy(pcVar2,aptr,sVar3);
           pcVar2[sVar3] = '\0';

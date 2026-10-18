@@ -420,13 +420,13 @@ void route_process_response(IRPacket *p)
             puStack_cc = NULL;
           }
           else {
-            puStack_cc = (undefined *)(ts - last);
+            puStack_cc = (undefined *)(intptr_t)(ts - last);   /* slot reused: a number here, a string below */
           }
           uVar10 = ts;
           pcVar4 = pstr(type,val2 >> 0x10 & 0xff);
           cVar3 = brickTypeToChar(type);
           iVar8 = (int)cVar3;
-          iVar9 = (int)puStack_cc;
+          iVar9 = (int)(intptr_t)puStack_cc;
           pcVar7 = pstr(type,val2 >> 0x18);
           if ((val1 & 0x40000000) == 0) {
             puStack_cc = "REQ";
@@ -445,7 +445,7 @@ void route_process_response(IRPacket *p)
             puStack_cc = NULL;
           }
           else {
-            puStack_cc = (undefined *)(uVar6 - last);
+            puStack_cc = (undefined *)(intptr_t)(uVar6 - last);
           }
           puVar2 = puStack_cc;
           if ((val1 & 0x40000000) == 0) {

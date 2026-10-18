@@ -114,7 +114,7 @@ int IRouterRequestOS(IRClient *client, IRIdent *id, IRAddress *toaddr, int opcod
       iVar1 = -0x25c;
     }
     else {
-      iVar1 = IRouterWritePacket(id,pipe_out,(void *)sd,pkt);
+      iVar1 = IRouterWritePacket(id,pipe_out,(void *)(intptr_t)sd,pkt);
     }
   }
   return iVar1;
@@ -141,7 +141,7 @@ int IRouterResponseOS(IRClient *client, IRIdent *id, int errcode, IRPacket *reqp
       rsppkt->_err = uStack_14;
       rsppkt->_seqnum0 = reqpkt->_seqnum0;
       rsppkt->_seqnum1 = reqpkt->_seqnum1;
-      iVar1 = IRouterWritePacket(id,pipe_out,(void *)sd,rsppkt);
+      iVar1 = IRouterWritePacket(id,pipe_out,(void *)(intptr_t)sd,rsppkt);
     }
   }
   return iVar1;
@@ -162,7 +162,7 @@ int IRouterEventOS(IRClient *client, IRIdent *id, int opcode, int argcount, IRAr
       iVar1 = -0x25c;
     }
     else {
-      iVar1 = IRouterWritePacket(id,pipe_out,(void *)sd,pkt);
+      iVar1 = IRouterWritePacket(id,pipe_out,(void *)(intptr_t)sd,pkt);
     }
   }
   return iVar1;
@@ -203,7 +203,7 @@ int IRouterGetPacketOS(IRIdent *id, IRPacket **pkt, IRClient **client, int wait,
       if (FD_ISSET(sd, &fdset) == 0) {
         return -0x268;
       }
-      iVar2 = IRouterReadPacket(id,pipe_in,(void *)sd,pkt);
+      iVar2 = IRouterReadPacket(id,pipe_in,(void *)(intptr_t)sd,pkt);
       if (iVar2 != 0) {
         return iVar2;
       }
@@ -313,10 +313,8 @@ static int pipe_in(int fd, unsigned char **pptr, int plen)
       if (ilen < 1) {
         return -0x264;
       }
-      chunk_type = (int)CONCAT11(*(undefined1 *)(ioff + 0x80767c4),*(undefined1 *)(ioff + 0x80767c5)
-                                );
-      frame_size = (int)CONCAT11(*(undefined1 *)(ioff + 0x80767c7),*(undefined1 *)(ioff + 0x80767c8)
-                                );
+      chunk_type = (ibuf[ioff + 4] << 8) | ibuf[ioff + 5];   /* big-endian 16-bit */
+      frame_size = (ibuf[ioff + 7] << 8) | ibuf[ioff + 8];
       iptr = iptr + ioff + 9;
       ilen = (ilen + -9) - ioff;
       if ((uint)chunk_type < 0x3001) {

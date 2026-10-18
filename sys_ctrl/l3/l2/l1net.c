@@ -100,8 +100,8 @@ void l1net_accept(void *cd, int sd)
         fprintf(stderr,"ERROR: device is already in use.\n");
       }
       else {
-        EventAddTimeOut(0,10000,cfg_ping_l1,(EventData)device,"l1net_accept");
-        EventAddInput(l2_l1_ports[device].fd,l1_read_packet,(EventData)device,"l1net_accept");
+        EventAddTimeOut(0,10000,cfg_ping_l1,(EventData)(intptr_t)device,"l1net_accept");
+        EventAddInput(l2_l1_ports[device].fd,l1_read_packet,(EventData)(intptr_t)device,"l1net_accept");
       }
     }
     else {

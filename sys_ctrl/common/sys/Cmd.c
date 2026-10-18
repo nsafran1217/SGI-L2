@@ -159,7 +159,7 @@ LAB_080812f0:
               if (pcVar5 == (char *)0x2) {
                 base = 10;
               }
-              else if ((int)pcVar5 < 3) {
+              else if ((int)(intptr_t)pcVar5 < 3) {
                 if (pcVar5 == (char *)0x1) {
                   base = 0;
                 }
@@ -369,16 +369,10 @@ LAB_08081210:
                   if (iVar4 == 3) {
                     memset(cd.rlist,0,0x100);
                     memset(cd.slist,0,0x40);
-                    iVar4 = rack;
-                    if (rack < 0) {
-                      iVar4 = rack + 0xff;
-                    }
-                    *(undefined1 *)((int)&cd + rack + (iVar4 >> 8) * -0x100 + 0x74) = 1;
-                    iVar4 = slot;
-                    if (slot < 0) {
-                      iVar4 = slot + 0xff;
-                    }
-                    *(undefined1 *)((int)&cd + slot + (iVar4 >> 8) * -0x100 + 0x174) = 1;
+                    cd.rlist[rack % 256] = 1;
+                    /* as the original: slot is taken mod 256 although slist has 64 entries
+                     * (larger slots land in plist, which is cleared next) */
+                    cd.slist[slot % 256] = 1;
                     memset(cd.plist,0,0x40);
                     tok = (char *)0xb;
                     goto LAB_08081272;
@@ -448,7 +442,7 @@ LAB_08081558:
         if (cptr == (char *)0x6) {
           cptr = "<command>";
         }
-        else if (((int)cptr < 6) || (0xb < (int)cptr)) {
+        else if (((int)(intptr_t)cptr < 6) || (0xb < (int)(intptr_t)cptr)) {
           if (cptr < (char *)0x3e8) {
             cptr = cmdtab[current_cmd].toks[1];
           }
@@ -481,7 +475,7 @@ LAB_08081546:
  * switch was rebuilt from the machine code and the table at 0x0808ff18. */
 char *CmdFormat(Cmd *cmds, int cmd)
 {
-  static char fmt[40];
+  static char fmt[256];   /* ORIGINAL BUG: 40 bytes in the original, overflowed by long usages */
   static const char *const type_fmt[13] = {
     NULL,                       /* 0: end of command */
     "<exp> ",
@@ -570,7 +564,7 @@ LAB_08081970:
                 if (cptr == (char *)0x6) {
                   cptr = "<command>";
                 }
-                else if (((int)cptr < 6) || (0xc < (int)cptr)) {
+                else if (((int)(intptr_t)cptr < 6) || (0xc < (int)(intptr_t)cptr)) {
                   if (cptr < (char *)0x3e8) {
                     cptr = cmds_00[current_cmd].toks[1];
                   }
@@ -613,7 +607,7 @@ LAB_08081970:
         if (cptr == (char *)0x6) {
           cptr = "<command>";
         }
-        else if (((int)cptr < 6) || (0xc < (int)cptr)) {
+        else if (((int)(intptr_t)cptr < 6) || (0xc < (int)(intptr_t)cptr)) {
           if (cptr < (char *)0x3e8) {
             cptr = cmdtab[current_cmd].toks[1];
           }

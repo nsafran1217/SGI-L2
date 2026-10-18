@@ -62,7 +62,7 @@ static void call_efcn(PPPInstance *pptr, unsigned int status, unsigned char *bpt
 
 void PPPInit(PPPInstance *pptr, unsigned char *iptr, unsigned int isize, unsigned char *optr, unsigned int osize, unsigned int xonxoff, unsigned int control, unsigned int offset, unsigned int resize, void (*efcn)(), void *efcn_arg)
 {
-  memset(pptr,0,0x3c);
+  memset(pptr,0,sizeof(*pptr));
   pptr->ibuf = iptr;
   pptr->isize = isize;
   pptr->obuf = optr;
@@ -371,7 +371,7 @@ LAB_0807fd22:
 
 int PPPDecodeInit(PPPDecodeState *ds, unsigned char *obuf, int osize, void (*efcn)(), void *efcn_arg)
 {
-  memset(ds,0,0x34);
+  memset(ds,0,sizeof(*ds));
   ds->efcn = efcn;
   ds->efcn_arg = efcn_arg;
   ds->obuf = obuf;
