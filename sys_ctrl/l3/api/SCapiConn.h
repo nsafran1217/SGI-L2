@@ -45,6 +45,6 @@ int sn1SCConnRsp(sn1SCConn *conn, IRPacket **pkt, uint32 *id, int wait);
 int sn1SCConnPkt(sn1SCConn *conn, IRPacket **pkt, sn1SCConn **pktconn, int wait);
 int sn1SCConnSendRsp(sn1SCConn *conn, int errcode, IRPacket *reqpkt, int argc, IRArgument *argv);
 int sn1SCConnCmd(sn1SCConn *conn, IRAddress *toaddr, int opcode, int argc, IRArgument *argv, IRPacket **rpkt, int wait);
-int sn1SCConnCmdParallel(sn1SCConn *conn, IRAddress *toaddr, int ntargets, int opcode, int argc, IRArgument *argv, int share_args, IRPacket **rpkt, int *errlist, int *nerrs, int wait, ...);
+int sn1SCConnCmdParallel(sn1SCConn *conn, IRAddress *toaddr, int ntargets, int opcode, int argc, IRArgument *argv, int share_args, IRPacket **rpkt, int *errlist, int *nerrs, int wait);
 
 #endif /* SYS_CTRL_L3_API_SCAPICONN_H */

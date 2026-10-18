@@ -40,7 +40,6 @@ void syslogLibInit(void (*msgcb)())
 
 void syslog(int level, char *fl, int ln, int msgno, char *fmt, ...)
 {
-  /* FIXME: variadic; Ghidra shows va_list access as &stack0x... */
   char *stripfl;
   int slen;
   int blen;
@@ -53,6 +52,7 @@ void syslog(int level, char *fl, int ln, int msgno, char *fmt, ...)
   char line [10];
   va_list ap;
   
+  va_start(ap,fmt);
   stripfl = basename(fl);
   memset(slog_usrmsg,0,0x100);
   memset(slog_fullmsg,0,0x100);
@@ -61,7 +61,9 @@ void syslog(int level, char *fl, int ln, int msgno, char *fmt, ...)
   case 0:
   case 1:
   case 2:
-    sVar1 = vsprintf(slog_usrmsg,fmt,&stack0x00000018);
+    sVar1 = vsprintf(slog_usrmsg,fmt,ap);
+    /* ORIGINAL BUG (kept, see ORIGINAL_BUGS.md): 5 arguments for 3 conversions; msgno lands
+     * in the second %s. Verified against the machine code. */
     iVar2 = sprintf(slog_fullmsg,"%s: %s line %d ; ",hwType,msgno,syslog_txt[local_level],stripfl,ln
                    );
     strncpy(slog_fullmsg + iVar2,slog_usrmsg,sVar1);
@@ -74,7 +76,7 @@ void syslog(int level, char *fl, int ln, int msgno, char *fmt, ...)
   case 5:
   case 6:
   case 7:
-    sVar1 = vsprintf(slog_usrmsg,fmt,&stack0x00000018);
+    sVar1 = vsprintf(slog_usrmsg,fmt,ap);
     iVar2 = sprintf(slog_fullmsg,"%s: ",syslog_txt[local_level]);
     strncpy(slog_fullmsg + iVar2,slog_usrmsg,sVar1);
     if (syslog_cb != NULL) {
@@ -82,14 +84,14 @@ void syslog(int level, char *fl, int ln, int msgno, char *fmt, ...)
     }
     break;
   case 8:
-    vsprintf(slog_usrmsg,fmt,&stack0x00000018);
+    vsprintf(slog_usrmsg,fmt,ap);
     fprintf(stderr,"%s\n",slog_usrmsg,0,0,0,0,0);
     if (syslog_cb != NULL) {
       (*syslog_cb)(local_level,slog_usrmsg);
     }
     break;
   case 9:
-    slen = vsprintf(slog_usrmsg,fmt,&stack0x00000018);
+    slen = vsprintf(slog_usrmsg,fmt,ap);
     blen = sprintf(slog_fullmsg,"PANIC: %s line %d ; ",stripfl,ln);
     strncpy(slog_fullmsg + blen,slog_usrmsg,slen);
     if (syslog_cb != NULL) {
@@ -97,6 +99,7 @@ void syslog(int level, char *fl, int ln, int msgno, char *fmt, ...)
     }
     fprintf(stderr,"%s\n",slog_fullmsg,0,0,0,0,0);
                     /* WARNING: Subroutine does not return */
+    va_end(ap);
     exit(-1);
   default:
     fprintf(stderr,"syslog: Invalid Message type\n",0,0,0,0,0,0);
@@ -107,6 +110,7 @@ void syslog(int level, char *fl, int ln, int msgno, char *fmt, ...)
   if (((level & 0x100U) != 0) && (log_console == 0)) {
     fprintf(stderr,"%s\n",slog_fullmsg,0,0,0,0,0);
   }
+  va_end(ap);
   return;
 }
 

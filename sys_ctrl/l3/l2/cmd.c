@@ -55,6 +55,7 @@
 #include "../main/nvram.h"
 #include "../../common/sys/ipmi.h"
 #include "decomp.h"     /* Ghidra types/macros; remove once the file is cleaned up */
+char *format_address(IRAddress addr);   /* defined in format's module; not in a header (name clash with a static elsewhere) */
 
 static void cmd_timeout(L2CMD *c, int to, void *data);
 static void cmd_etimeout(L2CMD *c, char *msg, void *data);

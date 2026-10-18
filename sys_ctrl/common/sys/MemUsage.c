@@ -15,45 +15,24 @@
 
 char *MemUsageBuf(void)
 {
-  char *pcVar1;
   static char buf[400];
-  size_t sVar2;
   struct mallinfo info;
   char *bptr;
-  
-  mallinfo(&info);
-  sprintf((char *)&buf,"\narena:        %d\n",info.arena);
-  sVar2 = strlen((char *)&buf);
-  pcVar1 = (char *)(sVar2 + 0x80a9680);
-  sprintf(pcVar1,"ordblks:      %d\n",info.ordblks);
-  sVar2 = strlen(pcVar1);
-  bptr = pcVar1 + sVar2;
-  sprintf(bptr,"smblks:       %d\n",info.smblks);
-  sVar2 = strlen(bptr);
-  pcVar1 = bptr + sVar2;
-  sprintf(pcVar1,"hblks:        %d\n",info.hblks);
-  sVar2 = strlen(pcVar1);
-  pcVar1 = pcVar1 + sVar2;
-  sprintf(pcVar1,"hblkhd:       %d\n",info.hblkhd);
-  sVar2 = strlen(pcVar1);
-  pcVar1 = pcVar1 + sVar2;
-  sprintf(pcVar1,"usmblks:      %d\n",info.usmblks);
-  sVar2 = strlen(pcVar1);
-  pcVar1 = pcVar1 + sVar2;
-  sprintf(pcVar1,"fsmblks:      %d\n",info.fsmblks);
-  sVar2 = strlen(pcVar1);
-  pcVar1 = pcVar1 + sVar2;
-  sprintf(pcVar1,"uordblks:     %d\n",info.uordblks);
-  sVar2 = strlen(pcVar1);
-  pcVar1 = pcVar1 + sVar2;
-  sprintf(pcVar1,"fordblks:     %d\n",info.fordblks);
-  sVar2 = strlen(pcVar1);
-  pcVar1 = pcVar1 + sVar2;
-  sprintf(pcVar1,"keepcost:     %d\n",info.keepcost);
-  sVar2 = strlen(pcVar1);
-  sprintf(pcVar1 + sVar2,"\n");
-  strlen(pcVar1 + sVar2);
-  return &buf;
+
+  info = mallinfo();
+  bptr = buf;
+  bptr += sprintf(bptr, "\narena:        %d\n", info.arena);
+  bptr += sprintf(bptr, "ordblks:      %d\n", info.ordblks);
+  bptr += sprintf(bptr, "smblks:       %d\n", info.smblks);
+  bptr += sprintf(bptr, "hblks:        %d\n", info.hblks);
+  bptr += sprintf(bptr, "hblkhd:       %d\n", info.hblkhd);
+  bptr += sprintf(bptr, "usmblks:      %d\n", info.usmblks);
+  bptr += sprintf(bptr, "fsmblks:      %d\n", info.fsmblks);
+  bptr += sprintf(bptr, "uordblks:     %d\n", info.uordblks);
+  bptr += sprintf(bptr, "fordblks:     %d\n", info.fordblks);
+  bptr += sprintf(bptr, "keepcost:     %d\n", info.keepcost);
+  sprintf(bptr, "\n");
+  return buf;
 }
 
 void MemUsage(void)

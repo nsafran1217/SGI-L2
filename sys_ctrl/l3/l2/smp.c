@@ -59,6 +59,7 @@
 #include "../../common/sys/ipmi.h"
 #include "../../common/sys/FRU.h"
 #include "decomp.h"     /* Ghidra types/macros; remove once the file is cleaned up */
+char *format_address(IRAddress addr);   /* defined in format's module; not in a header (name clash with a static elsewhere) */
 struct __anon_struct_41 {
     int configured;
     int c_iflag;
@@ -1940,9 +1941,10 @@ static void smp_event(int opcode, int group, char *bptr)
   return;
 }
 
-int fprintf(FILE *stream, char *format, ...)
+/* Replaces libc's fprintf in l2: all output goes to connected SMP clients
+ * (or stderr when there are none). */
+int fprintf(FILE *restrict stream, const char *restrict format, ...)
 {
-  /* FIXME: variadic; Ghidra shows va_list access as &stack0x... */
   static int active;
   int iVar1;
   size_t sVar2;
@@ -1951,9 +1953,10 @@ int fprintf(FILE *stream, char *format, ...)
   va_list ap;
   int rval;
   
+  va_start(ap,format);
   if (active == 0) {
     active = 1;
-    iVar1 = vsprintf(vbuf,format,&stack0x0000000c);
+    iVar1 = vsprintf(vbuf,format,ap);
     if ((smp_list == NULL) && (enet_only == 0)) {
       sVar2 = strlen(vbuf);
       write(2,vbuf,sVar2);
@@ -1976,5 +1979,6 @@ int fprintf(FILE *stream, char *format, ...)
   else {
     iVar1 = 0;
   }
+  va_end(ap);
   return iVar1;
 }

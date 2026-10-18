@@ -248,11 +248,11 @@ char *LoggerErrorMessage(int msgnbr)
 
 void LoggerLogMessage(int msgnbr, char *func_name, int errnbr, char *host, int port, char *process, char *format, ...)
 {
-  /* FIXME: variadic; Ghidra shows va_list access as &stack0x... */
   char buf [1025];
   LoggerEntry entry;
   va_list args;
   
+  va_start(args,format);
   if (LogErrors != 0) {
     entry.proc_name = ProcessName;
     entry.time = time(NULL);
@@ -266,11 +266,12 @@ void LoggerLogMessage(int msgnbr, char *func_name, int errnbr, char *host, int p
       entry.opt_text = "";
     }
     else {
-      vsprintf(buf,format,&stack0x00000020);
+      vsprintf(buf,format,args);
       entry.opt_text = buf;
     }
     (*LogHandler)(&entry);
   }
+  va_end(args);
   return;
 }
 

@@ -12,7 +12,7 @@
 #include "../../common/IRouter/IRouter.h"   /* for the prototypes */
 #include "../../common/sys/sysctl_types.h"   /* for the prototypes */
 /* format.c */
-char *format_address(IRAddress addr);
+
 char *format_caddress(IRAddress addr, int partition);
 
 #endif /* SYS_CTRL_L3_L2_FORMAT_H */

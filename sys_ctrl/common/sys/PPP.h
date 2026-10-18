@@ -53,7 +53,7 @@ typedef struct _PPPDecodeState PPPDecodeState;
 
 /* prototypes (not recorded in STABS; reconstructed from definitions) */
 /* PPP.c */
-extern char buff[128];
+
 void PPPInit(PPPInstance *pptr, unsigned char *iptr, unsigned int isize, unsigned char *optr, unsigned int osize, unsigned int xonxoff, unsigned int control, unsigned int offset, unsigned int resize, void (*efcn)(), void *efcn_arg);
 void PPPReset(PPPInstance *pptr, int which);
 int PPPWrite(PPPInstance *pptr, int (*wfcn)(), void *fd, unsigned char *bptr, int blen);

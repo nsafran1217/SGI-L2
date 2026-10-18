@@ -69,12 +69,10 @@ LAB_0807d4aa:
     rval = -0x25c;
   }
   else {
-    arglist->clas = 0;
-    *(byte *)arglist = *(byte *)arglist | 2;
+    arglist->clas = 1;
     arglist->val = (ulong)"IR";
     arglist->fre = 0;
-    *(uint *)arglist = *(uint *)arglist & 0xff;
-    *(byte *)&arglist->size = (byte)arglist->size | 3;
+    arglist->size = 3;
     argc = 1;
     for (pf = pkt; pf != NULL; pf = pf->_next_frame) {
       uVar1 = pf->_size;

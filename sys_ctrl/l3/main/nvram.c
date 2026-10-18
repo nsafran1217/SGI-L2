@@ -488,11 +488,14 @@ void nvramLogInsert(char *message)
 
 void nvramLogFinsert(char *fmt, ...)
 {
-  /* FIXME: variadic; Ghidra shows va_list access as &stack0x... */
   char buff [160];
   va_list ap;
   
-  snprintf(buff,0xa0,fmt,&stack0x00000008);
+  /* ORIGINAL BUG (fixed, see ORIGINAL_BUGS.md): the original passed the va_list
+   * to snprintf, not vsnprintf, so any % conversion printed garbage. */
+  va_start(ap,fmt);
+  vsnprintf(buff,0xa0,fmt,ap);
+  va_end(ap);
   nvramLogInsert(buff);
   return;
 }

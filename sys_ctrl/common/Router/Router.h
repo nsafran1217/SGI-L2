@@ -154,7 +154,7 @@ extern RouterClientList ClientList;
 extern RouterServerList ServerList;
 extern int MaxInArgs;
 extern int UseUnix;
-extern char *ProcessName;
+
 extern int ProcessID;
 extern void (*FatalCB)();
 extern void (*ClientFreeCB)();

@@ -39,8 +39,5 @@ int l2cmd_queue_response(L2CMD *c, unsigned int seqn, IRAddress dest, int timeou
 int l2cmd_power(CmdData *cptr, char **results, L2CMD *c);
 int pbay_rsp(IRPacket *rsp, L2CMD *c, IRAddress *dest, int pktsleft, struct _cmd_response *cmd_rsp, void *data);
 void quit(void);
-/* l2cmd.c */
-extern char *myname;
-void usage(void);
 
 #endif /* SYS_CTRL_L3_L2_L2CMD_H */

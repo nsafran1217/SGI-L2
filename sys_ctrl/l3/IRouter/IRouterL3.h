@@ -20,8 +20,7 @@ extern int rtr_waiting_for;
 extern int rtr_rsp_queue_rd;
 extern int rtr_rsp_queue_wr;
 extern int IRouterEventLoop;
-extern EventID pkt_timeout_id;
-extern char *(*get_password)();
+
 extern RouterClient *rtr_server;
 extern IRPacket *rtr_pkt;
 extern IRPacket *rtr_rsp_queue[100];
@@ -34,6 +33,5 @@ int IRouterGetPacketL3(IRIdent *id, IRPacket **pkt, IRClient **client, int wait,
 int rtr_connected(RouterClient *client, int opcode, RouterArgument **arglistout);
 void rtr_connect_failure(RouterClient *client, int msgnbr, char *host, int port, int retrys);
 void rtr_event(RouterClient *client, int opcode, int argcount, RouterArgument *arglistin);
-void pkt_timeout(EventData client_data);
 
 #endif /* SYS_CTRL_L3_IROUTER_IROUTERL3_H */

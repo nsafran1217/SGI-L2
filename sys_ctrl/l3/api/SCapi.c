@@ -1038,64 +1038,32 @@ int sn1SCCmd(IRAddress *toaddr, int opcode, int argc, IRArgument *argv, IRPacket
   return rval;
 }
 
-int sn1SCCmdParallel(IRAddress *toaddr, int ntargets, int opcode, int argc, IRArgument *argv, int share_args, IRPacket **rpkt, int *errlist, int *nerrs, int wait, ...)
+/* Reconstructed by hand: the original uses variable-length arrays, which threw
+ * off Ghidra's stack tracking for the whole function. Logic and syslog line
+ * numbers checked against the machine code. */
+int sn1SCCmdParallel(IRAddress *toaddr, int ntargets, int opcode, int argc, IRArgument *argv, int share_args, IRPacket **rpkt, int *errlist, int *nerrs, int wait)
 {
-  /* FIXME: variadic; Ghidra shows va_list access as &stack0x... */
-  bool bVar1;
-  int iVar2;
-  int offset;
-  char *pcVar3;
-  uint uVar4;
-  size_t asStack_54 [7];
-  int errval;
-  int rerrcnt;
-  uint32 rspid;
-  uint32 *reqid;
-  IRAddress *tmpaddr;
+  IRAddress tmpaddr[ntargets];
+  uint32 reqid[ntargets];
   IRPacket *rp;
-  int t;
-  int errcnt;
-  int nrequests;
+  uint32 rspid;
+  uint32 id;
+  int offset;
+  int errval = 0;
+  int rerrcnt;
+  int nrequests = 0;
   int rval;
-  
-  nrequests = 0;
-  errcnt = 0;
-  errval = 0;
-  tmpaddr = (IRAddress *)(&stack0xffffffc8 + ntargets * -4);
-  reqid = (uint32 *)(&stack0xffffffc8 + ntargets * -8);
-  asStack_54[ntargets * -2 + 6] = ntargets * 4;
-  asStack_54[ntargets * -2 + 5] = (size_t)toaddr;
-  asStack_54[ntargets * -2 + 4] = (size_t)tmpaddr;
-  asStack_54[ntargets * -2 + 3] = 0x80564ca;
-  memcpy((void *)asStack_54[ntargets * -2 + 4],(void *)asStack_54[ntargets * -2 + 5],
-         asStack_54[ntargets * -2 + 6]);
-  asStack_54[ntargets * -2 + 6] = ntargets * 4;
-  asStack_54[ntargets * -2 + 5] = 0;
-  asStack_54[ntargets * -2 + 4] = (size_t)errlist;
-  asStack_54[ntargets * -2 + 3] = 0x80564e5;
-  memset((void *)asStack_54[ntargets * -2 + 4],asStack_54[ntargets * -2 + 5],
-         asStack_54[ntargets * -2 + 6]);
-  t = 0;
+  int t;
+
+  memcpy(tmpaddr, toaddr, ntargets * sizeof(IRAddress));
+  memset(errlist, 0, ntargets * sizeof(int));
   *nerrs = 0;
-  for (; t < ntargets; t = t + 1) {
-    if ((share_args == 0) && (argv != NULL)) {
-      offset = t * argc;
-    }
-    else {
-      offset = 0;
-    }
+  for (t = 0; t < ntargets; t++) {
+    offset = (share_args == 0 && argv != NULL) ? t * argc : 0;
     if (tmpaddr[t] != 0) {
-      asStack_54[ntargets * -2 + 6] = (size_t)(reqid + t);
-      asStack_54[ntargets * -2 + 5] = (size_t)(argv + offset);
-      asStack_54[ntargets * -2 + 4] = argc;
-      asStack_54[ntargets * -2 + 3] = opcode;
-      asStack_54[ntargets * -2 + 2] = (size_t)(tmpaddr + t);
-      asStack_54[ntargets * -2 + 1] = 0x8056583;
-      rval = sn1SCReq((IRAddress *)asStack_54[ntargets * -2 + 2],asStack_54[ntargets * -2 + 3],
-                      asStack_54[ntargets * -2 + 4],(IRArgument *)asStack_54[ntargets * -2 + 5],
-                      (uint32 *)asStack_54[ntargets * -2 + 6]);
+      rval = sn1SCReq(&tmpaddr[t], opcode, argc, argv + offset, &reqid[t]);
       if (rval == 0) {
-        nrequests = nrequests + 1;
+        nrequests++;
       }
       else {
         tmpaddr[t] = 0;
@@ -1104,72 +1072,39 @@ int sn1SCCmdParallel(IRAddress *toaddr, int ntargets, int opcode, int argc, IRAr
     }
   }
   rerrcnt = 0;
-  do {
-    while( true ) {
-      iVar2 = errval;
-      if (nrequests < 1) goto LAB_08056746;
-      asStack_54[ntargets * -2 + 6] = wait;
-      asStack_54[ntargets * -2 + 5] = (size_t)&rspid;
-      asStack_54[ntargets * -2 + 4] = (size_t)&rp;
-      asStack_54[ntargets * -2 + 3] = 0x80565f3;
-      rval = sn1SCRsp((IRPacket **)asStack_54[ntargets * -2 + 4],
-                      (uint32 *)asStack_54[ntargets * -2 + 5],asStack_54[ntargets * -2 + 6]);
-      if (rval != 0) break;
-      rerrcnt = 0;
-      for (t = 0; t < ntargets; t = t + 1) {
-        if (tmpaddr[t] != 0) {
-          if (rp->_rev == '\0') {
-            uVar4 = reqid[t] & 0xff;
-          }
-          else {
-            uVar4 = reqid[t] & 0xffff;
-          }
-          if (uVar4 == rspid) {
-            rpkt[t] = rp;
-            tmpaddr[t] = 0;
-            nrequests = nrequests + -1;
-            break;
-          }
+  while (nrequests > 0) {
+    rval = sn1SCRsp(&rp, &rspid, wait);
+    if (rval != 0) {
+      if (rval == -0x26c || rval == -0x12f) {
+        errval = rval;
+        break;
+      }
+      syslog(3, "SCapi.c", 1261, 0, "sn1SCCmdParallel: sn1SCRsp: %s\n", LoggerDefaultMessage(rval));
+      if (rerrcnt++ >= 4) {
+        errval = rval;
+        break;
+      }
+      continue;
+    }
+    rerrcnt = 0;
+    for (t = 0; t < ntargets; t++) {
+      if (tmpaddr[t] != 0) {
+        id = (rp->_rev == 0) ? (reqid[t] & 0xff) : (reqid[t] & 0xffff);
+        if (id == rspid) {
+          rpkt[t] = rp;
+          tmpaddr[t] = 0;
+          nrequests--;
+          break;
         }
       }
-      if (t == ntargets) {
-        asStack_54[ntargets * -2 + 6] =
-             (size_t)"sn1SCCmdParallel: response ID did not match any request ID!!\n";
-        asStack_54[ntargets * -2 + 5] = 0;
-        asStack_54[ntargets * -2 + 4] = 0x51c;
-        asStack_54[ntargets * -2 + 3] = (size_t)"SCapi.c";
-        asStack_54[ntargets * -2 + 2] = 3;
-        asStack_54[ntargets * -2 + 1] = 0x8056738;
-        syslog(asStack_54[ntargets * -2 + 2],(char *)asStack_54[ntargets * -2 + 3],
-               asStack_54[ntargets * -2 + 4],asStack_54[ntargets * -2 + 5],
-               (char *)asStack_54[ntargets * -2 + 6]);
-      }
     }
-    iVar2 = rval;
-    if ((rval == -0x26c) || (rval == -0x12f)) goto LAB_08056746;
-    asStack_54[ntargets * -2 + 6] = rval;
-    asStack_54[ntargets * -2 + 5] = 0x8056639;
-    pcVar3 = LoggerDefaultMessage(asStack_54[ntargets * -2 + 6]);
-    asStack_54[ntargets * -2 + 6] = (size_t)pcVar3;
-    asStack_54[ntargets * -2 + 5] = (size_t)"sn1SCCmdParallel: sn1SCRsp: %s\n";
-    asStack_54[ntargets * -2 + 4] = 0;
-    asStack_54[ntargets * -2 + 3] = 0x4ed;
-    asStack_54[ntargets * -2 + 2] = (size_t)"SCapi.c";
-    asStack_54[ntargets * -2 + 1] = 3;
-    asStack_54[ntargets * -2] = 0x8056657;
-    syslog(asStack_54[ntargets * -2 + 1],(char *)asStack_54[ntargets * -2 + 2],
-           asStack_54[ntargets * -2 + 3],asStack_54[ntargets * -2 + 4],
-           (char *)asStack_54[ntargets * -2 + 5]);
-    bVar1 = rerrcnt < 4;
-    rerrcnt = rerrcnt + 1;
-  } while (bVar1);
-  errval = rval;
-  iVar2 = errval;
-LAB_08056746:
-  errval = iVar2;
-  if (0 < nrequests) {
-    for (t = 0; t < ntargets; t = t + 1) {
-      if ((tmpaddr[t] != 0) && (errlist[t] == 0)) {
+    if (t == ntargets) {
+      syslog(3, "SCapi.c", 1308, 0, "sn1SCCmdParallel: response ID did not match any request ID!!\n");
+    }
+  }
+  if (nrequests > 0) {
+    for (t = 0; t < ntargets; t++) {
+      if (tmpaddr[t] != 0 && errlist[t] == 0) {
         errlist[t] = errval;
       }
     }

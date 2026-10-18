@@ -151,10 +151,9 @@ LAB_0807f7a2:
       pptr->olen = 0;
     }
   }
-  uVar1 = ~fcs;
-  fcs._0_1_ = (uchar)uVar1;
+  fcs = ~fcs;
   fbuf[0] = (uchar)fcs;
-  fbuf[1] = (uchar)(uVar1 >> 8);
+  fbuf[1] = (uchar)(fcs >> 8);
   fcs = 0;
   do {
     if (1 < fcs) {

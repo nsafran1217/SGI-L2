@@ -71,6 +71,7 @@
 #include "l1.h"
 #include "../l2demo/l2demo.h"
 #include "decomp.h"     /* Ghidra types/macros; remove once the file is cleaned up */
+char *format_address(IRAddress addr);   /* defined in format's module; not in a header (name clash with a static elsewhere) */
 struct _pbay_data {
     char **snlist;
     char **snconns;

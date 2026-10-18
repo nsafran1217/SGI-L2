@@ -11,6 +11,5 @@
 
 /* prototypes (not recorded in STABS; reconstructed from definitions) */
 /* dmp.c */
-void dmp(char *s, unsigned char *bptr, int blen, int newline);
 
 #endif /* SYS_CTRL_L3_L2_DMP_H */
