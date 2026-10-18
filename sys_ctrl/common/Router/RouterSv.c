@@ -38,9 +38,6 @@ static void RouterRemoveInetServer(RouterServer *server);
 static void RouterAddUnixServer(RouterServer *server);
 static void RouterRemoveUnixServer(RouterServer *server);
 
-/* validate_cb's and connect_cb's verdicts */
-enum { VERDICT_ACCEPT = 1, VERDICT_PASSWORD = 2, VERDICT_DENY = 3 };
-
 /* serve port; NULL if a server already answers there (or on error) */
 RouterServer *RouterStartServer(int port, int (*validate_cb)(), void (*error_cb)())
 {

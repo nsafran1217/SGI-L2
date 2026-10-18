@@ -9,6 +9,9 @@
 #ifndef SYS_CTRL_COMMON_ROUTER_ROUTERSV_H
 #define SYS_CTRL_COMMON_ROUTER_ROUTERSV_H
 
+/* what a server's validate_cb and connect_cb (password check) return */
+enum { VERDICT_ACCEPT = 1, VERDICT_PASSWORD = 2, VERDICT_DENY = 3 };
+
 /* prototypes (not recorded in STABS; reconstructed from definitions) */
 #include "Router.h"   /* for the prototypes */
 /* RouterSv.c */

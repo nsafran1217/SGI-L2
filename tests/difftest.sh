@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Differential test against SGI's original binaries.
 #
 #   tests/difftest.sh [ORIG_BIN_DIR]
@@ -77,5 +77,14 @@ for pair in orig-new new-orig new-new; do
         fail=1
     fi
 done
+# the daemons' own output (connections, validation, the commands' messages)
+if cmp -s <(mask < "$work/orig/daemon.log") <(mask < "$work/new/daemon.log") 2>/dev/null ||
+   diff <(mask < "$work/orig/daemon.log") <(mask < "$work/new/daemon.log") > "$work/daemon.diff"; then
+    echo "PASS  l2 daemon output: l2=orig and l2=new agree"
+else
+    echo "FAIL  l2 daemon output"
+    head -40 "$work/daemon.diff"
+    fail=1
+fi
 echo "$(grep -c '^===' "$work/orig-orig.txt") commands"
 exit $fail
