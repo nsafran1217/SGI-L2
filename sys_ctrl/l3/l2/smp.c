@@ -1111,13 +1111,13 @@ void smp_chkcon_changes(int get_check)
   IRAddress new_conaddr;
   
   if (get_check == 0) {
-    memcpy((void *)0x8096180,L2CfgLocal.syscon,0x400);
+    memcpy((void *)&syscon_snap,L2CfgLocal.syscon,0x400);
   }
   else {
-    iVar1 = memcmp((void *)0x8096180,L2CfgLocal.syscon,0x400);
+    iVar1 = memcmp((void *)&syscon_snap,L2CfgLocal.syscon,0x400);
     if (iVar1 != 0) {
       for (p = 0; p < 0x100; p = p + 1) {
-        new_conaddr = ((L2CfgSysCon *)&ram0x08096180)[p].detected;
+        new_conaddr = ((L2CfgSysCon *)&syscon_snap)[p].detected;
         addr = L2CfgLocal.syscon[p].detected;
         if (new_conaddr != addr) {
           for (smp = smp_list; smp != NULL; smp = smp->next) {
@@ -1607,7 +1607,7 @@ void smp_read(SMP *smp)
         smp_input(smp,smp->grp->ibuf + smp->grp->ilen,1);
       }
     }
-    sVar3 = read(smp->rfd,(char *)&ram0x08091774,1);
+    sVar3 = read(smp->rfd,(char *)&rbuf,1);
     if (sVar3 < 1) {
       if ((smp->id->addr & 0x80000000) == 0) {
         if (smp->id->addr >> 0x1c != 0xf) {
@@ -1620,7 +1620,7 @@ void smp_read(SMP *smp)
       smp_free(smp);
     }
     else {
-      smp_input(smp,(char *)0x8091774,1);
+      smp_input(smp,(char *)&rbuf,1);
     }
   }
   return;
@@ -1656,7 +1656,7 @@ void smp_write(SMP *smp, char *ibptr, int iblen)
     }
     if (iblen != 0) {
       oblen = 0;
-      obptr = &ram0x08096580;
+      obptr = &obuff;
       do {
         while ((iblen != 0 && ((uint)oblen < 0xfff))) {
           if (*ibptr == '\n') {
@@ -1714,7 +1714,7 @@ void smp_write(SMP *smp, char *ibptr, int iblen)
         }
         piVar2 = __errno_location();
         *piVar2 = 0;
-        status = write(smp->wfd,(void *)0x8096580,oblen);
+        status = write(smp->wfd,(void *)&obuff,oblen);
         if ((status < 0) && (piVar2 = __errno_location(), *piVar2 == 0xb)) {
           sprintf(x__,"SMP %d (%d) write would block",smp->grpid,smp_count);
           nvramLogFinsert(x__);
@@ -1730,13 +1730,13 @@ void smp_write(SMP *smp, char *ibptr, int iblen)
         }
         if (status == oblen) {
           oblen = 0;
-          obptr = (char *)0x8096580;
+          obptr = (char *)&obuff;
         }
         else {
           sprintf(x___,"SMP %d (%d) partial write %d/%d",smp->grpid,smp_count,status,oblen);
           nvramLogFinsert(x___);
           if (status != 0) {
-            memmove((void *)0x8096580,(void *)(status + 0x8096580),oblen - status);
+            memmove((void *)&obuff,(void *)(status + 0x8096580),oblen - status);
             obptr = (char *)(status + 0x8096580);
             oblen = status;
           }

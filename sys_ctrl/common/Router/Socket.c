@@ -541,9 +541,9 @@ int SocketGetHostName(char **host_name)
   int *piVar2;
   char *format;
   
-  memset((void *)0x80a93a0,0,0x42);
-  *host_name = (char *)&ram0x080a93a0;
-  iVar1 = gethostname((char *)0x80a93a0,0x41);
+  memset((void *)&name,0,0x42);
+  *host_name = (char *)&name;
+  iVar1 = gethostname((char *)&name,0x41);
   if (iVar1 == 0) {
     iVar1 = 0;
   }
@@ -565,12 +565,12 @@ int SocketGetHostAddr(long unsigned int *addr)
   
   iVar1 = SocketGetHostName(&host_name);
   if (iVar1 == 0) {
-    iVar1 = strncmp(host_name,(char *)0x80a9400,0x41);
+    iVar1 = strncmp(host_name,(char *)&localhost,0x41);
     if (iVar1 != 0) {
-      strcpy((char *)&ram0x080a9400,host_name);
-      iVar1 = SocketGetAddr((char *)0x80a9400,(ulong *)0x80a9444);
+      strcpy((char *)&localhost,host_name);
+      iVar1 = SocketGetAddr((char *)&localhost,(ulong *)&localaddr);
       if (iVar1 != 0) {
-        LogErrorHost(-0x196,"",0,(char *)0x80a9400,0,"");
+        LogErrorHost(-0x196,"",0,(char *)&localhost,0,"");
         return -1;
       }
     }

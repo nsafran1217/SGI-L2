@@ -44,7 +44,7 @@ char *EventStats(int clear)
 {
   static char buf[80];
   
-  sprintf((char *)0x80a9100,"input:%d    output:%d    timers:%d    select:%d",EventInputCBCount,
+  sprintf((char *)&buf,"input:%d    output:%d    timers:%d    select:%d",EventInputCBCount,
           EventOutputCBCount,EventTimerCBCount,EventSelectCount);
   if (clear != 0) {
     EventOutputCBCount = 0;
@@ -52,7 +52,7 @@ char *EventStats(int clear)
     EventSelectCount = 0;
     EventTimerCBCount = 0;
   }
-  return &ram0x080a9100;
+  return &buf;
 }
 
 static void EventIOListAlloc(int count)
@@ -483,7 +483,7 @@ LAB_08073508:
     tpcnt = tcnt;
     next_time.tv_sec = 0x7fffffff;
     next_time.tv_usec = 0;
-    gettimeofday((struct timeval *)0x80a9150,(__timezone_ptr_t)0x0);
+    gettimeofday((struct timeval *)&cur_time,(__timezone_ptr_t)0x0);
     for (; 999999 < cur_time.tv_usec; cur_time.tv_usec = cur_time.tv_usec + -1000000) {
       cur_time.tv_sec = cur_time.tv_sec + 1;
     }
@@ -517,7 +517,7 @@ LAB_08073508:
     } while( true );
   }
   if (EventTimerQueue != NULL) {
-    gettimeofday((struct timeval *)0x80a9150,(__timezone_ptr_t)0x0);
+    gettimeofday((struct timeval *)&cur_time,(__timezone_ptr_t)0x0);
     for (; 999999 < cur_time.tv_usec; cur_time.tv_usec = cur_time.tv_usec + -1000000) {
       cur_time.tv_sec = cur_time.tv_sec + 1;
     }
@@ -566,7 +566,7 @@ LAB_08073660:
     else {
       wait_time.tv_sec = next_time.tv_sec - cur_time.tv_sec;
     }
-    timeout = (struct timeval *)0x80a9158;
+    timeout = (struct timeval *)&wait_time;
   }
   goto LAB_080738ba;
 LAB_08073810:
@@ -586,14 +586,14 @@ LAB_08073810:
     else {
       wait_time.tv_sec = (EventTimerQueue->timer_value).tv_sec - cur_time.tv_sec;
     }
-    timeout = (struct timeval *)0x80a9158;
+    timeout = (struct timeval *)&wait_time;
   }
 LAB_080738ba:
   fdset_and(&EventReadMask,&EventReadSet,rd_subset);
   fdset_and(&EventWriteMask,&EventWriteSet,wr_subset);
   if ((oneshot != 0) &&
      ((timeout == NULL || (10 < timeout->tv_sec * 1000000 + timeout->tv_usec)))) {
-    timeout = (struct timeval *)0x80a9158;
+    timeout = (struct timeval *)&wait_time;
     wait_time.tv_sec = 0;
     wait_time.tv_usec = 10;
   }
@@ -745,7 +745,7 @@ static void EventRemoveBadFD(void)
       pbVar1 = (byte *)((int)EventReadMask.fds_bits + ((int)(i & 0x1fU) >> 3) + ((uint)i >> 5) * 4);
       *pbVar1 = *pbVar1 | '\x01' << (i & 7U);
       iVar3 = select(EventFDRange,(fd_set *)&EventReadMask,NULL,NULL,
-                     (struct timeval *)0x8094bd4);
+                     (struct timeval *)&zero_time);
       if (iVar3 < 0) {
         if (EventIOList[i].input_func == NULL) {
           pcVar5 = "";
@@ -769,7 +769,7 @@ static void EventRemoveBadFD(void)
       ;
       *pbVar1 = *pbVar1 | '\x01' << (i & 7U);
       iVar3 = select(EventFDRange,NULL,(fd_set *)&EventWriteMask,NULL,
-                     (struct timeval *)0x8094bd4);
+                     (struct timeval *)&zero_time);
       if (iVar3 < 0) {
         if (EventIOList[i].output_func == NULL) {
           pcVar5 = "";

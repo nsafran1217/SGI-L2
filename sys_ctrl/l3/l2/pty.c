@@ -29,7 +29,7 @@ int pty_master(void)
   char *ptr;
   int i;
   
-  ptr = &ram0x08094b20;
+  ptr = &ptychar;
   while( true ) {
     if (*ptr == '\0') {
       return -1;
@@ -40,7 +40,7 @@ int pty_master(void)
     master_fd = stat(pty_name,&statbuff);
     if (master_fd < 0) break;
     for (i = 0; i < 0x10; i = i + 1) {
-      pty_name[9] = ((char *)&ram0x08094b25)[i];
+      pty_name[9] = ((char *)&hexchar)[i];
       iVar1 = open(pty_name,2);
       if (-1 < iVar1) {
         return iVar1;

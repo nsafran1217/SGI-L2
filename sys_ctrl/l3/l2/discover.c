@@ -427,7 +427,7 @@ void discover_service(void)
   *pbVar1 = *pbVar1 | '\x01' << (discover_sd & 7U);
   to.tv_sec = 0;
   to.tv_usec = 10;
-  iVar2 = select(discover_sd + 1,(fd_set *)&rfd,NULL,NULL,(struct timeval *)0x80a26e0);
+  iVar2 = select(discover_sd + 1,(fd_set *)&rfd,NULL,NULL,(struct timeval *)&to);
   if (iVar2 == 1) {
     if ((*(byte *)((int)rfd.fds_bits +
                   ((int)(discover_sd & 0x1fU) >> 3) + ((uint)discover_sd >> 5) * 4) >>

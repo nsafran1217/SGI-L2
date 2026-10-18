@@ -97,7 +97,7 @@ int IRouterConnectL3(char *cname, char *host, int port, IRClient **client, int e
     }
     partitions.bits[iVar1 >> 3] = bVar3;
     pRVar2 = RouterMakeGroupConnection
-                       (host,port,2,(RouterGroupSet *)0x80a9454,300,0x100,rtr_connected,
+                       (host,port,2,(RouterGroupSet *)&partitions,300,0x100,rtr_connected,
                         NULL,rtr_event,rtr_connect_failure);
     *client = pRVar2;
     if (pRVar2 == NULL) {
@@ -380,7 +380,7 @@ int rtr_connected(RouterClient *client, int opcode, RouterArgument **arglistout)
       pwarg[0]._0_4_ = pwarg[0]._0_4_ & 0xff;
       pwarg[0]._0_4_ = pwarg[0]._0_4_ | (sVar1 + 1) * 0x100;
     }
-    *arglistout = (RouterArgument *)0x80a945c;
+    *arglistout = (RouterArgument *)&pwarg;
     iVar2 = 1;
   }
   else {

@@ -513,7 +513,7 @@ static char **find_interfaces(long unsigned int **addrlist_ptr)
   }
   else {
     ic.ifc_len = 0x640;
-    ic.ifc_ifcu.ifcu_buf = &ram0x080a8aa0;
+    ic.ifc_ifcu.ifcu_buf = &ifrbuf;
     status = ioctl(sd,0x8912,&ic);
     if (status < 0) {
       piVar1 = __errno_location();
@@ -524,18 +524,18 @@ static char **find_interfaces(long unsigned int **addrlist_ptr)
       ppcVar3 = NULL;
     }
     else {
-      for (nlptr = (char **)0x80a89e0; *nlptr != NULL; nlptr = nlptr + 1) {
+      for (nlptr = (char **)&namelist; *nlptr != NULL; nlptr = nlptr + 1) {
         free(*nlptr);
         *nlptr = NULL;
       }
-      memset((void *)0x80a8a40,0,0x50);
+      memset((void *)&addrlist,0,0x50);
       for (i = 0; i < ic.ifc_len; i = i + 0x20) {
         pcVar2 = ic.ifc_ifcu.ifcu_buf + i;
         p = (struct sockaddr_in *)(pcVar2 + 0x10);
         iVar4 = strncmp(pcVar2,"dummy",5);
         if (iVar4 != 0) {
-          nltmp = (char **)0x80a89e0;
-          altmp = (ulong *)&ram0x080a8a40;
+          nltmp = (char **)&namelist;
+          altmp = (ulong *)&addrlist;
           while ((*nltmp != NULL && (iVar4 = strcmp(*nltmp,pcVar2), iVar4 != 0))) {
             nltmp = nltmp + 1;
             altmp = altmp + 1;
@@ -575,8 +575,8 @@ static char **find_interfaces(long unsigned int **addrlist_ptr)
         }
       }
       close(sd);
-      *addrlist_ptr = (ulong *)0x80a8a40;
-      ppcVar3 = (char **)&ram0x080a89e0;
+      *addrlist_ptr = (ulong *)&addrlist;
+      ppcVar3 = (char **)&namelist;
     }
   }
   return ppcVar3;
@@ -586,6 +586,6 @@ static char *ip_str(uint8 *ip)
 {
   static char str[20];
   
-  sprintf((char *)0x80a90e0,"%d.%d.%d.%d",(uint)*ip,(uint)ip[1],(uint)ip[2],(uint)ip[3]);
-  return &ram0x080a90e0;
+  sprintf((char *)&str,"%d.%d.%d.%d",(uint)*ip,(uint)ip[1],(uint)ip[2],(uint)ip[3]);
+  return &str;
 }

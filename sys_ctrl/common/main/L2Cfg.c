@@ -564,8 +564,8 @@ char *L2CfgMFindDevice(L2Cfg *head, int fd)
   port = 0;
   while( true ) {
     if (0x27 < port) {
-      sprintf((char *)&ram0x080a7060,"descriptor %d not found",fd);
-      return (char *)0x80a7060;
+      sprintf((char *)&buff,"descriptor %d not found",fd);
+      return (char *)&buff;
     }
     if (head->port_list[port].fd == fd) break;
     port = port + 1;
@@ -617,27 +617,27 @@ char *L2CfgMDeviceName(L2Cfg *head, int fd)
   
   l2port = L2CfgMFindPort(head,fd);
   if (l2port == NULL) {
-    sprintf((char *)0x80a70c0,"[fd %d, not an L1 device]",fd);
-    pcVar2 = &ram0x080a70c0;
+    sprintf((char *)&buff,"[fd %d, not an L1 device]",fd);
+    pcVar2 = &buff;
   }
   else {
     iVar1 = l2port->state;
     if (iVar1 == 1) {
-      sprintf((char *)0x80a70c0,"L1 USB device %s [%s]",l2port->device,l2port->usbpath);
-      pcVar2 = (char *)0x80a70c0;
+      sprintf((char *)&buff,"L1 USB device %s [%s]",l2port->device,l2port->usbpath);
+      pcVar2 = (char *)&buff;
     }
     else {
       if (iVar1 < 2) {
         if (iVar1 == 0) {
-          sprintf((char *)0x80a70c0,"[fd %d, unconnected L1]",fd);
-          return (char *)0x80a70c0;
+          sprintf((char *)&buff,"[fd %d, unconnected L1]",fd);
+          return (char *)&buff;
         }
       }
       else if (iVar1 == 2) {
         pcVar2 = L2CfgMAddrStr(head,((uint)l2port->l1cfg->rack << 6 |
                                     (uint)(l2port->l1cfg->slot & 0x3f)) << 0xc,0);
-        sprintf((char *)0x80a70c0,"connection to %s",pcVar2);
-        return (char *)0x80a70c0;
+        sprintf((char *)&buff,"connection to %s",pcVar2);
+        return (char *)&buff;
       }
       pcVar2 = "no device";
     }
@@ -2254,7 +2254,7 @@ int L2CfgMCfgPort(L2Cfg *head, int port, IRPacket *p)
         else {
           cfgp = (char *)IRArg(p,l1 + 1);
         }
-        l1l2(l2port_00,l1,((int *)&ram0x08094b7c)[l1],cfgp,(uint)uVar1);
+        l1l2(l2port_00,l1,((int *)&cvt)[l1],cfgp,(uint)uVar1);
       }
     }
     else if (uVar2 == 7) {
@@ -2811,7 +2811,7 @@ char *L2CfgMAddrStr(L2Cfg *head, IRAddress addr, int verbose)
   char *bptr;
   
   IVar1 = addr;
-  bptr = (char *)0x80a7140;
+  bptr = (char *)&buff;
   if ((addr & 0x80000000) == 0) {
     type = addr >> 0x1c;
   }
@@ -2823,7 +2823,7 @@ char *L2CfgMAddrStr(L2Cfg *head, IRAddress addr, int verbose)
   }
   if (false) {
 switchD_0806fc1f_caseD_6:
-    sprintf((char *)0x80a7140,"invalid address (IR 0x%08x)",addr);
+    sprintf((char *)&buff,"invalid address (IR 0x%08x)",addr);
   }
   else {
     switch(type) {
@@ -2835,8 +2835,8 @@ switchD_0806fc1f_caseD_6:
       else {
         pcVar4 = "L3 ";
       }
-      strcpy((char *)0x80a7140,pcVar4);
-      sVar2 = strlen((char *)0x80a7140);
+      strcpy((char *)&buff,pcVar4);
+      sVar2 = strlen((char *)&buff);
       bptr = (char *)(sVar2 + 0x80a7140);
     case 0:
       rack = addr >> 0x12 & 0x3ff;
@@ -2854,13 +2854,13 @@ switchD_0806fc1f_caseD_6:
       }
       break;
     case 3:
-      strcpy((char *)0x80a7140,"local attached C");
+      strcpy((char *)&buff,"local attached C");
       break;
     case 4:
-      strcpy((char *)0x80a7140,"local attached I/O");
+      strcpy((char *)&buff,"local attached I/O");
       break;
     case 5:
-      strcpy((char *)0x80a7140,"local attached C\'s I/O");
+      strcpy((char *)&buff,"local attached C\'s I/O");
       break;
     default:
       goto switchD_0806fc1f_caseD_6;
@@ -2875,15 +2875,15 @@ switchD_0806fc1f_caseD_6:
           uVar5 = htonl(IVar1 & 0xffffff);
         }
         uVar5 = ntohl(uVar5);
-        sprintf((char *)0x80a7140,"X.%d.%d.%d-L2",(int)uVar5 >> 0x10 & 0xff,(int)uVar5 >> 8 & 0xff,
+        sprintf((char *)&buff,"X.%d.%d.%d-L2",(int)uVar5 >> 0x10 & 0xff,(int)uVar5 >> 8 & 0xff,
                 uVar5 & 0xff);
       }
       else if ((int)pLVar3[1].ip_addr < 1) {
         pcVar4 = SocketAddrStr(pLVar3->ip_addr);
-        sprintf((char *)0x80a7140,"%s-L2",pcVar4);
+        sprintf((char *)&buff,"%s-L2",pcVar4);
       }
       else {
-        sprintf((char *)0x80a7140,"%03d-L2",pLVar3[1].ip_addr);
+        sprintf((char *)&buff,"%03d-L2",pLVar3[1].ip_addr);
       }
       break;
     case 0xf:
@@ -2898,19 +2898,19 @@ switchD_0806fc1f_caseD_6:
           ip = htonl(IVar1 & 0xffffff);
         }
         uVar5 = ntohl(ip);
-        sprintf((char *)0x80a7140,"L3 Client %d [X.%d.%d.%d-L2]",task,(int)uVar5 >> 0x10 & 0xff,
+        sprintf((char *)&buff,"L3 Client %d [X.%d.%d.%d-L2]",task,(int)uVar5 >> 0x10 & 0xff,
                 (int)uVar5 >> 8 & 0xff,uVar5 & 0xff);
       }
       else if ((int)pLVar3[1].ip_addr < 1) {
         pcVar4 = SocketAddrStr(pLVar3->ip_addr);
-        sprintf((char *)0x80a7140,"L3 Client %d [%s-L2]",task,pcVar4);
+        sprintf((char *)&buff,"L3 Client %d [%s-L2]",task,pcVar4);
       }
       else {
-        sprintf((char *)0x80a7140,"L3 Client %d [%03d-L2]",task,pLVar3[1].ip_addr);
+        sprintf((char *)&buff,"L3 Client %d [%03d-L2]",task,pLVar3[1].ip_addr);
       }
     }
   }
-  return &ram0x080a7140;
+  return &buff;
 }
 
 static int attached_io_type(L2CfgPort *port, int index)

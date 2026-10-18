@@ -84,7 +84,7 @@ void read_n_write(int *wfd, int rfd)
   
   piVar1 = __errno_location();
   *piVar1 = 0;
-  n = read(rfd,(void *)0x8070040,0x400);
+  n = read(rfd,(void *)&buff,0x400);
   if (n < 1) {
     count = 0;
     if (rfd == 0) {
@@ -147,7 +147,7 @@ void read_n_write(int *wfd, int rfd)
         cleanup();
       }
     }
-    sVar2 = write(*wfd,(void *)0x8070040,n);
+    sVar2 = write(*wfd,(void *)&buff,n);
     if (sVar2 != n) {
       if (wfd == &tty) {
         piVar1 = __errno_location();

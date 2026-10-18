@@ -185,23 +185,23 @@ char *LoggerDefaultMessage(int msgnbr)
     if ((iVar2 < -299) && (-0x3e9 < iVar2)) {
       if (*(int *)(&DAT_0808f95c + iVar1 * -0xc) < -(msgnbr % 100)) {
         pcVar3 = LoggerModuleMessage(msgnbr);
-        sprintf((char *)0x80a9820,"Unknown %s message %d",pcVar3,msgnbr);
+        sprintf((char *)&message,"Unknown %s message %d",pcVar3,msgnbr);
       }
       else {
         uVar4 = *(undefined4 *)(*(int *)(&DAT_0808f960 + iVar1 * -0xc) + (msgnbr % 100) * -4);
         pcVar3 = LoggerModuleMessage(msgnbr);
-        sprintf((char *)0x80a9820,"%s:%s",pcVar3,uVar4);
+        sprintf((char *)&message,"%s:%s",pcVar3,uVar4);
       }
     }
     else {
-      sprintf((char *)0x80a9820,"Unknown Module %d, message = %d",iVar2,msgnbr % 100);
+      sprintf((char *)&message,"Unknown Module %d, message = %d",iVar2,msgnbr % 100);
     }
   }
   else {
     pcVar3 = strerror(tmp);
-    sprintf((char *)0x80a9820,"%s [errno %d]",pcVar3,tmp);
+    sprintf((char *)&message,"%s [errno %d]",pcVar3,tmp);
   }
-  return &ram0x080a9820;
+  return &message;
 }
 
 char *LoggerModuleMessage(int msgnbr)

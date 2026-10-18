@@ -407,9 +407,9 @@ char *l2_firmware_version(void)
   static char firmware_ver[20];
   
   if (firmware_ver[0] == '\0') {
-    sprintf((char *)0x8091718,"%d.%d.%d",1,0x3e,0);
+    sprintf((char *)&firmware_ver,"%d.%d.%d",1,0x3e,0);
   }
-  return (char *)0x8091718;
+  return (char *)&firmware_ver;
 }
 
 void l2_flow_setup(int hwater, int lwater)

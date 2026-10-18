@@ -773,28 +773,28 @@ static char *format_address(IRAddress addr)
   }
   if (false) {
 switchD_0805a610_caseD_2:
-    sprintf((char *)0x80766c0,"address error",0,0);
+    sprintf((char *)&buff,"address error",0,0);
   }
   else {
     switch(uVar1) {
     case 0:
-      sprintf((char *)0x80766c0,"%03d.%02d",addr >> 0x12 & 0x3ff,addr >> 0xc & 0x3f);
+      sprintf((char *)&buff,"%03d.%02d",addr >> 0x12 & 0x3ff,addr >> 0xc & 0x3f);
     case 3:
-      strcpy((char *)0x80766c0,"local attached C");
+      strcpy((char *)&buff,"local attached C");
       break;
     case 1:
-      strcpy((char *)0x80766c0,"L2");
+      strcpy((char *)&buff,"L2");
       break;
     default:
       goto switchD_0805a610_caseD_2;
     case 4:
-      strcpy((char *)0x80766c0,"local attached I/O");
+      strcpy((char *)&buff,"local attached I/O");
       break;
     case 5:
-      strcpy((char *)0x80766c0,"local attached C\'s I/O");
+      strcpy((char *)&buff,"local attached C\'s I/O");
     }
   }
-  return &ram0x080766c0;
+  return &buff;
 }
 
 static void dmp(char *s, unsigned char *bptr, int blen, int newline)

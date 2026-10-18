@@ -312,8 +312,8 @@ static int pipe_in(int fd, unsigned char **pptr, int plen)
   }
   else {
     do {
-      iptr = &ram0x080767c0;
-      ilen = rd(fd,(uchar *)0x80767c0,0x80);
+      iptr = &ibuf;
+      ilen = rd(fd,(uchar *)&ibuf,0x80);
       if (ilen < 1) {
         return -0x264;
       }

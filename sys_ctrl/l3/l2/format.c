@@ -75,11 +75,11 @@ char *format_caddress(IRAddress addr, int partition)
   int rack;
   
   pcVar1 = format_address(addr);
-  strcpy((char *)0x80a25e0,pcVar1);
+  strcpy((char *)&buff,pcVar1);
   if (partition != 0) {
     pcVar1 = ".%d";
-    sVar2 = strlen((char *)0x80a25e0);
-    sprintf((char *)&ram0x080a25e0 + sVar2,pcVar1,partition);
+    sVar2 = strlen((char *)&buff);
+    sprintf((char *)&buff + sVar2,pcVar1,partition);
   }
   cfg = L2CfgMFindBrickCfg(&L2CfgLocal,addr >> 0x12 & 0x3ff,addr >> 0xc & 0x3f,0);
   if (cfg != NULL) {
@@ -102,19 +102,19 @@ char *format_caddress(IRAddress addr, int partition)
         iVar4 = iVar3 + 0x41;
         pcVar1 = " CPU %d%c";
         uVar7 = uVar6;
-        sVar2 = strlen((char *)0x80a25e0);
+        sVar2 = strlen((char *)&buff);
         sprintf((char *)(sVar2 + 0x80a25e0),pcVar1,uVar7,iVar4,uVar6,iVar3,iVar5);
       }
       else if (iVar3 == 4) {
         pcVar1 = " console%d";
-        sVar2 = strlen((char *)0x80a25e0);
+        sVar2 = strlen((char *)&buff);
         sprintf((char *)(sVar2 + 0x80a25e0),pcVar1,uVar6);
       }
       else {
         pcVar1 = " slot %d, subchannel %d";
         uVar7 = uVar6;
         iVar4 = iVar3;
-        sVar2 = strlen((char *)0x80a25e0);
+        sVar2 = strlen((char *)&buff);
         sprintf((char *)(sVar2 + 0x80a25e0),pcVar1,uVar7,iVar3,uVar6,iVar4,iVar5);
       }
     }
@@ -132,17 +132,17 @@ char *format_caddress(IRAddress addr, int partition)
       if (subc < 4) {
         iVar5 = subc + 0x41;
         pcVar1 = " CPU %d%c";
-        sVar2 = strlen((char *)0x80a25e0);
+        sVar2 = strlen((char *)&buff);
         sprintf((char *)(sVar2 + 0x80a25e0),pcVar1,slab,iVar5);
       }
       else if (subc == 4) {
         pcVar1 = " console%d";
-        sVar2 = strlen((char *)0x80a25e0);
+        sVar2 = strlen((char *)&buff);
         sprintf((char *)(sVar2 + 0x80a25e0),pcVar1,slab);
       }
       else {
         pcVar1 = " slab %d, subchannel %d";
-        sVar2 = strlen((char *)0x80a25e0);
+        sVar2 = strlen((char *)&buff);
         sprintf((char *)(sVar2 + 0x80a25e0),pcVar1,slab,subc);
       }
     }
@@ -155,19 +155,19 @@ char *format_caddress(IRAddress addr, int partition)
       }
       switch(tasknum) {
       case 0:
-        strcat((char *)0x80a25e0," CPU0");
+        strcat((char *)&buff," CPU0");
         break;
       case 1:
-        strcat((char *)0x80a25e0," CPU1");
+        strcat((char *)&buff," CPU1");
         break;
       case 2:
-        strcat((char *)0x80a25e0," CPU2");
+        strcat((char *)&buff," CPU2");
         break;
       case 3:
-        strcat((char *)0x80a25e0," CPU3");
+        strcat((char *)&buff," CPU3");
         break;
       case 4:
-        strcat((char *)0x80a25e0," console");
+        strcat((char *)&buff," console");
         break;
       default:
         if ((addr & 0x80000000) == 0) {
@@ -177,12 +177,12 @@ char *format_caddress(IRAddress addr, int partition)
           uVar6 = 0xffffffff;
         }
         pcVar1 = " subchannel %d";
-        sVar2 = strlen((char *)0x80a25e0);
+        sVar2 = strlen((char *)&buff);
         sprintf((char *)(sVar2 + 0x80a25e0),pcVar1,uVar6);
       }
     }
   }
-  return (char *)0x80a25e0;
+  return (char *)&buff;
 }
 
 static int BRICK_TASKNUM_SLAB(int btype, int tasknum)

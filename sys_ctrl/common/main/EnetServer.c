@@ -341,7 +341,7 @@ int enet_request(RouterClient *client, int request, int argcountin, RouterArgume
   
   syslog(4,"../../common/main/EnetServer.c",0x20c,0,
          "Router request %d (%d args) packet received from %s!",request,argcountin,&client->id);
-  *arglistout = (RouterArgument *)&ram0x080a6fe0;
+  *arglistout = (RouterArgument *)&arglist;
   return 0;
 }
 

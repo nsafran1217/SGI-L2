@@ -189,36 +189,36 @@ static char *l1_usb_path_str(sgil1_cfg_t *cfg, int format)
   int i;
   
   if (format == 0) {
-    sprintf((char *)0x8095020,"b%u;p",(uint)cfg->bus);
+    sprintf((char *)&path,"b%u;p",(uint)cfg->bus);
   }
   if (format == 1) {
-    sprintf((char *)0x8095020,"  bus: %u  path: ",(uint)cfg->bus);
+    sprintf((char *)&path,"  bus: %u  path: ",(uint)cfg->bus);
   }
   if (format == 2) {
-    sprintf((char *)0x8095020,"b%u;p",(uint)cfg->bus);
+    sprintf((char *)&path,"b%u;p",(uint)cfg->bus);
   }
   for (i = 0; i < (int)(uint)cfg->level; i = i + 1) {
     if (i != 0) {
-      strcat((char *)0x8095020,"/");
+      strcat((char *)&path,"/");
     }
     uVar2 = (uint)cfg->path[i];
     pcVar3 = "%d";
-    sVar1 = strlen((char *)0x8095020);
+    sVar1 = strlen((char *)&path);
     sprintf((char *)(sVar1 + 0x8095020),pcVar3,uVar2);
   }
   if (format == 0) {
     uVar2 = (uint)cfg->dev;
     pcVar3 = ";d%d";
-    sVar1 = strlen((char *)0x8095020);
-    sprintf((char *)&ram0x08095020 + sVar1,pcVar3,uVar2);
+    sVar1 = strlen((char *)&path);
+    sprintf((char *)&path + sVar1,pcVar3,uVar2);
   }
   if (format == 1) {
     uVar2 = (uint)cfg->dev;
     pcVar3 = "  dev: %d";
-    sVar1 = strlen((char *)0x8095020);
+    sVar1 = strlen((char *)&path);
     sprintf((char *)(sVar1 + 0x8095020),pcVar3,uVar2);
   }
-  return (char *)0x8095020;
+  return (char *)&path;
 }
 
 int l1_open_usb_device(int device)

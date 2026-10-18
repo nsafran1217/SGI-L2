@@ -22,8 +22,8 @@ char *MemUsageBuf(void)
   char *bptr;
   
   mallinfo(&info);
-  sprintf((char *)0x80a9680,"\narena:        %d\n",info.arena);
-  sVar2 = strlen((char *)0x80a9680);
+  sprintf((char *)&buf,"\narena:        %d\n",info.arena);
+  sVar2 = strlen((char *)&buf);
   pcVar1 = (char *)(sVar2 + 0x80a9680);
   sprintf(pcVar1,"ordblks:      %d\n",info.ordblks);
   sVar2 = strlen(pcVar1);
@@ -53,7 +53,7 @@ char *MemUsageBuf(void)
   sVar2 = strlen(pcVar1);
   sprintf(pcVar1 + sVar2,"\n");
   strlen(pcVar1 + sVar2);
-  return &ram0x080a9680;
+  return &buf;
 }
 
 void MemUsage(void)

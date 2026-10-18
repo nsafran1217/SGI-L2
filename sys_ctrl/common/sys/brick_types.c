@@ -173,122 +173,122 @@ char *brickConvertType(unsigned int type)
   
   if (false) {
 switchD_08082331_caseD_27:
-    sprintf((char *)0x80a9cc8,"%c",type);
+    sprintf((char *)&buff,"%c",type);
   }
   else {
     switch(type) {
     case 0x23:
-      strcpy((char *)0x80a9cc8,"PX");
+      strcpy((char *)&buff,"PX");
       break;
     case 0x24:
-      strcpy((char *)0x80a9cc8,"C (IP69 HACK, 1932 Chassis)");
+      strcpy((char *)&buff,"C (IP69 HACK, 1932 Chassis)");
       break;
     case 0x25:
-      strcpy((char *)0x80a9cc8,"PE");
+      strcpy((char *)&buff,"PE");
       break;
     case 0x26:
-      strcpy((char *)0x80a9cc8,"P0 N");
+      strcpy((char *)&buff,"P0 N");
       break;
     default:
       goto switchD_08082331_caseD_27;
     case 0x2b:
-      strcpy((char *)0x80a9cc8,"Athena");
+      strcpy((char *)&buff,"Athena");
       break;
     case 0x2c:
-      strcpy((char *)0x80a9cc8,"1932 Chassis");
+      strcpy((char *)&buff,"1932 Chassis");
       break;
     case 0x2d:
-      strcpy((char *)0x80a9cc8,"Quad Dense Router");
+      strcpy((char *)&buff,"Quad Dense Router");
       break;
     case 0x2e:
-      strcpy((char *)0x80a9cc8,"191010 Chassis");
+      strcpy((char *)&buff,"191010 Chassis");
       break;
     case 0x30:
-      strcpy((char *)0x80a9cc8,"CGN Voyager");
+      strcpy((char *)&buff,"CGN Voyager");
       break;
     case 0x33:
-      strcpy((char *)0x80a9cc8,"C (IP37)");
+      strcpy((char *)&buff,"C (IP37)");
       break;
     case 0x34:
-      strcpy((char *)0x80a9cc8,"C (IP45)");
+      strcpy((char *)&buff,"C (IP45)");
       break;
     case 0x35:
-      strcpy((char *)0x80a9cc8,"C (IP41)");
+      strcpy((char *)&buff,"C (IP41)");
       break;
     case 0x36:
-      strcpy((char *)0x80a9cc8,"C (Twister)");
+      strcpy((char *)&buff,"C (Twister)");
       break;
     case 0x37:
-      strcpy((char *)0x80a9cc8,"Chimera Server");
+      strcpy((char *)&buff,"Chimera Server");
       break;
     case 0x38:
-      strcpy((char *)0x80a9cc8,"Chimera Blade");
+      strcpy((char *)&buff,"Chimera Blade");
       break;
     case 0x39:
-      strcpy((char *)0x80a9cc8,"Chimera WS");
+      strcpy((char *)&buff,"Chimera WS");
       break;
     case 0x3d:
-      strcpy((char *)0x80a9cc8,"IX");
+      strcpy((char *)&buff,"IX");
       break;
     case 0x3f:
-      strcpy((char *)0x80a9cc8,"Unknown");
+      strcpy((char *)&buff,"Unknown");
       break;
     case 0x40:
-      strcpy((char *)0x80a9cc8,"C (Vortix)");
+      strcpy((char *)&buff,"C (Vortix)");
       break;
     case 0x42:
-      strcpy((char *)0x80a9cc8,"Gemini");
+      strcpy((char *)&buff,"Gemini");
       break;
     case 0x43:
-      strcpy((char *)0x80a9cc8,"C (IP35)");
+      strcpy((char *)&buff,"C (IP35)");
       break;
     case 0x44:
-      strcpy((char *)0x80a9cc8,"NL4R");
+      strcpy((char *)&buff,"NL4R");
       break;
     case 0x45:
-      strcpy((char *)0x80a9cc8,"2UPX");
+      strcpy((char *)&buff,"2UPX");
       break;
     case 0x46:
-      strcpy((char *)0x80a9cc8,"Opus TIO");
+      strcpy((char *)&buff,"Opus TIO");
       break;
     case 0x4a:
-      strcpy((char *)0x80a9cc8,"PA");
+      strcpy((char *)&buff,"PA");
       break;
     case 0x4b:
-      strcpy((char *)0x80a9cc8,"IA");
+      strcpy((char *)&buff,"IA");
       break;
     case 0x4c:
-      strcpy((char *)0x80a9cc8,"Dorado");
+      strcpy((char *)&buff,"Dorado");
       break;
     case 0x4d:
-      strcpy((char *)0x80a9cc8,"C (IP67)");
+      strcpy((char *)&buff,"C (IP67)");
       break;
     case 0x4f:
-      strcpy((char *)0x80a9cc8,"Opus");
+      strcpy((char *)&buff,"Opus");
       break;
     case 0x51:
-      strcpy((char *)0x80a9cc8,"Rackmount WS");
+      strcpy((char *)&buff,"Rackmount WS");
       break;
     case 0x53:
-      strcpy((char *)0x80a9cc8,"NL4 Snooper");
+      strcpy((char *)&buff,"NL4 Snooper");
       break;
     case 0x56:
-      strcpy((char *)0x80a9cc8,"CG Voyager");
+      strcpy((char *)&buff,"CG Voyager");
       break;
     case 0x59:
-      strcpy((char *)0x80a9cc8,"X2");
+      strcpy((char *)&buff,"X2");
       break;
     case 0x5e:
-      strcpy((char *)0x80a9cc8,"TIO Test Card");
+      strcpy((char *)&buff,"TIO Test Card");
       break;
     case 0x7b:
-      strcpy((char *)0x80a9cc8,"IP71");
+      strcpy((char *)&buff,"IP71");
       break;
     case 0x7d:
-      strcpy((char *)0x80a9cc8,"1955 Chassis");
+      strcpy((char *)&buff,"1955 Chassis");
     }
   }
-  return &ram0x080a9cc8;
+  return &buff;
 }
 
 char brickTypeToChar(unsigned int type)

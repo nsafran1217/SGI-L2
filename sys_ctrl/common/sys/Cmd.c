@@ -486,8 +486,8 @@ char *CmdFormat(Cmd *cmds, int cmd)
   tok = 0;
   while( true ) {
     if (cmds[cmd].toks[tok] < (char *)0xd) break;
-    strcat((char *)0x80a9ca0,cmds[cmd].toks[tok]);
-    strcat((char *)0x80a9ca0," ");
+    strcat((char *)&fmt,cmds[cmd].toks[tok]);
+    strcat((char *)&fmt," ");
     tok = tok + 1;
   }
                     /* WARNING: Could not recover jumptable at 0x080815c2. Too many branches */
