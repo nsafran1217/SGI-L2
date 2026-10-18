@@ -656,10 +656,7 @@ void cfg_console_subchannel(IRPacket *p)
   cfg = L2CfgMFindBrickCfg(&L2CfgLocal,rack,slot,0);
   if (cfg != NULL) {
     if ((p[1]._size & 7) == 0) {
-      uVar1._0_1_ = p[1]._seqnum0;
-      uVar1._1_1_ = p[1]._fnum;
-      uVar1._2_1_ = p[1]._clas;
-      uVar1._3_1_ = p[1]._pdata_auth;
+      uVar1 = p->_argv[3]._val;   /* bytes 64..67 of the packet */
     }
     else {
       uVar1 = IRArg(p,3);
@@ -861,10 +858,7 @@ void cfg_environmental(IRPacket *p)
     slot = IRArg(p,2);
   }
   if ((p[1]._size & 7) == 0) {
-    state._0_1_ = p[1]._seqnum0;
-    state._1_1_ = p[1]._fnum;
-    state._2_1_ = p[1]._clas;
-    state._3_1_ = p[1]._pdata_auth;
+    state = p->_argv[3]._val;   /* bytes 64..67 of the packet */
   }
   else {
     state = IRArg(p,3);
