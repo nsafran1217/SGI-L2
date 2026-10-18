@@ -79,6 +79,10 @@ struct _L2Cfg {
     L2CfgSysCon *syscon;
 };
 typedef struct _L2Cfg L2Cfg;
+/* (added by the reconstruction) lists of L2Cfg are walked through their first
+ * member, net (an L2CfgNode); the decompiler showed the L2Cfg fields beyond it
+ * as node[1].<field> at i386 offsets */
+#define L2CFG_OF(node) ((L2Cfg *)(node))
 
 /* prototypes (not recorded in STABS; reconstructed from definitions) */
 /* L2Cfg.c */

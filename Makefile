@@ -201,6 +201,7 @@ difftest: all
 	tests/l2term_test.py
 	tests/nvram_test.py
 	tests/l1net_test.py
+	tests/l1_test.py
 	$(if $(filter l2gui,$(TOOLS)),NEW_BIN=$(abspath $(B))/bin tests/l2gui_test.py)
 
 clean:

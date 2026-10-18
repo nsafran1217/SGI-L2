@@ -1,0 +1,30 @@
+config
+config verbose
+config summary
+pwr
+pwr s
+pwr up
+pwr down
+reset
+r 1 pwr
+r 1 s 2 pwr
+r 1 s 2 pwr up
+r 2 pwr
+r 1 s 3 pwr
+l1 ver
+r 1 s 2 l1 ver
+r 1 s 2 l1 serial
+nmi
+r 1 nmi
+dest
+r 1 s 2 dest
+dest
+pwr
+dest reset
+ver s
+ver c
+env s
+r 1 env s
+sel
+route
+r 1 s 2 route

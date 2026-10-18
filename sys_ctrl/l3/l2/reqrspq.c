@@ -189,7 +189,7 @@ void rspq_put(REQRSPQ *q, unsigned int seqn, IRAddress dest)
     }
     node = L2CfgMFindNode(&L2CfgLocal,ip_addr,ir_addr,client);
     if (node != NULL) {
-      sort = node[1].ip_addr;
+      sort = L2CFG_OF(node)->rack;
     }
   }
   else {

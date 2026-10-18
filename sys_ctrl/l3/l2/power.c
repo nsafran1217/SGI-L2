@@ -108,9 +108,9 @@ void power_timer(void)
         }
         else {
           for (node = L2CfgLocal.net.next; node != NULL; node = node->next) {
-            iVar2 = strcmp(L2CfgLocal.ssn,(char *)&node[1].ir_addr);
+            iVar2 = strcmp(L2CfgLocal.ssn,L2CFG_OF(node)->ssn);
             if ((iVar2 == 0) && (node->ip_addr < ip_addr)) {
-              if (node[1].ip_addr == 0) {
+              if (L2CFG_OF(node)->rack == 0) {
                 pcVar3 = SocketAddrStr(node->ip_addr);
                 sprintf(buff,"INFO: auto power up control transfered to %s (rack number not set).\n"
                         ,pcVar3);
@@ -118,7 +118,7 @@ void power_timer(void)
               else {
                 pcVar3 = SocketAddrStr(node->ip_addr);
                 sprintf(buff,"INFO: auto power up control transfered to rack %d (%s).\n",
-                        node[1].ip_addr,pcVar3);
+                        L2CFG_OF(node)->rack,pcVar3);
               }
               fprintf(stderr,buff);
               nvramLogInsert(buff);
@@ -160,7 +160,7 @@ int power_query(void)
       return 0;
     }
     for (port_index = 0; port_index < 0x28; port_index = port_index + 1) {
-      port = (L2CfgPort *)(node[1].pselect + port_index * 0x1c + 0x18);
+      port = &L2CFG_OF(node)->port_list[port_index];
       if (port->state != 0) {
         for (l1_index = 0; l1_index < port->l1count; l1_index = l1_index + 1) {
           if ((port->l1cfg[l1_index].configured != '\0') &&

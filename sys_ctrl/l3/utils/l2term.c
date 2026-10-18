@@ -378,13 +378,13 @@ int main(int argc, char **argv, char **envp)
         if (syscon == 0) {
           pcVar2 = inet_ntoa(*(struct in_addr *)&l2node->ip_addr);
           fprintf(stderr,"INFO: system console for is at L2 %04d (%s) - redirecting...\n",
-                  l2node[1].ip_addr,pcVar2);
+                  L2CFG_OF(l2node)->rack,pcVar2);
         }
         else {
           pcVar2 = inet_ntoa(*(struct in_addr *)&l2node->ip_addr);
           fprintf(stderr,
                   "INFO: system console for partition %d is at L2 %04d (%s) - redirecting...\n",
-                  syscon,l2node[1].ip_addr,pcVar2);
+                  syscon,L2CFG_OF(l2node)->rack,pcVar2);
         }
       }
       pcVar2 = inet_ntoa(*(struct in_addr *)&l2node->ip_addr);

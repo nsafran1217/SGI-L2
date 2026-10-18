@@ -126,7 +126,7 @@ int dest_l1(DEST *d, CmdData *cptr)
       return d->count;
     }
     for (port = 0; port < 0x28; port = port + 1) {
-      l2port = (L2CfgPort *)(l2node[1].pselect + port * 0x1c + 0x18);
+      l2port = &L2CFG_OF(l2node)->port_list[port];
       if (l2port->state == 2) {
         l1 = l2port->l1count;
 LAB_08060f80:
@@ -220,7 +220,7 @@ int dest_l2(DEST *d, CmdData *cptr)
   d->count = 0;
   d->type = 1;
   for (l2node = &L2CfgLocal.net; l2node != NULL; l2node = l2node->next) {
-    if (((int)l2node[1].ip_addr < 0x100) && (rlist[l2node[1].ip_addr] != '\0')) {
+    if ((L2CFG_OF(l2node)->rack < 0x100) && (rlist[L2CFG_OF(l2node)->rack] != '\0')) {
       if (IRByteOrder == 1) {
         addr = l2node->ip_addr;
       }

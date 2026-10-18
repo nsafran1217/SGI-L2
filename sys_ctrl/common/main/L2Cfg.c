@@ -29,8 +29,6 @@
 #include "../sys/syslog.h"
 #include "decomp.h"     /* Ghidra types/macros; remove once the file is cleaned up */
 
-/* lists of L2Cfg are walked through their first member, net (an L2CfgNode) */
-#define L2CFG_OF(node) ((L2Cfg *)(node))
 struct __anon_struct_50 {
     int state;
     int rack;
@@ -1378,8 +1376,7 @@ void L2CfgMPrintY(L2Cfg *head, char **rrptr)
   L2CfgNode *l2node;
   char *rptr;
   RouterClient *c;
-  uint auStack_3004 [3];
-  undefined1 auStack_2ff8 [12276];
+  uint rsl [1024 * 3];   /* (rack*100+slot, type, partition) per L1; Ghidra split it in two */
   int rs;
   bool found;
   
@@ -1395,25 +1392,25 @@ void L2CfgMPrintY(L2Cfg *head, char **rrptr)
             rs = (uint)l1c->slot + (uint)l1c->rack * 100;
             found = false;
             for (n = 0; (!found && (n < count)); n = n + 1) {
-              if (auStack_3004[n * 3] == rs) {
+              if (rsl[n * 3] == rs) {
                 found = true;
               }
             }
             if (!found) {
               found = false;
               for (n = 0; (!found && (n < count)); n = n + 1) {
-                if ((int)auStack_3004[n * 3] < rs) {
-                  memmove(auStack_2ff8 + n * 0xc,auStack_3004 + n * 3,(count - n) * 0xc);
-                  auStack_3004[n * 3] = rs;
-                  auStack_3004[n * 3 + 1] = (uint)l1c->type;
-                  auStack_3004[n * 3 + 2] = (uint)l1c->partition;
+                if ((int)rsl[n * 3] < rs) {
+                  memmove(rsl + (n + 1) * 3,rsl + n * 3,(count - n) * 3 * sizeof(*rsl));
+                  rsl[n * 3] = rs;
+                  rsl[n * 3 + 1] = (uint)l1c->type;
+                  rsl[n * 3 + 2] = (uint)l1c->partition;
                   found = true;
                 }
               }
               if (!found) {
-                auStack_3004[count * 3] = rs;
-                auStack_3004[count * 3 + 1] = (uint)l1c->type;
-                auStack_3004[count * 3 + 2] = (uint)l1c->partition;
+                rsl[count * 3] = rs;
+                rsl[count * 3 + 1] = (uint)l1c->type;
+                rsl[count * 3 + 2] = (uint)l1c->partition;
               }
               count = count + 1;
             }
@@ -1427,9 +1424,9 @@ void L2CfgMPrintY(L2Cfg *head, char **rrptr)
   if (rptr != NULL) {
     *rptr = '\0';
     for (l1 = 0; l1 < count; l1 = l1 + 1) {
-      iVar3 = (int)auStack_3004[l1 * 3] % 100;
-      cVar1 = brickTypeToChar(auStack_3004[l1 * 3 + 1]);
-      sprintf(rptr,"%03d%c%02d,",(int)auStack_3004[l1 * 3] / 100,(int)cVar1,iVar3);
+      iVar3 = (int)rsl[l1 * 3] % 100;
+      cVar1 = brickTypeToChar(rsl[l1 * 3 + 1]);
+      sprintf(rptr,"%03d%c%02d,",(int)rsl[l1 * 3] / 100,(int)cVar1,iVar3);
       sVar2 = strlen(rptr);
       rptr = rptr + sVar2;
     }

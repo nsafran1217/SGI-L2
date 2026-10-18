@@ -951,7 +951,7 @@ int l1_read_l1net(int fd, unsigned char **pbptr, int blen)
   status = SocketRead(fd,bptr,2);
   if (0 < status) {
     uVar2 = ntohs(*(uint16_t *)bptr);
-    status = SocketRead(fd,puVar1 + 0x12,uVar2 - 2);
+    status = SocketRead(fd,bptr + 2,uVar2 - 2);
     if (0 < status) {
       status = status + 2;
     }

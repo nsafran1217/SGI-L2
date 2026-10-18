@@ -29,6 +29,13 @@ build, run the scripts with `NEW_BIN`:
     NEW_BIN=$PWD/build64/bin tests/nvram_test.py
     NEW_BIN=$PWD/build64/bin tests/l2gui_test.py   # needs Xvfb, xdotool, ImageMagick, strace
 
+`tests/l1_test.py` covers the L1 side, which the other tests (all `l2
+-noconn`) never reach: the original and the rebuilt `l2 -net` each get a fake
+L1 (`tests/fakel1.py`, one brick) and the commands in `tests/l1_commands.txt`;
+transcripts and the requests the L1 receives must match. The original needs
+`tests/usrtmp_shim.c` (built on the fly, 32-bit) for its hardcoded `/usr/tmp`.
+`tests/l1net_test.py` is a quicker smoke test of the same path.
+
 `tests/l2gui_test.py` runs the same touch session (destination window, power
 and reset commands, the logo screen) through the original and the rebuilt
 `l2gui` under Xvfb and compares every byte each exchanges with the L2;
