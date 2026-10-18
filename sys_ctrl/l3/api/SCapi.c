@@ -3,36 +3,45 @@
  *
  * Reconstructed from the STABS debug info and Ghidra decompilation of l2term.
  * Original: /data/cf/sysco/scs123.patch/sys_ctrl/l3/api/SCapi.c
+ *
+ * The system controller API of the L3 tools: one connection per process,
+ * to an L2 over the network (IRouterL3.c), to the system controller device
+ * of an SN system (/dev/snsc/..., IRouterOS.c: --sc, --scdev) or straight
+ * to an L1 on a serial line (L1Direct.c). sn1SCParseCmdline() takes the
+ * common options; requests, responses and events then go the chosen way.
+ * SCapiConn.c is the same for several network connections.
  */
 
+#include <arpa/inet.h>
 #include <ctype.h>
-#include "SCapiL2.h"   /* needed by the reconstruction */
-#include "../l2/l2cmd.h"   /* needed by the reconstruction */
-#include "../l2/smp.h"   /* needed by the reconstruction */
-#include "../sys/syslogLib.h"   /* needed by the reconstruction */
+#include <mcheck.h>
 #include <stdio.h>
-#include <stddef.h>
-#include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
-#include <termios.h>
-#include <sys/utsname.h>
-#include <netinet/in.h>
-#include <limits.h>
-#include <syslimits.h>
-#include <linux/limits.h>
-#include <stdint.h>
-#include <arpa/inet.h>
-#include <mcheck.h>
+#include <unistd.h>
 #include "SCapi.h"
-#include "../../common/sys/syslog.h"
-#include "../../common/Router/RouterMsg.h"
-#include "../../common/sys/PPP.h"
-#include "../../common/sys/BuffWrite.h"
-#include "../../common/sys/FRU.h"
+#include "SCapiL2.h"
 #include "L1Direct.h"
+#include "../IRouter/IRouterL3.h"
+#include "../IRouter/IRouterOS.h"
+#include "../../common/IRouter/IRouter.h"
+#include "../../common/Router/Router.h"
+#include "../../common/Router/RouterMsg.h"
+#include "../../common/sys/BuffWrite.h"
+#include "../../common/sys/Logger.h"
 #include "../../common/sys/l3paths.h"   /* configurable paths (new) */
-#include "decomp.h"     /* Ghidra types/macros; remove once the file is cleaned up */
+#include "../sys/syslogLib.h"
+
+#define L2_CMD_PORT     8000    /* plus IR_PORT_BIAS */
+#define L2_QUIET_PORT   8002
+#define L2_APP_PORT     9002    /* an L2 application's (sn1SCInitL2App()) */
+#define L2_APP_QUIET_PORT 9004
+#define MAX_COPY        128     /* --copy */
+#define TIMEOUT_ERR     IR_ERRNO(IRERR_TIMEOUT)
+
+/* our IRouter address: an L3, or an L2 task (rack and slot all ones) */
+#define L3_ADDR         IR_ADDR_MAKE(IR_ADDR_L3, 0x3ff, 0x3f, 0, 0)
+#define L2_TASK_ADDR(t) IR_ADDR_MAKE(IR_ADDR_L2, 0x3ff, 0x3f, 0, (t) & 0x1f)
 
 static int get_l2_rack(char *name);
 static int is_os(void);
@@ -41,8 +50,8 @@ static int multi_system_check(sn1SC_L2 *list, int cnt);
 static int sn1SCCount;
 static IRClient *ir_client;
 static int copynum;
-static int serial_direct;
-static int os_direct;
+static int serial_direct;       /* talk to an L1 on a serial line */
+static int os_direct;           /* talk through the system controller device */
 static int use_quiet_port;
 static int response_timeout = 30;
 static char l2_host[64];
@@ -58,7 +67,8 @@ static int l2_rack;
 static int l2_port;
 static int l2_task;
 static char *myname;
-int ir_show;
+int ir_show;                    /* --irtr */
+/* the IRouter in use: the L3 one over the network, or IRouterOS.c */
 int (*IRouterConnect)() = IRouterConnectL3;
 void (*IRouterDisconnect)() = IRouterDisconnectL3;
 int (*IRouterRequest)() = IRouterRequestL3;
@@ -67,19 +77,30 @@ int (*IRouterEvent)() = IRouterEventL3;
 int (*IRouterGetPacket)() = IRouterGetPacketL3;
 static IRIdent ir_id;
 
+/* copy a string into a field, truncated (the original strcpy()ed) */
+static void set_field(char *field, size_t size, const char *value)
+{
+  snprintf(field,size,"%s",value);
+}
+
+/* the option help of sn1SCParseCmdline() (and L1Direct's) */
 char *sn1SCUsage(void)
 {
-  static char *msg = "    --l2 <host>          hostname or IP address of L2 to connect to\n    --sc                 connect via dflt. system controller (lowest rack/slot)\n    --scdev <device>     connect via specified system controller device\n    --interface|--if <iface>  net interface (ie. eth0) of L2 network to connect to\n    --ssn <serial>[:<rack>]  serial number (ie. L01234567) of system to connect to\n    --sysname <name>[:<rack>]    system name of system to connect to\n    --pw <password>      L2 password\n    --irtr               (debug) show IRouter packets sent/received";
+  static char *msg =
+    "    --l2 <host>          hostname or IP address of L2 to connect to\n"
+    "    --sc                 connect via dflt. system controller (lowest rack/slot)\n"
+    "    --scdev <device>     connect via specified system controller device\n"
+    "    --interface|--if <iface>  net interface (ie. eth0) of L2 network to connect to\n"
+    "    --ssn <serial>[:<rack>]  serial number (ie. L01234567) of system to connect to\n"
+    "    --sysname <name>[:<rack>]    system name of system to connect to\n"
+    "    --pw <password>      L2 password\n"
+    "    --irtr               (debug) show IRouter packets sent/received";
   static char *fullmsg;
   char *l1dmsg;
-  size_t sVar1;
-  size_t sVar2;
-  
+
   if (fullmsg == NULL) {
     l1dmsg = L1DirectUsage();
-    sVar1 = strlen(l1dmsg);
-    sVar2 = strlen(msg);
-    fullmsg = malloc(sVar2 + sVar1 + 3);
+    fullmsg = malloc(strlen(msg) + strlen(l1dmsg) + 3);
     strcpy(fullmsg,msg);
     strcat(fullmsg,"\n");
     strcat(fullmsg,l1dmsg);
@@ -87,426 +108,318 @@ char *sn1SCUsage(void)
   return fullmsg;
 }
 
+/* "<name>[:<rack>]": cut off the rack into l2_rack; 1 if there was one,
+ * 0 if not, -1 if it is not a number of 1 or more */
 static int get_l2_rack(char *name)
 {
-  char *__nptr;
-  char *sep;
-  int iVar1;
-  char *rstr;
-  
-  sep = strchr(name,0x3a);
-  if (sep == NULL) {
-    iVar1 = 0;
-  }
-  else {
-    *sep = '\0';
-    __nptr = sep + 1;
-    if ((*__nptr == '\0') || (iVar1 = isdigit((int)*__nptr), iVar1 == 0)) {
-      iVar1 = -1;
-    }
-    else {
-      l2_rack = atoi(__nptr);
-      if (l2_rack < 1) {
-        iVar1 = -1;
-      }
-      else {
-        iVar1 = 1;
-      }
-    }
-  }
-  return iVar1;
+  char *sep, *rstr;
+
+  sep = strchr(name,':');
+  if (sep == NULL)
+    return 0;
+  *sep = '\0';
+  rstr = sep + 1;
+  if (*rstr == '\0' || !isdigit((unsigned char)*rstr))
+    return -1;
+  l2_rack = atoi(rstr);
+  return l2_rack < 1 ? -1 : 1;
 }
 
+/* a packet we send, for --irtr */
 char *SCFmtPkt(int seqnum, int clas, int argc, int err, IRAddress *to, IRAddress *from, char *bptr)
 {
-  char *pcVar1;
-  char buf2 [32];
-  char buf1 [32];
-  char *temp_7bf4ebcf521;
-  char *temp_7bfbfea47f4;
-  
+  char buf1[32], buf2[32];
+
   IRFmtAddr(*to,buf1);
   IRFmtAddr(*from,buf2);
-  temp_7bf4ebcf521 = buf2;
-  temp_7bfbfea47f4 = buf1;
-  pcVar1 = IRFmtClas(clas);
-  sprintf(bptr,"PKT send:  %3d %s(%d,%d) D: %s S: %s",seqnum,pcVar1,argc,err,temp_7bfbfea47f4,
-          temp_7bf4ebcf521);
+  sprintf(bptr,"PKT send:  %3d %s(%d,%d) D: %s S: %s",seqnum,IRFmtClas(clas),argc,err,buf1,buf2);
   return bptr;
 }
 
-static int is_os(void)
+/* run "ls" on the system controller devices; the first one into scdev
+ * (size bytes, with ls' newline); 0 if there are none */
+static int find_scdev(char *scdev, int size)
 {
+  /* original: "/bin/ls -1 /dev/snsc/" "*c*" (SGI_L3_DEV_DIR overrides /dev) */
+  char lscmd[600];
   FILE *fp;
-  char *pcVar1;
-  int iVar2;
-  char *cmd;
-  char scdev [64];
-  
-  {
-    /* original: "/bin/ls -1 /dev/snsc/" "*c*" (SGI_L3_DEV_DIR overrides /dev) */
-    char lscmd[600];
-    snprintf(lscmd,sizeof(lscmd),"/bin/ls -1 %s/snsc/*c* 2>/dev/null",l3path_dev_dir());
-    fp = (FILE *)popen(lscmd,"r");
-  }
-  if ((fp == NULL) || (pcVar1 = fgets(scdev,0x40,(FILE *)fp), pcVar1 == NULL)) {
-    if (fp != NULL) {
-      pclose((FILE *)fp);
-    }
-    iVar2 = 0;
-  }
-  else {
-    pclose((FILE *)fp);
-    iVar2 = 1;
-  }
-  return iVar2;
+  int found;
+
+  snprintf(lscmd,sizeof(lscmd),"/bin/ls -1 %s/snsc/*c* 2>/dev/null",l3path_dev_dir());
+  fp = popen(lscmd,"r");
+  if (fp == NULL)
+    return 0;
+  found = fgets(scdev,size,fp) != NULL;
+  pclose(fp);
+  return found;
 }
 
+/* are we on an SN system (with a system controller device)? */
+static int is_os(void)
+{
+  char scdev[64];
+
+  return find_scdev(scdev,sizeof(scdev));
+}
+
+/* the value of the option at args[0], or NULL if it has none (the last
+ * argument, or the next one is an option) */
+static char *option_value(char **args, int remaining)
+{
+  if (remaining < 2 || *args[1] == '-')
+    return NULL;
+  return args[1];
+}
+
+/*
+ * Take the system controller options out of argv (*argc adjusted): which
+ * L2 (--l2, --interface, --ssn, --sysname, --rack), --pw, --sc/--scdev,
+ * --copy, --irtr, --mtrace, --quiet, --timeout, and L1Direct's. *serial
+ * (in and out) is whether to talk to an L1 on a serial line. Returns 0, or
+ * -1 after a message for a bad option (parsing stops at one missing its
+ * value), or L1Direct's nonzero result.
+ */
 int sn1SCParseCmdline(int *argc, char **argv, int *serial)
 {
-  int iVar1;
-  int iVar2;
-  char mtbuf [100];
-  char *mtfile;
-  int argsused;
-  char *myfname;
-  int tmp_argc;
-  int orig_argc;
-  int status;
-  
-  myname = *argv;
-  myfname = strrchr(myname,0x2f);
-  if (myfname == NULL) {
-    myfname = myname;
-  }
-  if (serial != NULL) {
+  char mtbuf[100];
+  char *mtfile, *myfname, *opt, *val;
+  char **args;
+  int remaining;                /* arguments from args[0] on */
+  int new_argc, used, status;
+
+  myname = argv[0];
+  myfname = strrchr(myname,'/');
+  if (myfname == NULL)
+    myfname = myname;           /* (else it keeps the '/', as in the original) */
+  if (serial != NULL)
     serial_direct = *serial;
-  }
-  iVar1 = L1DirectParseCmdline(argc,argv,&serial_direct);
-  status = (int)(iVar1 != 0);
-  if (status == 0) {
-    if (serial_direct != 0) {
+  if (L1DirectParseCmdline(argc,argv,&serial_direct) != 0)
+    return 1;
+  status = 0;
+  if (serial_direct)
+    os_direct = 0;
+
+  args = argv + 1;
+  remaining = *argc - 1;
+  new_argc = *argc;
+  while (remaining > 0) {
+    opt = args[0];
+    val = option_value(args,remaining);
+    used = 0;
+    if (strcmp(opt,"--l2") == 0) {
+      if (val == NULL) {
+        fprintf(stderr,"%s: --l2 option missing <hostname>\n",myname);
+        status = -1;
+        break;
+      }
+      set_field(l2_host,sizeof(l2_host),val);
+      used = 2;
       os_direct = 0;
+      serial_direct = 0;
     }
-    tmp_argc = *argc;
-    argv = argv + 1;
-    orig_argc = tmp_argc;
-    while (iVar1 = tmp_argc + -1, iVar1 != 0) {
-      argsused = 0;
-      iVar2 = strcmp(*argv,"--l2");
-      if (iVar2 == 0) {
-        if ((tmp_argc + -2 == 0) || (*argv[1] == '-')) {
-          fprintf(stderr,"%s: --l2 option missing <hostname>\n",myname);
-          status = -1;
-          break;
-        }
-        strcpy(l2_host,argv[1]);
-        argsused = 2;
-        os_direct = 0;
-        serial_direct = 0;
-        iVar1 = tmp_argc + -2;
+    else if (strcmp(opt,"--interface") == 0 || strcmp(opt,"--if") == 0) {
+      if (val == NULL) {
+        fprintf(stderr,"%s: %s option missing <net iface>\n",myname,opt);
+        status = -1;
+        break;
       }
-      else {
-        iVar2 = strcmp(*argv,"--interface");
-        if ((iVar2 == 0) || (iVar2 = strcmp(*argv,"--if"), iVar2 == 0)) {
-          if ((tmp_argc + -2 == 0) || (*argv[1] == '-')) {
-            fprintf(stderr,"%s: %s option missing <net iface>\n",myname,*argv);
-            status = -1;
-            break;
-          }
-          iVar1 = isdigit((int)*argv[1]);
-          if (iVar1 == 0) {
-            strcpy(l2_iface,argv[1]);
-          }
-          else {
-            sprintf(l2_iface,"eth%s",argv[1]);
-          }
-          argsused = 2;
-          os_direct = 0;
-          serial_direct = 0;
-          iVar1 = tmp_argc + -2;
-        }
-        else {
-          iVar2 = strcmp(*argv,"--ssn");
-          if (iVar2 == 0) {
-            if ((tmp_argc + -2 == 0) || (*argv[1] == '-')) {
-              fprintf(stderr,"%s: --ssn option missing <system serial number>\n",myname);
-              status = -1;
-              break;
-            }
-            strcpy(l2_ssn,argv[1]);
-            iVar1 = get_l2_rack(l2_ssn);
-            if (iVar1 < 0) {
-              fprintf(stderr,"%s: bad rack number on --ssn option\n",myname);
-              status = -1;
-            }
-            argsused = 2;
-            os_direct = 0;
-            serial_direct = 0;
-            iVar1 = tmp_argc + -2;
-          }
-          else {
-            iVar2 = strcmp(*argv,"--sysname");
-            if (iVar2 == 0) {
-              if ((tmp_argc + -2 == 0) || (*argv[1] == '-')) {
-                fprintf(stderr,"%s: --sysname option missing <name>\n",myname);
-                status = -1;
-                break;
-              }
-              strcpy(l2_sysname,argv[1]);
-              iVar1 = get_l2_rack(l2_sysname);
-              if (iVar1 < 0) {
-                fprintf(stderr,"%s: bad rack number on --sysname option\n",myname);
-                status = -1;
-              }
-              argsused = 2;
-              os_direct = 0;
-              serial_direct = 0;
-              iVar1 = tmp_argc + -2;
-            }
-            else {
-              iVar2 = strcmp(*argv,"--r");
-              if ((iVar2 == 0) || (iVar2 = strcmp(*argv,"--rack"), iVar2 == 0)) {
-                if ((tmp_argc + -2 == 0) || (*argv[1] == '-')) {
-                  fprintf(stderr,"%s: %s option missing <copy#>\n",*argv,myname);
-                  status = -1;
-                  break;
-                }
-                argsused = 2;
-                l2_rack = atoi(argv[1]);
-                iVar1 = tmp_argc + -2;
-              }
-              else {
-                iVar2 = strcmp(*argv,"--pw");
-                if (iVar2 == 0) {
-                  if ((tmp_argc + -2 == 0) || (*argv[1] == '-')) {
-                    fprintf(stderr,"%s: --pw option missing <password>\n",myname);
-                    status = -1;
-                    break;
-                  }
-                  l2_passwd_prompt = '\0';
-                  strcpy(l2_passwd,argv[1]);
-                  argsused = 2;
-                  iVar1 = tmp_argc + -2;
-                }
-                else {
-                  iVar2 = strcmp(*argv,"--sc");
-                  if (iVar2 == 0) {
-                    sn1SCUseSCDevice(NULL);
-                    argsused = 1;
-                  }
-                  else {
-                    iVar2 = strcmp(*argv,"--scdev");
-                    if (iVar2 == 0) {
-                      if ((tmp_argc + -2 == 0) || (*argv[1] == '-')) {
-                        fprintf(stderr,"%s: --scdev option missing <device>\n",myname);
-                        status = -1;
-                        break;
-                      }
-                      sn1SCUseSCDevice(argv[1]);
-                      argsused = 2;
-                      iVar1 = tmp_argc + -2;
-                    }
-                    else {
-                      iVar2 = strcmp(*argv,"--copy");
-                      if (iVar2 == 0) {
-                        if ((tmp_argc + -2 == 0) || (*argv[1] == '-')) {
-                          fprintf(stderr,"%s: --copy option missing <copy#>\n",myname);
-                          status = -1;
-                          break;
-                        }
-                        argsused = 2;
-                        copynum = atoi(argv[1]);
-                        if ((copynum < 0) || (0x80 < copynum)) {
-                          fprintf(stderr,"%s: --copy: copy %d invalid (must be 0 through 128)\n",
-                                  myname,copynum);
-                          status = -1;
-                          break;
-                        }
-                        IR_PORT_BIAS = copynum * 10;
-                        printf("using copy %d    (biasing all network ports by %d)\n",copynum,
-                               IR_PORT_BIAS);
-                        iVar1 = tmp_argc + -2;
-                      }
-                      else {
-                        iVar2 = strcmp(*argv,"--irtr");
-                        if (iVar2 == 0) {
-                          printf("dumping IR pkts\n");
-                          ir_show = 1;
-                          argsused = 1;
-                        }
-                        else {
-                          iVar2 = strcmp(*argv,"--mtrace");
-                          if (iVar2 == 0) {
-                            mtfile = getenv("MALLOC_TRACE");
-                            if (mtfile == NULL) {
-                              mtfile = mtbuf;
-                              sprintf(mtfile,"%s/%s.mtrace",l3path_mtrace_dir(),myfname);   /* original: /tmp */
-                              setenv("MALLOC_TRACE",mtfile,0);
-                            }
-                            printf("memory tracing invoked--output file \'%s\'\n",mtfile);
-                            mtrace();
-                            argsused = 1;
-                          }
-                          else {
-                            iVar2 = strcmp(*argv,"--quiet");
-                            if (iVar2 == 0) {
-                              use_quiet_port = 1;
-                              argsused = 1;
-                            }
-                            else {
-                              iVar2 = strcmp(*argv,"--timeout");
-                              if (iVar2 == 0) {
-                                if ((tmp_argc + -2 == 0) || (*argv[1] == '-')) {
-                                  fprintf(stderr,"%s: --timeout option missing <value>\n",myname);
-                                  status = -1;
-                                  break;
-                                }
-                                argsused = 2;
-                                response_timeout = atoi(argv[1]);
-                                iVar1 = tmp_argc + -2;
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-      tmp_argc = iVar1;
-      if (argsused == 0) {
-        argv = argv + 1;
-      }
-      else {
-        for (mtfile = NULL; (int)(intptr_t)mtfile < tmp_argc; mtfile = mtfile + 1) {   /* Ghidra: a char * reused as an int */
-          argv[(int)(intptr_t)mtfile] = argv[(int)(intptr_t)(mtfile + argsused)];
-        }
-        orig_argc = orig_argc - argsused;
-      }
+      if (isdigit((unsigned char)*val))
+        snprintf(l2_iface,sizeof(l2_iface),"eth%s",val);
+      else
+        set_field(l2_iface,sizeof(l2_iface),val);
+      used = 2;
+      os_direct = 0;
+      serial_direct = 0;
     }
-    iVar1 = is_os();
-    if ((iVar1 != 0) && (os_direct == 0)) {
+    else if (strcmp(opt,"--ssn") == 0) {
+      if (val == NULL) {
+        fprintf(stderr,"%s: --ssn option missing <system serial number>\n",myname);
+        status = -1;
+        break;
+      }
+      set_field(l2_ssn,sizeof(l2_ssn),val);
+      if (get_l2_rack(l2_ssn) < 0) {
+        fprintf(stderr,"%s: bad rack number on --ssn option\n",myname);
+        status = -1;            /* (and carries on) */
+      }
+      used = 2;
+      os_direct = 0;
+      serial_direct = 0;
+    }
+    else if (strcmp(opt,"--sysname") == 0) {
+      if (val == NULL) {
+        fprintf(stderr,"%s: --sysname option missing <name>\n",myname);
+        status = -1;
+        break;
+      }
+      set_field(l2_sysname,sizeof(l2_sysname),val);
+      if (get_l2_rack(l2_sysname) < 0) {
+        fprintf(stderr,"%s: bad rack number on --sysname option\n",myname);
+        status = -1;
+      }
+      used = 2;
+      os_direct = 0;
+      serial_direct = 0;
+    }
+    else if (strcmp(opt,"--r") == 0 || strcmp(opt,"--rack") == 0) {
+      if (val == NULL) {
+        /* (SGI's message, with the option and program name swapped) */
+        fprintf(stderr,"%s: %s option missing <copy#>\n",opt,myname);
+        status = -1;
+        break;
+      }
+      used = 2;
+      l2_rack = atoi(val);
+    }
+    else if (strcmp(opt,"--pw") == 0) {
+      if (val == NULL) {
+        fprintf(stderr,"%s: --pw option missing <password>\n",myname);
+        status = -1;
+        break;
+      }
+      l2_passwd_prompt = 0;
+      set_field(l2_passwd,sizeof(l2_passwd),val);
+      used = 2;
+    }
+    else if (strcmp(opt,"--sc") == 0) {
       sn1SCUseSCDevice(NULL);
+      used = 1;
     }
-    *argc = orig_argc;
-    if (serial != NULL) {
-      *serial = serial_direct;
+    else if (strcmp(opt,"--scdev") == 0) {
+      if (val == NULL) {
+        fprintf(stderr,"%s: --scdev option missing <device>\n",myname);
+        status = -1;
+        break;
+      }
+      sn1SCUseSCDevice(val);
+      used = 2;
     }
+    else if (strcmp(opt,"--copy") == 0) {
+      if (val == NULL) {
+        fprintf(stderr,"%s: --copy option missing <copy#>\n",myname);
+        status = -1;
+        break;
+      }
+      used = 2;
+      copynum = atoi(val);
+      if (copynum < 0 || copynum > MAX_COPY) {
+        fprintf(stderr,"%s: --copy: copy %d invalid (must be 0 through 128)\n",myname,copynum);
+        status = -1;
+        break;
+      }
+      IR_PORT_BIAS = copynum * 10;
+      printf("using copy %d    (biasing all network ports by %d)\n",copynum,IR_PORT_BIAS);
+    }
+    else if (strcmp(opt,"--irtr") == 0) {
+      printf("dumping IR pkts\n");
+      ir_show = 1;
+      used = 1;
+    }
+    else if (strcmp(opt,"--mtrace") == 0) {
+      mtfile = getenv("MALLOC_TRACE");
+      if (mtfile == NULL) {
+        mtfile = mtbuf;
+        snprintf(mtfile,sizeof(mtbuf),"%s/%s.mtrace",l3path_mtrace_dir(),myfname);   /* original: /tmp */
+        setenv("MALLOC_TRACE",mtfile,0);
+      }
+      printf("memory tracing invoked--output file \'%s\'\n",mtfile);
+      mtrace();
+      used = 1;
+    }
+    else if (strcmp(opt,"--quiet") == 0) {
+      use_quiet_port = 1;
+      used = 1;
+    }
+    else if (strcmp(opt,"--timeout") == 0) {
+      if (val == NULL) {
+        fprintf(stderr,"%s: --timeout option missing <value>\n",myname);
+        status = -1;
+        break;
+      }
+      used = 2;
+      response_timeout = atoi(val);
+    }
+
+    if (used == 0) {            /* not ours: leave it */
+      args++;
+      remaining--;
+      continue;
+    }
+    /* take it out, moving the rest (and argv's NULL) down */
+    remaining -= used;
+    memmove(args,args + used,(remaining + 1) * sizeof(char *));
+    new_argc -= used;
   }
+  if (is_os() && !os_direct)
+    sn1SCUseSCDevice(NULL);
+  *argc = new_argc;
+  if (serial != NULL)
+    *serial = serial_direct;
   return status;
 }
 
 void sn1SCSetL2Host(char *host)
 {
-  strcpy(l2_host,host);
-  return;
+  set_field(l2_host,sizeof(l2_host),host);
 }
 
 char *sn1SCGetL2Host(void)
 {
-  size_t sVar1;
-  char *pcVar2;
-  
-  sVar1 = strlen(l2_host);
-  if (sVar1 == 0) {
-    pcVar2 = NULL;
-  }
-  else {
-    pcVar2 = l2_host;
-  }
-  return pcVar2;
+  return l2_host[0] == '\0' ? NULL : l2_host;
 }
 
 void sn1SCSetSysName(char *sysname)
 {
-  strcpy(l2_sysname,sysname);
-  return;
+  set_field(l2_sysname,sizeof(l2_sysname),sysname);
 }
 
 char *sn1SCGetSysName(void)
 {
-  size_t sVar1;
-  char *pcVar2;
-  
-  sVar1 = strlen(l2_sysname);
-  if (sVar1 == 0) {
-    pcVar2 = NULL;
-  }
-  else {
-    pcVar2 = l2_sysname;
-  }
-  return pcVar2;
+  return l2_sysname[0] == '\0' ? NULL : l2_sysname;
 }
 
 void sn1SCSetSSN(char *ssn)
 {
-  strcpy(l2_ssn,ssn);
-  return;
+  set_field(l2_ssn,sizeof(l2_ssn),ssn);
 }
 
 char *sn1SCGetSSN(void)
 {
-  size_t sVar1;
-  char *pcVar2;
-  
-  sVar1 = strlen(l2_ssn);
-  if (sVar1 == 0) {
-    pcVar2 = NULL;
-  }
-  else {
-    pcVar2 = l2_ssn;
-  }
-  return pcVar2;
+  return l2_ssn[0] == '\0' ? NULL : l2_ssn;
 }
 
+/* talk through the system controller device dev (the first one if NULL) */
 void sn1SCUseSCDevice(char *dev)
 {
-  FILE *fp;
-  char *pcVar1;
-  size_t sVar2;
-  char *cmd;
-  
+  size_t len;
+
   os_direct = 1;
   serial_direct = 0;
-  if ((dev == NULL) || (*dev == '\0')) {
-    {
-    /* original: "/bin/ls -1 /dev/snsc/" "*c*" (SGI_L3_DEV_DIR overrides /dev) */
-    char lscmd[600];
-    snprintf(lscmd,sizeof(lscmd),"/bin/ls -1 %s/snsc/*c* 2>/dev/null",l3path_dev_dir());
-    fp = (FILE *)popen(lscmd,"r");
+  if (dev != NULL && *dev != '\0') {
+    set_field(l2_scdev,sizeof(l2_scdev),dev);
+    return;
   }
-    if ((fp == NULL) || (pcVar1 = fgets(l2_scdev,0x40,(FILE *)fp), pcVar1 == NULL)) {
-      fprintf(stderr,"Could not find an L1 Controller (/dev/snsc/*) to communicate with!\n");
-      if (fp != NULL) {
-        pclose((FILE *)fp);
-      }
-    }
-    else {
-      pclose((FILE *)fp);
-      sVar2 = strlen(l2_scdev);
-      if (l2_cname[sVar2 + 0x7f] == '\n') {
-        sVar2 = strlen(l2_scdev);
-        l2_cname[sVar2 + 0x7f] = '\0';
-      }
-    }
+  if (!find_scdev(l2_scdev,sizeof(l2_scdev))) {
+    fprintf(stderr,"Could not find an L1 Controller (/dev/snsc/*) to communicate with!\n");
+    return;
   }
-  else {
-    strcpy(l2_scdev,dev);
-  }
-  return;
+  /* drop ls' newline. (The reconstruction on main once did this through
+   * Ghidra's l2_cname[len + 0x7f], which hit l2_scdev only in the
+   * original's data layout.) */
+  len = strlen(l2_scdev);
+  if (len > 0 && l2_scdev[len - 1] == '\n')
+    l2_scdev[len - 1] = '\0';
 }
 
+/*
+ * Connect as cname (task, port, our IRouter address addr) to host, or the
+ * L2 sn1SCFindL2() picks, or as sn1SCParseCmdline() chose. 0 or an error;
+ * -1 if already connected.
+ */
 int sn1SCInitPortAddr(char *cname, char *host, int task, int port, IRAddress addr)
 {
-  IRClient *pIVar1;
   int rval;
-  int iVar2;
-  
+
   if (sn1SCCount == 0) {
     sn1SCCount = 1;
     IRouterInit(0xffffffff);
@@ -514,248 +427,175 @@ int sn1SCInitPortAddr(char *cname, char *host, int task, int port, IRAddress add
     IRouterInitID(&ir_id,0,0);
     ir_id.addr = addr;
   }
-  if (((serial_direct == 0) && (os_direct == 0)) &&
-     (pIVar1 = sn1SCClient(), pIVar1 != NULL)) {
-    rval = -1;
+  if (serial_direct)
+    return L1DirectConnect();
+  if (!os_direct && sn1SCClient() != NULL)
+    return -1;
+  if (os_direct) {
+    IRouterConnect = IRouterConnectOS;
+    IRouterDisconnect = IRouterDisconnectOS;
+    IRouterRequest = IRouterRequestOS;
+    IRouterResponse = IRouterResponseOS;
+    IRouterEvent = IRouterEventOS;
+    IRouterGetPacket = IRouterGetPacketOS;
+    set_field(l2_host,sizeof(l2_host),l2_scdev);
   }
-  else if (serial_direct == 0) {
-    if (os_direct == 0) {
-      if ((host == NULL) || (*host == '\0')) {
-        iVar2 = sn1SCFindL2(l2_host);
-        if (iVar2 < 0) {
-          if (iVar2 != -1) {
-            if (iVar2 == -2) {
-              syslog(3,"SCapi.c",578,0,"could not find the specified host!");
-              sn1SCCount = 0;
-              return -300;
-            }
-            sn1SCCount = 0;
-            return -300;
-          }
-          syslog(6,"SCapi.c",575,0,"trying to connect to L2 @ localhost as a last resort");
-          strcpy(l2_host,"localhost");
-        }
-      }
-      else {
-        strcpy(l2_host,host);
-      }
-    }
-    else {
-      IRouterConnect = IRouterConnectOS;
-      IRouterDisconnect = IRouterDisconnectOS;
-      IRouterRequest = IRouterRequestOS;
-      IRouterResponse = IRouterResponseOS;
-      IRouterEvent = IRouterEventOS;
-      IRouterGetPacket = IRouterGetPacketOS;
-      strcpy(l2_host,l2_scdev);
-    }
-    strncpy(l2_cname,cname,0x7f);
-    l2_task = task;
-    l2_passwd_retrys = '\0';
-    rval = sn1SCReconnect();
-    if (rval == 0) {
-      rval = 0;
-    }
-    else {
-      sn1SCCount = 0;
-    }
+  else if (host != NULL && *host != '\0') {
+    set_field(l2_host,sizeof(l2_host),host);
   }
   else {
-    rval = L1DirectConnect();
+    rval = sn1SCFindL2(l2_host);
+    if (rval == -1) {
+      syslog(6,"SCapi.c",575,0,"trying to connect to L2 @ localhost as a last resort");
+      strcpy(l2_host,"localhost");
+    }
+    else if (rval < 0) {
+      if (rval == -2)
+        syslog(3,"SCapi.c",578,0,"could not find the specified host!");
+      sn1SCCount = 0;
+      return ROUTER_ERR_CONNECT_FAILED;
+    }
   }
+  strncpy(l2_cname,cname,sizeof(l2_cname) - 1);
+  l2_task = task;
+  l2_passwd_retrys = 0;
+  rval = sn1SCReconnect();
+  if (rval != 0)
+    sn1SCCount = 0;
   return rval;
 }
 
+/* an L3 tool on the L2's command port */
 int sn1SCInit(char *cname, char *host, int task)
 {
-  int iVar1;
-  
-  if (use_quiet_port == 0) {
-    iVar1 = IR_PORT_BIAS + 8000;
-  }
-  else {
-    iVar1 = IR_PORT_BIAS + 0x1f42;
-  }
-  iVar1 = sn1SCInitPortAddr(cname,host,task,iVar1,0x2ffff000);
-  return iVar1;
+  return sn1SCInitPortAddr(cname,host,task,
+                           IR_PORT_BIAS + (use_quiet_port ? L2_QUIET_PORT : L2_CMD_PORT),L3_ADDR);
 }
 
+/* a program acting as L2 task task, on the L2's application port */
 int sn1SCInitL2App(char *cname, char *host, int task)
 {
-  int iVar1;
-  
-  if (use_quiet_port == 0) {
-    iVar1 = IR_PORT_BIAS + 0x232a;
-  }
-  else {
-    iVar1 = IR_PORT_BIAS + 0x232c;
-  }
-  iVar1 = sn1SCInitPortAddr(cname,host,task,iVar1,(task & 0x1fU) | 0x1ffff000);
-  return iVar1;
+  return sn1SCInitPortAddr(cname,host,task,
+                           IR_PORT_BIAS + (use_quiet_port ? L2_APP_QUIET_PORT : L2_APP_PORT),
+                           L2_TASK_ADDR(task));
 }
 
 int sn1SCReconnect(void)
 {
   int rval;
-  char *pcVar1;
-  
-  rval = (*IRouterConnect)(l2_cname,l2_host,l2_port,&ir_client,l2_task,sn1SCGetPassword);
-  if (rval == 0) {
-    l2_passwd_retrys = '\0';
+
+  rval = IRouterConnect(l2_cname,l2_host,l2_port,&ir_client,l2_task,sn1SCGetPassword);
+  if (rval != 0) {
+    syslog(3,"SCapi.c",636,0,"IRouterConnect to %s failed: %s",l2_host,LoggerDefaultMessage(rval));
+    return rval;
   }
-  else {
-    pcVar1 = LoggerDefaultMessage(rval);
-    syslog(3,"SCapi.c",636,0,"IRouterConnect to %s failed: %s",l2_host,pcVar1);
-  }
-  return rval;
+  l2_passwd_retrys = 0;
+  return 0;
 }
 
 void sn1SCDisconnect(void)
 {
-  (*IRouterDisconnect)(ir_client);
+  IRouterDisconnect(ir_client);
   ir_client = NULL;
-  return;
 }
 
+/* does the L2 match --ssn and --sysname (each if given)? */
+static int l2_matches(sn1SC_L2 *l2)
+{
+  return (l2_ssn[0] == '\0' || strcmp(l2_ssn,l2->ssn) == 0) &&
+         (l2_sysname[0] == '\0' || strcmp(l2_sysname,l2->sysname) == 0);
+}
+
+/*
+ * The L2 to connect to, as a dotted address into host: --l2's host, or
+ * by discovery the first L2 matching --ssn/--sysname and --rack (with
+ * neither, the only system's). -1 if there are no L2s (or we are not on
+ * the network), -2 if none matches.
+ */
 int sn1SCFindL2(char *host)
 {
-  int iVar1;
-  char *__src;
-  int l2_cnt;
-  sn1SC_L2 *first_match_l2;
+  sn1SC_L2 *l2_list = NULL;
   sn1SC_L2 *l2;
-  sn1SC_L2 *l2_list;
-  int rval;
-  int i;
-  
-  l2_cnt = 0;
-  if ((serial_direct == 0) && (os_direct == 0)) {
-    if (l2_host[0] == '\0') {
-      iVar1 = sn1SCDiscoverL2(l2_iface,NULL,&l2_list,&l2_cnt,1);
-      if (iVar1 < 0) {
-        syslog(3,"SCapi.c",702,0,"error discovering L2 controllers!");
-      }
-      if (l2_cnt == 0) {
-        syslog(3,"SCapi.c",707,0,"could not find an L2 controller to connect to!");
-        iVar1 = -1;
-      }
-      else {
-        if ((l2_ssn[0] == '\0') && (l2_sysname[0] == '\0')) {
-          iVar1 = multi_system_check(l2_list,l2_cnt);
-          if (iVar1 < 0) {
-            return -1;
-          }
-          i = 0;
-          for (l2 = l2_list; ((l2_rack != 0 && (i < l2_cnt)) && (l2->rack != l2_rack)); l2 = l2 + 1)
-          {
-            if (first_match_l2 == NULL) {
-              first_match_l2 = l2;
-            }
-            i = i + 1;
-          }
-        }
-        else {
-          first_match_l2 = NULL;
-          l2 = l2_list;
-          for (i = 0; i < l2_cnt; i = i + 1) {
-            if (((l2_ssn[0] == '\0') || (iVar1 = strcmp(l2_ssn,l2->ssn), iVar1 == 0)) &&
-               ((l2_sysname[0] == '\0' || (iVar1 = strcmp(l2_sysname,l2->sysname), iVar1 == 0)))) {
-              if ((l2_rack == 0) || (l2->rack == l2_rack)) break;
-              if (first_match_l2 == NULL) {
-                first_match_l2 = l2;
-              }
-            }
-            l2 = l2 + 1;
-          }
-        }
-        if (i == l2_cnt) {
-          l2 = NULL;
-        }
-        if (((l2_rack == 0) || (l2 != NULL)) || (first_match_l2 == NULL)) {
-          if (l2 == NULL) {
-            if (l2_ssn[0] == '\0') {
-              if (l2_sysname[0] != '\0') {
-                syslog(3,"SCapi.c",791,0,"no L2 controllers found with system name \'%s\'!",
-                       l2_sysname);
-              }
-            }
-            else {
-              syslog(3,"SCapi.c",789,0,"no L2 controllers found with serial number \'%s\'!",l2_ssn
-                    );
-            }
-            iVar1 = -2;
-          }
-          else {
-            __src = inet_ntoa(*(struct in_addr *)&l2->ip_addr);
-            strcpy(host,__src);
-            iVar1 = 0;
-          }
-        }
-        else {
-          if (l2_ssn[0] == '\0') {
-            if (l2_sysname[0] == '\0') {
-              syslog(3,"SCapi.c",779,0,"could not find rack %03d!",l2_rack);
-            }
-            else {
-              syslog(3,"SCapi.c",776,0,"could not find rack %03d on system name \'%s\'!",l2_rack,
-                     l2_sysname);
-            }
-          }
-          else {
-            syslog(3,"SCapi.c",773,0,"could not find rack %03d on serial number \'%s\'!",l2_rack,
-                   l2_ssn);
-          }
-          iVar1 = -2;
-        }
-      }
-    }
-    else {
-      if ((host != NULL) && (host != l2_host)) {
-        strcpy(host,l2_host);
-      }
-      iVar1 = 0;
-    }
+  sn1SC_L2 *first_match_l2 = NULL;      /* (in the system, but another rack) */
+  int l2_cnt = 0;
+  int i, rval;
+
+  if (serial_direct || os_direct)
+    return -1;
+  if (l2_host[0] != '\0') {
+    if (host != NULL && host != l2_host)
+      strcpy(host,l2_host);
+    return 0;
+  }
+  if (sn1SCDiscoverL2(l2_iface,NULL,&l2_list,&l2_cnt,1) < 0)
+    syslog(3,"SCapi.c",702,0,"error discovering L2 controllers!");
+  if (l2_cnt == 0) {
+    syslog(3,"SCapi.c",707,0,"could not find an L2 controller to connect to!");
+    free(l2_list);
+    return -1;
+  }
+  if (l2_ssn[0] == '\0' && l2_sysname[0] == '\0') {
+    multi_system_check(l2_list,l2_cnt);         /* (exits if there are several) */
+    /*
+     * The first L2, or with --rack the first in that rack. (The original
+     * did not initialize first_match_l2 on this path, so whether a missing
+     * rack got its "could not find rack" message depended on the stack.)
+     */
+    for (i = 0; l2_rack != 0 && i < l2_cnt && l2_list[i].rack != l2_rack; i++)
+      if (first_match_l2 == NULL)
+        first_match_l2 = &l2_list[i];
   }
   else {
-    iVar1 = -1;
+    for (i = 0; i < l2_cnt; i++) {
+      if (!l2_matches(&l2_list[i]))
+        continue;
+      if (l2_rack == 0 || l2_list[i].rack == l2_rack)
+        break;
+      if (first_match_l2 == NULL)
+        first_match_l2 = &l2_list[i];
+    }
   }
-  return iVar1;
+  l2 = i < l2_cnt ? &l2_list[i] : NULL;
+
+  if (l2_rack != 0 && l2 == NULL && first_match_l2 != NULL) {
+    if (l2_ssn[0] != '\0')
+      syslog(3,"SCapi.c",773,0,"could not find rack %03d on serial number \'%s\'!",l2_rack,l2_ssn);
+    else if (l2_sysname[0] != '\0')
+      syslog(3,"SCapi.c",776,0,"could not find rack %03d on system name \'%s\'!",l2_rack,l2_sysname);
+    else
+      syslog(3,"SCapi.c",779,0,"could not find rack %03d!",l2_rack);
+    rval = -2;
+  }
+  else if (l2 == NULL) {
+    if (l2_ssn[0] != '\0')
+      syslog(3,"SCapi.c",789,0,"no L2 controllers found with serial number \'%s\'!",l2_ssn);
+    else if (l2_sysname[0] != '\0')
+      syslog(3,"SCapi.c",791,0,"no L2 controllers found with system name \'%s\'!",l2_sysname);
+    rval = -2;
+  }
+  else {
+    strcpy(host,inet_ntoa(*(struct in_addr *)&l2->ip_addr));
+    rval = 0;
+  }
+  free(l2_list);                /* (the original kept it) */
+  return rval;
 }
 
 int sn1SCSocket(void)
 {
-  int iVar1;
-  
-  if (ir_client == NULL) {
-    iVar1 = -1;
-  }
-  else {
-    iVar1 = ir_client->socket;
-  }
-  return iVar1;
+  return ir_client == NULL ? -1 : ir_client->socket;
 }
 
 char *sn1SCHost(void)
 {
-  char *pcVar1;
-  
-  if (ir_client == NULL) {
-    pcVar1 = NULL;
-  }
-  else {
-    pcVar1 = l2_host;
-  }
-  return pcVar1;
+  return ir_client == NULL ? NULL : l2_host;
 }
 
+/* the client, NULL if the network connection has gone */
 IRClient *sn1SCClient(void)
 {
-  RouterClient *pRVar1;
-  
-  if (((os_direct == 0) && (ir_client != NULL)) &&
-     (pRVar1 = RouterFindClient(ir_client), pRVar1 == NULL)) {
+  if (!os_direct && ir_client != NULL && RouterFindClient(ir_client) == NULL)
     ir_client = NULL;
-  }
   return ir_client;
 }
 
@@ -772,323 +612,259 @@ int sn1SCIsQuiet(void)
 void sn1SCUseQuiet(void)
 {
   use_quiet_port = 1;
-  return;
 }
 
+/* is there no network connection (when there should be one)? */
+static int connection_gone(void)
+{
+  return !serial_direct && !os_direct && sn1SCClient() == NULL;
+}
+
+/* drop the client if the network connection has gone */
+static void check_client(void)
+{
+  if (ir_client != NULL && RouterFindClient(ir_client) == NULL)
+    ir_client = NULL;
+}
+
+/* send a request; *id (if not NULL) is its sequence number */
 int sn1SCReq(IRAddress *toaddr, int opcode, int argc, IRArgument *argv, uint32 *id)
 {
-  IRClient *pIVar1;
-  int rval;
+  char x[80];
   int seqnum;
-  int iVar2;
-  char *pcVar3;
-  char x [80];
-  
+  int rval;
+
   if (sn1SCCount == 0) {
     syslog(3,"SCapi.c",863,0,"sn1SCReq: system controller library not initialized!\n");
     exit(1);
   }
-  if (((serial_direct == 0) && (os_direct == 0)) &&
-     (pIVar1 = sn1SCClient(), pIVar1 == NULL)) {
-    rval = -0x12f;
+  if (connection_gone())
+    return ROUTER_ERR_LOST;
+  seqnum = ir_id.seqnum;
+  if (serial_direct) {
+    rval = L1DirectRequest(&ir_id,toaddr,opcode,argc,argv,(int *)id);
+    if (rval != 0) {
+      syslog(3,"SCapi.c",885,0,"IRouterRequest failed: %s",LoggerDefaultMessage(rval));
+      return rval;
+    }
   }
   else {
-    seqnum = (int)ir_id.seqnum;
-    if (serial_direct == 0) {
-      iVar2 = (*IRouterRequest)(ir_client,&ir_id,toaddr,opcode,argc,argv,id);
-      if (iVar2 != 0) {
-        pcVar3 = LoggerDefaultMessage(iVar2);
-        syslog(3,"SCapi.c",892,0,"IRouterRequest failed: %s",pcVar3);
-        return iVar2;
-      }
+    rval = IRouterRequest(ir_client,&ir_id,toaddr,opcode,argc,argv,id);
+    if (rval != 0) {
+      syslog(3,"SCapi.c",892,0,"IRouterRequest failed: %s",LoggerDefaultMessage(rval));
+      return rval;
     }
-    else {
-      iVar2 = L1DirectRequest(&ir_id,toaddr,opcode,argc,argv,(int *)id);
-      if (iVar2 != 0) {
-        pcVar3 = LoggerDefaultMessage(iVar2);
-        syslog(3,"SCapi.c",885,0,"IRouterRequest failed: %s",pcVar3);
-        return iVar2;
-      }
-    }
-    if (ir_show != 0) {
-      pcVar3 = SCFmtPkt(seqnum,0,argc,0,toaddr,&ir_id.addr,x);
-      fprintf(stderr,"%s\n",pcVar3);
-    }
-    rval = 0;
   }
-  return rval;
+  if (ir_show)
+    fprintf(stderr,"%s\n",SCFmtPkt(seqnum,IR_REQ,argc,0,toaddr,&ir_id.addr,x));
+  return 0;
 }
 
+/* wait for a response; *id (if not NULL) its sequence number */
 int sn1SCRsp(IRPacket **pkt, uint32 *id, int wait)
 {
+  char x[80];
   int rval;
-  IRClient *pIVar1;
-  int iVar2;
-  char *pcVar3;
-  RouterClient *pRVar4;
-  char x [80];
-  
-  if (sn1SCCount == 0) {
-    rval = -1;
-  }
-  else if (((serial_direct == 0) && (os_direct == 0)) &&
-          (pIVar1 = sn1SCClient(), pIVar1 == NULL)) {
-    rval = -0x12f;
+
+  if (sn1SCCount == 0)
+    return -1;
+  if (connection_gone())
+    return ROUTER_ERR_LOST;
+  if (serial_direct) {
+    rval = L1DirectGetPacket(pkt,wait,1);
+    if (rval != 0) {
+      syslog(3,"SCapi.c",933,0,"L1DirectGetPacket failed: %s",LoggerDefaultMessage(rval));
+      return rval;
+    }
   }
   else {
-    if (serial_direct == 0) {
-      iVar2 = (*IRouterGetPacket)(&ir_id,pkt,0,wait,1);
-      if (iVar2 != 0) {
-        pcVar3 = LoggerDefaultMessage(iVar2);
-        syslog(3,"SCapi.c",939,0,"IRouterGetPacket failed: %s",pcVar3);
-        if (ir_client == NULL) {
-          return iVar2;
-        }
-        pRVar4 = RouterFindClient(ir_client);
-        if (pRVar4 != NULL) {
-          return iVar2;
-        }
-        ir_client = NULL;
-        return iVar2;
-      }
+    rval = IRouterGetPacket(&ir_id,pkt,NULL,wait,1);
+    if (rval != 0) {
+      syslog(3,"SCapi.c",939,0,"IRouterGetPacket failed: %s",LoggerDefaultMessage(rval));
+      check_client();
+      return rval;
     }
-    else {
-      iVar2 = L1DirectGetPacket(pkt,wait,1);
-      if (iVar2 != 0) {
-        pcVar3 = LoggerDefaultMessage(iVar2);
-        syslog(3,"SCapi.c",933,0,"L1DirectGetPacket failed: %s",pcVar3);
-        return iVar2;
-      }
-    }
-    if (ir_show != 0) {
-      pcVar3 = IRFmtPkt("PKT recv:",*pkt,x);
-      fprintf(stderr,"%s\n",pcVar3);
-    }
-    if (id != NULL) {
-      *id = (unsigned int)IR_SEQNUM(*pkt);
-    }
-    rval = 0;
   }
-  return rval;
+  if (ir_show)
+    fprintf(stderr,"%s\n",IRFmtPkt("PKT recv:",*pkt,x));
+  if (id != NULL)
+    *id = IR_SEQNUM(*pkt);
+  return 0;
 }
 
+/* send an event */
 int sn1SCEvent(int opcode, int argc, IRArgument *argv)
 {
-  IRClient *pIVar1;
-  char *pcVar2;
-  char x [80];
   IRAddress toaddr;
+  char x[80];
   int seqnum;
   int rval;
-  
+
   if (sn1SCCount == 0) {
     syslog(3,"SCapi.c",988,0,"sn1SCEvent: system controller library not initialized!\n");
     exit(1);
   }
-  if (((serial_direct == 0) && (os_direct == 0)) &&
-     (pIVar1 = sn1SCClient(), pIVar1 == NULL)) {
-    return -0x12f;
-  }
-  seqnum = (int)ir_id.seqnum;
-  if (serial_direct == 0) {
-    rval = (*IRouterEvent)(ir_client,&ir_id,opcode,argc,argv);
+  if (connection_gone())
+    return ROUTER_ERR_LOST;
+  seqnum = ir_id.seqnum;
+  if (serial_direct) {
+    rval = L1DirectEvent(&ir_id,opcode,argc,argv);
     if (rval != 0) {
-      pcVar2 = LoggerDefaultMessage(rval);
-      syslog(3,"SCapi.c",1016,0,"IRouterEvent failed: %s",pcVar2);
+      syslog(3,"SCapi.c",1009,0,"IRouterRequest failed: %s",LoggerDefaultMessage(rval));
       return rval;
     }
   }
   else {
-    rval = L1DirectEvent(&ir_id,opcode,argc,argv);
+    rval = IRouterEvent(ir_client,&ir_id,opcode,argc,argv);
     if (rval != 0) {
-      pcVar2 = LoggerDefaultMessage(rval);
-      syslog(3,"SCapi.c",1009,0,"IRouterRequest failed: %s",pcVar2);
+      syslog(3,"SCapi.c",1016,0,"IRouterEvent failed: %s",LoggerDefaultMessage(rval));
       return rval;
     }
-    rval = 0;
   }
-  if (ir_show != 0) {
+  if (ir_show) {
     toaddr = 0;
-    pcVar2 = SCFmtPkt(seqnum,2,argc,0,&toaddr,&ir_id.addr,x);
-    fprintf(stderr,"%s\n",pcVar2);
+    fprintf(stderr,"%s\n",SCFmtPkt(seqnum,IR_EVT,argc,0,&toaddr,&ir_id.addr,x));
   }
   return 0;
 }
 
+/* wait for any packet (a timeout is not logged) */
 int sn1SCPkt(IRPacket **pkt, int wait)
 {
+  char x[80];
   int rval;
-  IRClient *pIVar1;
-  int iVar2;
-  char *pcVar3;
-  RouterClient *pRVar4;
-  char x [80];
-  
-  if (sn1SCCount == 0) {
-    rval = -1;
-  }
-  else if (((serial_direct == 0) && (os_direct == 0)) &&
-          (pIVar1 = sn1SCClient(), pIVar1 == NULL)) {
-    rval = -0x12f;
+
+  if (sn1SCCount == 0)
+    return -1;
+  if (connection_gone())
+    return ROUTER_ERR_LOST;
+  if (serial_direct) {
+    rval = L1DirectGetPacket(pkt,wait,0);
+    if (rval != 0) {
+      if (rval != TIMEOUT_ERR)
+        syslog(3,"SCapi.c",1060,0,"L1DirectGetPacket failed: %s",LoggerDefaultMessage(rval));
+      return rval;
+    }
   }
   else {
-    if (serial_direct == 0) {
-      iVar2 = (*IRouterGetPacket)(&ir_id,pkt,0,wait,0);
-      if (iVar2 != 0) {
-        if (iVar2 != -0x26c) {
-          pcVar3 = LoggerDefaultMessage(iVar2);
-          syslog(3,"SCapi.c",1069,0,"IRouterGetPacket failed: %s",pcVar3);
-        }
-        if (ir_client == NULL) {
-          return iVar2;
-        }
-        pRVar4 = RouterFindClient(ir_client);
-        if (pRVar4 != NULL) {
-          return iVar2;
-        }
-        ir_client = NULL;
-        return iVar2;
-      }
+    rval = IRouterGetPacket(&ir_id,pkt,NULL,wait,0);
+    if (rval != 0) {
+      if (rval != TIMEOUT_ERR)
+        syslog(3,"SCapi.c",1069,0,"IRouterGetPacket failed: %s",LoggerDefaultMessage(rval));
+      check_client();
+      return rval;
     }
-    else {
-      iVar2 = L1DirectGetPacket(pkt,wait,0);
-      if (iVar2 != 0) {
-        if (iVar2 == -0x26c) {
-          return -0x26c;
-        }
-        pcVar3 = LoggerDefaultMessage(iVar2);
-        syslog(3,"SCapi.c",1060,0,"L1DirectGetPacket failed: %s",pcVar3);
-        return iVar2;
-      }
-    }
-    if (ir_show != 0) {
-      pcVar3 = IRFmtPkt("PKT recv:",*pkt,x);
-      fprintf(stderr,"%s\n",pcVar3);
-    }
-    rval = 0;
   }
-  return rval;
+  if (ir_show)
+    fprintf(stderr,"%s\n",IRFmtPkt("PKT recv:",*pkt,x));
+  return 0;
 }
 
+/* answer a request */
 int sn1SCSendRsp(int errcode, IRPacket *reqpkt, int argc, IRArgument *argv)
 {
-  IRClient *pIVar1;
-  int rval;
+  char x[80];
   int seqnum;
-  int iVar2;
-  char *pcVar3;
-  char x [80];
-  
+  int rval;
+
   if (sn1SCCount == 0) {
     syslog(3,"SCapi.c",1106,0,"sn1SCReq: system controller library not initialized!\n");
     exit(1);
   }
-  if (((serial_direct == 0) && (os_direct == 0)) &&
-     (pIVar1 = sn1SCClient(), pIVar1 == NULL)) {
-    rval = -0x12f;
+  if (connection_gone())
+    return ROUTER_ERR_LOST;
+  seqnum = ir_id.seqnum;
+  if (serial_direct) {
+    rval = L1DirectResponse(&ir_id,errcode,reqpkt,argc,argv);
+    if (rval != 0) {
+      syslog(3,"SCapi.c",1129,0,"IRouterResponse failed: %s",LoggerDefaultMessage(rval));
+      return rval;
+    }
   }
   else {
-    seqnum = (int)ir_id.seqnum;
-    if (serial_direct == 0) {
-      iVar2 = (*IRouterResponse)(ir_client,&ir_id,errcode,reqpkt,argc,argv);
-      if (iVar2 != 0) {
-        pcVar3 = LoggerDefaultMessage(iVar2);
-        syslog(3,"SCapi.c",1136,0,"IRouterResponse failed: %s",pcVar3);
-        return iVar2;
-      }
+    rval = IRouterResponse(ir_client,&ir_id,errcode,reqpkt,argc,argv);
+    if (rval != 0) {
+      syslog(3,"SCapi.c",1136,0,"IRouterResponse failed: %s",LoggerDefaultMessage(rval));
+      return rval;
     }
-    else {
-      iVar2 = L1DirectResponse(&ir_id,errcode,reqpkt,argc,argv);
-      if (iVar2 != 0) {
-        pcVar3 = LoggerDefaultMessage(iVar2);
-        syslog(3,"SCapi.c",1129,0,"IRouterResponse failed: %s",pcVar3);
-        return iVar2;
-      }
-    }
-    if (ir_show != 0) {
-      pcVar3 = SCFmtPkt(seqnum,1,argc,0,&reqpkt->_src,&ir_id.addr,x);
-      fprintf(stderr,"%s\n",pcVar3);
-    }
-    rval = 0;
   }
-  return rval;
+  if (ir_show)
+    fprintf(stderr,"%s\n",SCFmtPkt(seqnum,IR_RSP,argc,0,&reqpkt->_src,&ir_id.addr,x));
+  return 0;
 }
 
+/* does a response's sequence number (8 bits in revision 0 packets) match
+ * the request's? */
+static int response_matches(IRPacket *rsp, uint32 reqid, uint32 rspid)
+{
+  return (rsp->_rev == 0 ? (reqid & 0xff) : (reqid & 0xffff)) == rspid;
+}
+
+/* a request and its response, skipping responses to other requests */
 int sn1SCCmd(IRAddress *toaddr, int opcode, int argc, IRArgument *argv, IRPacket **rpkt, int wait)
 {
-  char *pcVar1;
-  unsigned int uVar2;
-  uint32 rspid;
-  uint32 reqid;
+  uint32 reqid, rspid;
   int rval;
-  
+
   rval = sn1SCReq(toaddr,opcode,argc,argv,&reqid);
-  if (rval == 0) {
-    while (rval = sn1SCRsp(rpkt,&rspid,wait), rval == 0) {
-      if ((*rpkt)->_rev == '\0') {
-        uVar2 = reqid & 0xff;
-      }
-      else {
-        uVar2 = reqid & 0xffff;
-      }
-      if (uVar2 == rspid) {
-        return 0;
-      }
-      syslog(4,"SCapi.c",1183,0,
-             "sn1SCCmd: unexpected response (request ID did not match response ID!!)\n");
-    }
-    pcVar1 = LoggerDefaultMessage(rval);
-    syslog(3,"SCapi.c",1176,0,"sn1SCCmd: sn1SCRsp: %s\n",pcVar1);
+  if (rval != 0) {
+    syslog(3,"SCapi.c",1168,0,"sn1SCCmd: sn1SCReq: %s\n",LoggerDefaultMessage(rval));
+    return rval;
   }
-  else {
-    pcVar1 = LoggerDefaultMessage(rval);
-    syslog(3,"SCapi.c",1168,0,"sn1SCCmd: sn1SCReq: %s\n",pcVar1);
+  while ((rval = sn1SCRsp(rpkt,&rspid,wait)) == 0) {
+    if (response_matches(*rpkt,reqid,rspid))
+      return 0;
+    syslog(4,"SCapi.c",1183,0,"sn1SCCmd: unexpected response (request ID did not match response ID!!)\n");
   }
+  syslog(3,"SCapi.c",1176,0,"sn1SCCmd: sn1SCRsp: %s\n",LoggerDefaultMessage(rval));
   return rval;
 }
 
-/* Reconstructed by hand: the original uses variable-length arrays, which threw
+/*
+ * The same request to ntargets addresses at once; see
+ * sn1SCConnCmdParallel() (SCapiConn.c).
+ *
+ * Reconstructed by hand: the original uses variable-length arrays, which threw
  * off Ghidra's stack tracking for the whole function. Logic and syslog line
- * numbers checked against the machine code. */
+ * numbers checked against the machine code.
+ */
 int sn1SCCmdParallel(IRAddress *toaddr, int ntargets, int opcode, int argc, IRArgument *argv, int share_args, IRPacket **rpkt, int *errlist, int *nerrs, int wait)
 {
-  IRAddress tmpaddr[ntargets];
+  IRAddress tmpaddr[ntargets];  /* the targets still waiting */
   uint32 reqid[ntargets];
   IRPacket *rp;
   uint32 rspid;
-  uint32 id;
   int offset;
   int errval = 0;
-  int rerrcnt;
+  int rerrcnt = 0;
   int nrequests = 0;
   int rval;
   int t;
 
-  memcpy(tmpaddr, toaddr, ntargets * sizeof(IRAddress));
-  memset(errlist, 0, ntargets * sizeof(int));
+  memcpy(tmpaddr,toaddr,ntargets * sizeof(IRAddress));
+  memset(errlist,0,ntargets * sizeof(int));
   *nerrs = 0;
   for (t = 0; t < ntargets; t++) {
     offset = (share_args == 0 && argv != NULL) ? t * argc : 0;
-    if (tmpaddr[t] != 0) {
-      rval = sn1SCReq(&tmpaddr[t], opcode, argc, argv + offset, &reqid[t]);
-      if (rval == 0) {
-        nrequests++;
-      }
-      else {
-        tmpaddr[t] = 0;
-        errlist[t] = rval;
-      }
+    if (tmpaddr[t] == 0)
+      continue;
+    rval = sn1SCReq(&tmpaddr[t],opcode,argc,argv + offset,&reqid[t]);
+    if (rval == 0) {
+      nrequests++;
+    }
+    else {
+      tmpaddr[t] = 0;
+      errlist[t] = rval;
     }
   }
-  rerrcnt = 0;
   while (nrequests > 0) {
-    rval = sn1SCRsp(&rp, &rspid, wait);
+    rval = sn1SCRsp(&rp,&rspid,wait);
     if (rval != 0) {
-      if (rval == -0x26c || rval == -0x12f) {
+      if (rval == TIMEOUT_ERR || rval == ROUTER_ERR_LOST) {
         errval = rval;
         break;
       }
-      syslog(3, "SCapi.c", 1261, 0, "sn1SCCmdParallel: sn1SCRsp: %s\n", LoggerDefaultMessage(rval));
+      syslog(3,"SCapi.c",1261,0,"sn1SCCmdParallel: sn1SCRsp: %s\n",LoggerDefaultMessage(rval));
       if (rerrcnt++ >= 4) {
         errval = rval;
         break;
@@ -1097,190 +873,139 @@ int sn1SCCmdParallel(IRAddress *toaddr, int ntargets, int opcode, int argc, IRAr
     }
     rerrcnt = 0;
     for (t = 0; t < ntargets; t++) {
-      if (tmpaddr[t] != 0) {
-        id = (rp->_rev == 0) ? (reqid[t] & 0xff) : (reqid[t] & 0xffff);
-        if (id == rspid) {
-          rpkt[t] = rp;
-          tmpaddr[t] = 0;
-          nrequests--;
-          break;
-        }
+      if (tmpaddr[t] != 0 && response_matches(rp,reqid[t],rspid)) {
+        rpkt[t] = rp;
+        tmpaddr[t] = 0;
+        nrequests--;
+        break;
       }
     }
-    if (t == ntargets) {
-      syslog(3, "SCapi.c", 1308, 0, "sn1SCCmdParallel: response ID did not match any request ID!!\n");
-    }
+    if (t == ntargets)
+      syslog(3,"SCapi.c",1308,0,"sn1SCCmdParallel: response ID did not match any request ID!!\n");
   }
   if (nrequests > 0) {
-    for (t = 0; t < ntargets; t++) {
-      if (tmpaddr[t] != 0 && errlist[t] == 0) {
+    for (t = 0; t < ntargets; t++)
+      if (tmpaddr[t] != 0 && errlist[t] == 0)
         errlist[t] = errval;
-      }
-    }
   }
-  if (errval == -0x26c) {
-    errval = 0;
-  }
-  return errval;
+  return errval == TIMEOUT_ERR ? 0 : errval;
 }
 
+/*
+ * A text command (as typed at the L2 or L1 prompt) to toaddr; *rsp gets the
+ * response's lines (malloc()ed), or an error message. Returns the command's
+ * status (the response's first argument) or an error. A "reboot" is only
+ * sent: no response comes.
+ */
 int sn1SCTextCmd(IRAddress *toaddr, char *cmd, char **rsp)
 {
-  char *pcVar1;
-  char *rstr;
-  size_t sVar2;
-  uint32 req_id;
-  char *line;     /* Ghidra merged this into req_id */
-  FILE *outf;
-  int arg;
-  int status;
+  IRArgument av[2];
   IRPacket *pkt;
   BuffWrite_t *bw;
-  char *rptr;
-  int ac;
-  IRArgument av [2];
-  
-  av[0]._clas = '\0';
-  av[0]._frame = '\0';
-  av[0]._val = 0;
-  av[0]._size = 0;
-  av[1]._clas = '\n';
-  av[1]._frame = '\0';
+  uint32 req_id;
+  char *rptr, *line;
+  int status, arg;
+
+  memset(&av[0],0,sizeof(av[0]));
+  av[1]._clas = IR_ARG_FREE | IR_ARG_STRING;
+  av[1]._frame = 0;
   av[1]._val = IR_PTR_VAL(strdup(cmd));
   av[1]._size = (short)strlen(cmd) + 1;   /* the original measured a second, leaked strdup(cmd) */
-  ac = 2;
   rptr = malloc(0xa0);
   *rsp = rptr;
   *rptr = '\0';
-  pcVar1 = strstr(cmd,"reboot");
-  if (pcVar1 == NULL) {
-    status = sn1SCCmd(toaddr,0,ac,av,&pkt,response_timeout);
-    if (status == 0) {
-      if (pkt->_err == '\0') {
-        status = 0;
-      }
-      else {
-        status = -600 - (unsigned int)pkt->_err;
-      }
-      if (status == 0) {
-        free(rptr);
-        *rsp = NULL;
-        bw = BuffWriteInit();
-        BuffWrite(bw,"",0);
-        for (arg = 0; arg < (int)(unsigned int)pkt->_argc; arg = arg + 1) {
-          if ((pkt->_argv[arg]._clas & 7) == 2) {
-            if ((pkt->_argv[arg]._clas & 7) == 0) {
-              line = (char *)IR_VAL_PTR(pkt->_argv[arg]._val);
-            }
-            else {
-              line = (char *)IRArg(pkt,arg);
-            }
-            BuffWrite(bw,line,-1);
-            sVar2 = strlen(line);
-            if (line[sVar2 - 1] != '\n') {
-              BuffWrite(bw,"\n",1);
-            }
-          }
-        }
-        pcVar1 = BuffWriteDone(bw,0);
-        *rsp = pcVar1;
-        if ((pkt->_argv[0]._clas & 7) == 0) {
-          status = pkt->_argv[0]._val;
-        }
-        else {
-          status = IRArg(pkt,0);
-        }
-      }
-      else {
-        pcVar1 = LoggerDefaultMessage(status);
-        sprintf(rptr,"Command response ERROR: %s\n",pcVar1);
-      }
-    }
-    else {
-      pcVar1 = LoggerDefaultMessage(status);
-      sprintf(rptr,"Command ERROR: %s\n",pcVar1);
-    }
+
+  if (strstr(cmd,"reboot") != NULL) {
+    status = sn1SCReq(toaddr,0,2,av,&req_id);
+    if (status != 0)
+      sprintf(rptr,"Command ERROR: %s\n",LoggerDefaultMessage(status));
+    return status;
   }
-  else {
-    status = sn1SCReq(toaddr,0,ac,av,&req_id);
-    if (status == 0) {
-      status = 0;
-    }
-    else {
-      pcVar1 = LoggerDefaultMessage(status);
-      sprintf(rptr,"Command ERROR: %s\n",pcVar1);
-    }
+  status = sn1SCCmd(toaddr,0,2,av,&pkt,response_timeout);
+  if (status != 0) {
+    sprintf(rptr,"Command ERROR: %s\n",LoggerDefaultMessage(status));
+    return status;
   }
-  return status;
+  if (pkt->_err != 0) {
+    status = IR_ERRNO(pkt->_err);
+    sprintf(rptr,"Command response ERROR: %s\n",LoggerDefaultMessage(status));
+    return status;
+  }
+  free(rptr);
+  *rsp = NULL;
+  bw = BuffWriteInit();
+  BuffWrite(bw,"",0);
+  /* the string arguments, each a line */
+  for (arg = 0; arg < pkt->_argc; arg++) {
+    if (IR_ARG_TYPE(pkt->_argv[arg]) != IR_ARG_STRING)
+      continue;
+    line = (char *)IRArg(pkt,arg);
+    BuffWrite(bw,line,-1);
+    /* (the original looked before an empty line for its newline) */
+    if (*line == '\0' || line[strlen(line) - 1] != '\n')
+      BuffWrite(bw,"\n",1);
+  }
+  *rsp = BuffWriteDone(bw,0);
+  return (int)IRArg(pkt,0);
 }
 
+/*
+ * Exit with a message if discovery found more than one system (we were
+ * not told which). The count stops at the first L2 whose system was seen
+ * before, so only systems before that one count: SGI's check, kept.
+ */
 static int multi_system_check(sn1SC_L2 *list, int cnt)
 {
-  int iVar1;
-  sn1SC_L2 **sys;
-  int syscount;
-  sn1SC_L2 *syslist [30];
-  int l2;
-  
-  syscount = 0;
+  sn1SC_L2 *syslist[30];
+  int syscount = 0;
+  int l2, s;
+
   memset(syslist,0,sizeof(syslist));
-  for (l2 = 0; l2 < cnt; l2 = l2 + 1) {
-    sys = syslist;
-    while ((*sys != NULL &&
-           ((*sys == (sn1SC_L2 *)0xffffff30 ||
-            (iVar1 = strcmp(list[l2].ssn,(*sys)->ssn), iVar1 != 0))))) {
-      sys = sys + 1;
-    }
-    if (*sys != NULL) break;
-    *sys = list + l2;
-    syscount = syscount + 1;
+  for (l2 = 0; l2 < cnt; l2++) {
+    for (s = 0; syslist[s] != NULL && strcmp(list[l2].ssn,syslist[s]->ssn) != 0; s++)
+      ;
+    if (syslist[s] != NULL)
+      break;
+    if (s == 29)
+      break;                    /* (the original ran off the list) */
+    syslist[s] = &list[l2];
+    syscount++;
   }
   if (syscount != 1) {
-    fprintf(stderr,
-            "ERROR: Multiple systems detected!\nYou must use the --l2 <host/IP>, --sysname <name>, or --ssn <serial number>\ncommand-line option to specify which system you wish to connect to.\nUse the \'l2find\' utility (/stand/sysco/bin/l2find) to see the list of\nL2s available to connect to.\n"
-           );
+    fprintf(stderr,"ERROR: Multiple systems detected!\n"
+            "You must use the --l2 <host/IP>, --sysname <name>, or --ssn <serial number>\n"
+            "command-line option to specify which system you wish to connect to.\n"
+            "Use the \'l2find\' utility (/stand/sysco/bin/l2find) to see the list of\n"
+            "L2s available to connect to.\n");
     exit(-1);
   }
   return 0;
 }
 
+/* IRouterConnect()'s password callback: --pw's, or one read from the
+ * terminal (again, after "incorrect password", on a retry) */
 char *sn1SCGetPassword(IRClient *client)
 {
-  char cVar1;
   char *pw;
-  
-  cVar1 = l2_passwd_retrys;
-  if (l2_passwd_prompt == '\0') {
-    pw = l2_passwd;
+
+  if (!l2_passwd_prompt)
+    return l2_passwd;
+  if (l2_passwd_retrys++ > 0) {
+    l2_passwd[0] = '\0';
+    printf("incorrect password\n");
   }
-  else {
-    l2_passwd_retrys = l2_passwd_retrys + 1;
-    if ('\0' < cVar1) {
-      l2_passwd[0] = '\0';
-      printf("incorrect password\n");
-    }
-    if (l2_passwd[0] == '\0') {
-      pw = getpass("L2 Password:");
-      if (pw == NULL) {
-        pw = NULL;
-      }
-      else if (l2_passwd[0] == '\0') {
-        strcpy(l2_passwd,pw);
-      }
-    }
-    else {
-      pw = l2_passwd;
-    }
-  }
+  if (l2_passwd[0] != '\0')
+    return l2_passwd;
+  pw = getpass("L2 Password:");
+  if (pw != NULL)
+    set_field(l2_passwd,sizeof(l2_passwd),pw);
   return pw;
 }
 
 int sn1SCSetResponseTimeout(int new_to)
 {
-  int iVar1;
-  int old_to;
-  
-  iVar1 = response_timeout;
+  int old_to = response_timeout;
+
   response_timeout = new_to;
-  return iVar1;
+  return old_to;
 }

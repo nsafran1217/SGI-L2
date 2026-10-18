@@ -193,7 +193,7 @@ int sn1SCConnReq(sn1SCConn *conn, IRAddress *toaddr, int opcode, int argc, IRArg
     return rval;
   }
   if (ir_show)
-    fprintf(stderr,"%s\n",SCFmtPkt(seqnum,0,argc,0,toaddr,&conn->ir_id.addr,x));
+    fprintf(stderr,"%s\n",SCFmtPkt(seqnum,IR_REQ,argc,0,toaddr,&conn->ir_id.addr,x));
   return 0;
 }
 
@@ -275,7 +275,7 @@ int sn1SCConnSendRsp(sn1SCConn *conn, int errcode, IRPacket *reqpkt, int argc, I
     return rval;
   }
   if (ir_show)
-    fprintf(stderr,"%s\n",SCFmtPkt(seqnum,1,argc,0,&reqpkt->_src,&conn->ir_id.addr,x));
+    fprintf(stderr,"%s\n",SCFmtPkt(seqnum,IR_RSP,argc,0,&reqpkt->_src,&conn->ir_id.addr,x));
   return 0;
 }
 

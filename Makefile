@@ -158,7 +158,8 @@ CLEAN_SRCS := \
 	sys_ctrl/l3/main/nvram.c \
 	sys_ctrl/l3/main/SysCfg.c \
 	sys_ctrl/l3/api/SCapiConn.c \
-	sys_ctrl/l3/api/SCapiL2.c
+	sys_ctrl/l3/api/SCapiL2.c \
+	sys_ctrl/l3/api/SCapi.c
 $(CLEAN_SRCS:%.c=$(B)/%.o): CFLAGS += -Wunused-variable -Wunused-but-set-variable \
 	-Wunused-label -Wpointer-sign
 
@@ -237,6 +238,7 @@ check: all
 	NEW_BIN=$(CHECK_BIN) tests/nvram_test.py
 	NEW_BIN=$(CHECK_BIN) tests/l1net_test.py
 	NEW_BIN=$(CHECK_BIN) tests/l1_test.py
+	NEW_BIN=$(CHECK_BIN) tests/options_test.sh
 	$(if $(filter l2gui,$(TOOLS)),NEW_BIN=$(CHECK_BIN) tests/l2gui_test.py)
 
 difftest: check

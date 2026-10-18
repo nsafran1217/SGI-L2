@@ -150,6 +150,12 @@ enum {
     IR_ADDR_L1 = 0, IR_ADDR_L2 = 1, IR_ADDR_L3 = 2, IR_ADDR_C = 3, IR_ADDR_I = 4,
     IR_ADDR_CI = 5, IR_ADDR_CC = 6, IR_ADDR_IP = 0xe, IR_ADDR_IP_OTHER = 0xf,
 };
+/* IRArgument._clas: the type in the low bits (an inline value, or data the
+ * frame carries), and IR_ARG_FREE for data to free() once sent */
+enum { IR_ARG_VALUE = 0, IR_ARG_BYTES = 1, IR_ARG_STRING = 2 };
+#define IR_ARG_TYPE(a)  ((a)._clas & 7)
+#define IR_ARG_FREE     8
+
 /* a (non-IP) address from its fields */
 #define IR_ADDR_MAKE(type, rack, slot, num, task) \
     ((IRAddress)(type) << 28 | (IRAddress)(rack) << 18 | (IRAddress)(slot) << 12 | \
