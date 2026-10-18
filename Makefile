@@ -2,6 +2,7 @@
 #
 #   make            build everything into build/ (32-bit, matching the original ABI)
 #   make test       layout checks: every SGI struct must match the original binaries
+#   make difftest   run l2 commands through original/rebuilt l2 and l2cmd; outputs must match
 #   make clean
 #
 # ARCH=-m32 keeps struct layouts identical to the originals (checked by make test).
@@ -91,7 +92,7 @@ L2PASSWD_SRCS := \
 LIB_OBJS := $(LIB_SRCS:%.c=$(B)/%.o)
 TOOLS    := l2 l2term l2cmd l2passwd
 
-.PHONY: all test clean
+.PHONY: all test difftest clean
 all: $(TOOLS:%=$(B)/bin/%)
 
 $(B)/%.o: %.c
@@ -120,6 +121,9 @@ $(B)/bin/l2passwd: $(L2PASSWD_SRCS:%.c=$(B)/%.o) $(B)/libsgi.a
 test:
 	$(CC) $(CFLAGS) -fsyntax-only tests/layout_check.c
 	@echo "layout check passed"
+
+difftest: all
+	tests/difftest.sh
 
 clean:
 	rm -rf $(B)
