@@ -96,5 +96,5 @@ settled; it is the slowest build).
 |---|---|
 | 0 | done: warning-free with `-Wall -Wextra` (less `-Wunused-parameter`), `-Werror` (`WERROR=` to drop it); `tools/objcmp.sh` proves mechanical commits; `make check` / `check-all` |
 | 1 | done: Ghidra type names (`ulong` by hand, the rest with `tools/retoken.py`), decompiler notes, decimal syslog lines, small char constants, `CONCAT11` → `IR_SEQNUM()`, `code` pointers typed; `compat/decomp.h` is down to three standard includes. Left for phase 2 (needs types/meaning per site): `'\0'` compared with non-character values, `'\x80'`+ constants |
-| 2 | in progress: common/Router Buff, Event, SocketIO, Socket |
+| 2 | in progress: done: common/Router (all), common/IRouter (IRouter, IRouter2Router) |
 | 3 | |

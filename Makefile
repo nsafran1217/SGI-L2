@@ -140,7 +140,12 @@ CLEAN_SRCS := \
 	sys_ctrl/common/Router/Buff.c \
 	sys_ctrl/common/Router/Event.c \
 	sys_ctrl/common/Router/SocketIO.c \
-	sys_ctrl/common/Router/Socket.c
+	sys_ctrl/common/Router/Socket.c \
+	sys_ctrl/common/Router/Router.c \
+	sys_ctrl/common/Router/RouterCl.c \
+	sys_ctrl/common/Router/RouterSv.c \
+	sys_ctrl/common/IRouter/IRouter.c \
+	sys_ctrl/common/IRouter/IRouter2Router.c
 $(CLEAN_SRCS:%.c=$(B)/%.o): CFLAGS += -Wunused-variable -Wunused-but-set-variable \
 	-Wunused-label -Wpointer-sign
 

@@ -3,35 +3,28 @@
  *
  * Reconstructed from the STABS debug info and Ghidra decompilation of l2.
  * Original: /data/cf/sysco/scs123.patch/sys_ctrl/common/IRouter/IRouter.c
+ *
+ * IRouter packets: the messages between L1s, L2s and the L3 tools. A packet
+ * is a chain of frames (IRFrame), each a 20-byte header (IR_FRAME_HDR) and up
+ * to 1024 bytes in all. The first frame holds the arguments (8 bytes each);
+ * data arguments point at bytes in some frame of the chain. In memory a frame
+ * is in the host's byte order (_byte_order: 1 big-, 2 little-endian); on the
+ * wire it is big-endian, from _size on.
  */
 
-#include <string.h>
-#include "../../l3/l2/dest.h"   /* needed by the reconstruction */
-#include "../../l3/l2/smp.h"   /* needed by the reconstruction */
-#include <stdlib.h>
-#include <stddef.h>
-#include <sys/types.h>
-#include <time.h>
+#include <arpa/inet.h>
 #include <stdio.h>
-#include <stdarg.h>
-#include "../sys/sysctl_types.h"
-#include <netinet/in.h>
-#include <limits.h>
-#include <syslimits.h>
-#include <linux/limits.h>
-#include <stdint.h>
-#include <sys/time.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/select.h>
 #include "IRouter.h"
 #include "IRouterInt.h"
-#include "../sys/syslog.h"
-#include "../sys/pmalloc.h"
-#include "decomp.h"     /* Ghidra types/macros; remove once the file is cleaned up */
 
 static IRFrame *IRouterCreateFrame(int size, int min, int max, int *act, IRFrame *firstframe, IRFrame *currframe);
 static int IRouterCreatePacket(IRPacket **rpkt, int clas, int eframe, int pdata, int authority, int opcode, int errcode, int seqnum, IRAddress *dest, IRAddress *src, int argcount, IRArgument *arglist, void *client_data, int qsuspend);
 
 int IR_PORT_BIAS;
-int IRByteOrder;
+int IRByteOrder;                /* this host's: 1 big-endian, 2 little-endian */
 int IRouterDebugMallocFree;
 int IRouterDebugFrameErrors;
 int IRouterPackets;
@@ -48,293 +41,229 @@ IREventClient *IRouterEventList;
 IRAddress IRouterLocalAddress;
 IRIdent IRouterInternalID;
 
-static IRFrame *IRouterCreateFrame(int size, int min, int max, int *act, IRFrame *firstframe, IRFrame *currframe)
+static void free_frames(IRFrame *frame)
 {
-  struct _IRFrame *p_Var1;
-  IRFrame *__s;
-  IRFrame *lastframe;
-  int max_frame_size;
-  IRFrame *nextframe;
-  
-  *act = size;
-  if (min < size) {
-    if (size < max) {
-      max = size;
-    }
-    *act = max;
-    size = max;
+  IRFrame *next;
+
+  for (; frame != NULL; frame = next) {
+    next = frame->_next_frame;
+    free(frame);
   }
-  __s = malloc(size + IR_FRAME_PREFIX);
-  if (__s == NULL) {
-    while (firstframe != NULL) {
-      p_Var1 = firstframe->_next_frame;
-      free(firstframe);
-      firstframe = p_Var1;
-    }
-    __s = NULL;
-  }
-  else {
-    memset(__s,0,size + IR_FRAME_PREFIX);
-    __s->_rev = 2;
-    if (firstframe != NULL) {
-      memcpy(&__s->_size,&firstframe->_size,0x14);
-    }
-    if (currframe != NULL) {
-      currframe->_next_frame = __s;
-    }
-  }
-  return __s;
 }
 
+/*
+ * A new, zeroed frame for size bytes: frames of up to min bytes are made to
+ * fit, bigger ones are capped at max (*act gets the size made). Later frames
+ * copy the first frame's header. On failure every frame from firstframe is
+ * freed.
+ */
+static IRFrame *IRouterCreateFrame(int size, int min, int max, int *act, IRFrame *firstframe, IRFrame *currframe)
+{
+  IRFrame *frame;
+
+  if (size > min && size > max)
+    size = max;
+  *act = size;
+  frame = calloc(1,size + IR_FRAME_PREFIX);
+  if (frame == NULL) {
+    free_frames(firstframe);
+    return NULL;
+  }
+  frame->_rev = 2;
+  if (firstframe != NULL)
+    memcpy(IR_FRAME_WIRE(frame),IR_FRAME_WIRE(firstframe),IR_FRAME_HDR);
+  if (currframe != NULL)
+    currframe->_next_frame = frame;
+  return frame;
+}
+
+/*
+ * Build a packet from its header fields and arguments. Data arguments
+ * (_clas & 7) are copied in after the argument list, split across frames when
+ * they do not fit; those marked _clas & 8 are freed. eframe allows extended
+ * frames; a packet too big even for them goes out with no arguments and
+ * IRERR_PKT_TOO_LARGE.
+ */
 static int IRouterCreatePacket(IRPacket **rpkt, int clas, int eframe, int pdata, int authority, int opcode, int errcode, int seqnum, IRAddress *dest, IRAddress *src, int argcount, IRArgument *arglist, void *client_data, int qsuspend)
 {
-  IRFrame *__ptr;
-  int iVar1;
-  unsigned char bVar2;
-  IRFrame *nextframe;
-  int argoffset;
-  int fragsize;
-  int pktpayload;
-  int arg;
+  IRFrame *firstframe, *currframe;
   unsigned char *dataptr;
-  int framenum;
-  int curframesize;
-  int actframesize;
-  int maxframesize;
-  int minframesize;
-  int pktsize;
-  IRFrame *lastframe;
-  IRFrame *currframe;
-  IRFrame *firstframe;
-  int rval;
-  bool fragcount;
-  
-  framenum = 1;
-  if ((argcount == 0) || (arglist != NULL)) {
-    pktsize = argcount * 8 + 0x14;
-    for (arg = 0; arg < argcount; arg = arg + 1) {
-      if ((arglist[arg]._clas & 7) != 0) {
-        pktsize = pktsize + (unsigned int)arglist[arg]._size;
-      }
-    }
-    minframesize = 0x400;
-    if (eframe == 0) {
-      maxframesize = 0x400;
-    }
-    else {
-      maxframesize = 0x3000;
-      if ((0x7f < (unsigned int)pktsize / 0x2fec) && (maxframesize = 0x3400, 0x7f < (unsigned int)pktsize / 0x33ec))
-      {
-        errcode = 0x1b;
-        pktsize = 0x14;
-        for (arg = 0; arg < argcount; arg = arg + 1) {
-          if ((arglist[arg]._clas & 8) != 0) {
+  int pktsize, payload, fragsize, offset;
+  int minframesize, maxframesize, actframesize, curframesize;
+  int framenum = 1;
+  int arg, first_fragment;
+
+  if (argcount != 0 && arglist == NULL)
+    return IR_ERRNO(IRERR_BAD_ARGLIST_ARGCOUNT);
+
+  pktsize = IR_FRAME_HDR + argcount * 8;
+  for (arg = 0; arg < argcount; arg++)
+    if (arglist[arg]._clas & 7)
+      pktsize += arglist[arg]._size;
+  minframesize = IR_FRAME_MAX;
+  maxframesize = IR_FRAME_MAX;
+  if (eframe) {
+    /* at most 127 frames: try bigger frames, then give up on the arguments */
+    maxframesize = 0x3000;
+    if ((unsigned int)pktsize / (0x3000 - IR_FRAME_HDR) > 127) {
+      maxframesize = 0x3400;
+      if ((unsigned int)pktsize / (0x3400 - IR_FRAME_HDR) > 127) {
+        errcode = IRERR_PKT_TOO_LARGE;
+        pktsize = IR_FRAME_HDR;
+        for (arg = 0; arg < argcount; arg++)
+          if (arglist[arg]._clas & 8)
             free(IR_VAL_PTR(arglist[arg]._val));
-          }
-        }
         argcount = 0;
       }
     }
-    firstframe = IRouterCreateFrame(pktsize,minframesize,maxframesize,&actframesize,NULL,
-                                    NULL);
-    if (firstframe == NULL) {
-      iVar1 = -0x25c;
+  }
+
+  firstframe = IRouterCreateFrame(pktsize,minframesize,maxframesize,&actframesize,NULL,NULL);
+  if (firstframe == NULL)
+    return IR_ERRNO(IRERR_MALLOC_FAILED);
+  firstframe->_next_frame = NULL;
+  firstframe->_byte_order = IRByteOrder;
+  firstframe->_seqnum0 = seqnum;
+  firstframe->_seqnum1 = seqnum >> 8;
+  firstframe->_clas = clas;
+  firstframe->_pdata_auth = (pdata << 3) | (authority & 7);
+  if (dest != NULL)
+    firstframe->_dest = *dest;
+  if (src != NULL)
+    firstframe->_src = *src;
+  firstframe->_opcode = opcode;
+  firstframe->_err = errcode;
+  firstframe->_client_data = client_data;
+  firstframe->_qsuspend = qsuspend;
+  memcpy(firstframe->_argv,arglist,argcount * 8);
+  curframesize = IR_FRAME_HDR + argcount * 8;
+  pktsize -= curframesize;                      /* the data still to place */
+  firstframe->_size = curframesize;
+  currframe = firstframe;
+  dataptr = (unsigned char *)&firstframe->_argv[argcount];
+
+  for (arg = 0; pktsize != 0 && arg < argcount; arg++) {
+    if (!(arglist[arg]._clas & 7))
+      continue;
+    payload = arglist[arg]._size;
+    if ((unsigned int)actframesize < payload + (unsigned int)IR_FRAME_HDR) {
+      /* bigger than a frame: fill this frame, continue in new ones */
+      first_fragment = 1;
+      offset = 0;
+      do {
+        if ((unsigned int)actframesize < payload + (unsigned int)IR_FRAME_HDR)
+          fragsize = actframesize - curframesize;
+        else
+          fragsize = payload;
+        memcpy(dataptr,(unsigned char *)IR_VAL_PTR(arglist[arg]._val) + offset,fragsize);
+        if (first_fragment) {
+          firstframe->_argv[arg]._frame = framenum;
+          firstframe->_argv[arg]._val = IR_DATA_OFFSET(currframe,dataptr);
+          first_fragment = 0;
+        }
+        offset += fragsize;
+        dataptr += fragsize;
+        curframesize += fragsize;
+        currframe->_size = curframesize;
+        payload -= fragsize;
+        pktsize -= fragsize;
+        if (payload != 0) {
+          currframe = IRouterCreateFrame(pktsize + IR_FRAME_HDR,minframesize,maxframesize,
+                                         &actframesize,firstframe,currframe);
+          if (currframe == NULL)
+            return IR_ERRNO(IRERR_MALLOC_FAILED);
+          framenum++;
+          curframesize = IR_FRAME_HDR;
+          dataptr = (unsigned char *)&currframe->_argv[0];
+        }
+      } while (payload != 0);
     }
     else {
-      firstframe->_next_frame = NULL;
-      firstframe->_byte_order = IRByteOrder;
-      firstframe->_seqnum0 = (uint8)seqnum;
-      firstframe->_seqnum1 = (uint8)((unsigned int)seqnum >> 8);
-      firstframe->_clas = (uint8)clas;
-      firstframe->_pdata_auth = (firstframe->_pdata_auth & 7) | (char)pdata << 3;
-      firstframe->_pdata_auth = (firstframe->_pdata_auth & 0xf8) | ((unsigned char)authority & 7);
-      if (dest != NULL) {
-        memcpy(&firstframe->_dest,dest,4);
+      /* fits in a frame: this one, or a new one */
+      if (actframesize < curframesize + payload) {
+        currframe = IRouterCreateFrame(pktsize + IR_FRAME_HDR,minframesize,maxframesize,
+                                       &actframesize,firstframe,currframe);
+        if (currframe == NULL)
+          return IR_ERRNO(IRERR_MALLOC_FAILED);
+        framenum++;
+        curframesize = IR_FRAME_HDR;
+        dataptr = (unsigned char *)&currframe->_argv[0];
       }
-      if (src != NULL) {
-        memcpy(&firstframe->_src,src,4);
-      }
-      firstframe->_opcode = (uint16)opcode;
-      firstframe->_err = (uint8)errcode;
-      firstframe->_client_data = client_data;
-      firstframe->_qsuspend = qsuspend;
-      memcpy(firstframe->_argv,arglist,argcount * 8);
-      curframesize = argcount * 8 + 0x14;
-      pktsize = pktsize + -0x14 + argcount * -8;
-      firstframe->_size = (uint16)curframesize;
-      lastframe = firstframe;
-      currframe = firstframe;
-      dataptr = &firstframe->_argv[argcount]._clas;
-      for (arg = 0; (pktsize != 0 && (arg < argcount)); arg = arg + 1) {
-        pktpayload = (int)arglist[arg]._size;
-        if ((arglist[arg]._clas & 7) != 0) {
-          if ((unsigned int)actframesize < pktpayload + 0x14U) {
-            fragcount = false;
-            argoffset = 0;
-            do {
-              if ((unsigned int)actframesize < pktpayload + 0x14U) {
-                fragsize = actframesize - curframesize;
-              }
-              else {
-                fragsize = pktpayload;
-              }
-              memcpy(dataptr,(uint8 *)IR_VAL_PTR(arglist[arg]._val) + argoffset,fragsize);
-              if (!fragcount) {
-                firstframe->_argv[arg]._frame = (unsigned char)framenum;
-                firstframe->_argv[arg]._val = IR_DATA_OFFSET(currframe, dataptr);
-                fragcount = true;
-              }
-              argoffset = argoffset + fragsize;
-              dataptr = dataptr + fragsize;
-              curframesize = curframesize + fragsize;
-              currframe->_size = (uint16)curframesize;
-              pktpayload = pktpayload - fragsize;
-              pktsize = pktsize - fragsize;
-              if (pktpayload != 0) {
-                currframe = IRouterCreateFrame(pktsize + 0x14,minframesize,maxframesize,
-                                               &actframesize,firstframe,currframe);
-                if (currframe == NULL) {
-                  return -0x25c;
-                }
-                framenum = framenum + 1;
-                curframesize = 0x14;
-                dataptr = &currframe->_argv[0]._clas;
-              }
-            } while (pktpayload != 0);
-            if ((arglist[arg]._clas & 8) != 0) {
-              free(IR_VAL_PTR(arglist[arg]._val));
-            }
-          }
-          else {
-            if (actframesize < curframesize + pktpayload) {
-              currframe = IRouterCreateFrame(pktsize + 0x14,minframesize,maxframesize,&actframesize,
-                                             firstframe,currframe);
-              if (currframe == NULL) {
-                return -0x25c;
-              }
-              framenum = framenum + 1;
-              curframesize = 0x14;
-              dataptr = &currframe->_argv[0]._clas;
-            }
-            memcpy(dataptr,IR_VAL_PTR(arglist[arg]._val),pktpayload);
-            if ((arglist[arg]._clas & 8) != 0) {
-              free(IR_VAL_PTR(arglist[arg]._val));
-            }
-            firstframe->_argv[arg]._frame = (unsigned char)framenum;
-            firstframe->_argv[arg]._val = IR_DATA_OFFSET(currframe, dataptr);
-            dataptr = dataptr + pktpayload;
-            curframesize = curframesize + pktpayload;
-            currframe->_size = (uint16)curframesize;
-            pktsize = pktsize - pktpayload;
-          }
-        }
-      }
-      firstframe->_fnum = (firstframe->_fnum & 0x7f) | 0x80;
-      firstframe->_argc = (uint8)argcount;
-      if (framenum < 0x80) {
-        currframe = firstframe;
-        do {
-          currframe->_fnum = (unsigned char)framenum | (currframe->_fnum & 0x80);
-          currframe = currframe->_next_frame;
-          framenum = framenum + -1;
-        } while (framenum != 0);
-        firstframe->_use_count = 1;
-        *rpkt = firstframe;
-        if (IRouterDebugMallocFree != 0) {
-          fprintf((FILE *)stderr,"CREATE %x\n",*rpkt);
-          fflush(stderr);
-        }
-        iVar1 = 0;
-      }
-      else {
-        while (__ptr = firstframe, firstframe != NULL) {
-          lastframe = firstframe;
-          firstframe = firstframe->_next_frame;
-          free(__ptr);
-        }
-        iVar1 = -0x272;
-      }
+      memcpy(dataptr,IR_VAL_PTR(arglist[arg]._val),payload);
+      firstframe->_argv[arg]._frame = framenum;
+      firstframe->_argv[arg]._val = IR_DATA_OFFSET(currframe,dataptr);
+      dataptr += payload;
+      curframesize += payload;
+      currframe->_size = curframesize;
+      pktsize -= payload;
     }
+    if (arglist[arg]._clas & 8)
+      free(IR_VAL_PTR(arglist[arg]._val));
   }
-  else {
-    iVar1 = -0x25f;
+
+  firstframe->_argc = argcount;
+  if (framenum >= IR_FNUM_FIRST) {
+    free_frames(firstframe);
+    return IR_ERRNO(IRERR_FRAME_CONTROL);
   }
-  return iVar1;
+  /* number the frames down to 1; the first is also marked first */
+  for (currframe = firstframe; framenum != 0; currframe = currframe->_next_frame, framenum--)
+    currframe->_fnum = framenum;
+  firstframe->_fnum |= IR_FNUM_FIRST;
+  firstframe->_use_count = 1;
+  *rpkt = firstframe;
+  if (IRouterDebugMallocFree) {
+    fprintf(stderr,"CREATE %lx\n",(unsigned long)(uintptr_t)*rpkt);
+    fflush(stderr);
+  }
+  return 0;
 }
 
 int IRouterInit(uint32 ip)
 {
-  uint32_t uVar1;
-  int status;
-  
-  /* host byte order: 1 big-endian (network), 2 little-endian. Ghidra folded the
-   * original's test to a constant for i386. */
-  if (htonl(1) != 1) {
-    IRByteOrder = 2;
-  }
-  else {
-    IRByteOrder = 1;
-  }
-  IRouterLocalAddress = 0x80000000;
-  if (IRByteOrder == 1) {
-    IRouterLocalAddress = (ip & 0xffffff) | 0x80000000;
-  }
-  else {
-    uVar1 = ntohl(ip);
-    IRouterLocalAddress = (IRouterLocalAddress & 0xff000000) | (uVar1 & 0xffffff);
-  }
+  IRByteOrder = htonl(1) == 1 ? 1 : 2;
+  /* an IP-routed address: the top bit and the low 24 bits of ip */
+  IRouterLocalAddress = 0x80000000 | (ntohl(ip) & 0xffffff);
   IRouterInitID(&IRouterInternalID,1,3);
   return 0;
 }
 
+/* an identity for one of this process's tasks (task in bits 24-29) */
 int IRouterInitID(IRIdent *id, uint32 task, int authority)
 {
-  id->addr = IRouterLocalAddress;
-  id->addr = (id->addr & 0xc0ffffff) | (task & 0x3f) << 0x18;
-  id->authority = (uint8)authority;
+  id->addr = (IRouterLocalAddress & 0xc0ffffff) | (task & 0x3f) << 24;
+  id->authority = authority;
   id->seqnum = 0;
   return 0;
 }
 
 int IRouterSetAuthority(IRIdent *id, int authority)
 {
-  id->authority = (uint8)authority;
+  id->authority = authority;
   return 0;
 }
 
+/* drop a reference; the last one frees the frames and assembled arguments */
 int IRouterFreePacket(IRPacket *pkt)
 {
-  struct _IRFrame *p_Var1;
-  unsigned short uVar2;
   int arg;
-  IRFrame *currframe;
-  IRFrame *lastframe;
-  
-  if (IRouterDebugMallocFree != 0) {
-    fprintf((FILE *)stderr,"FREE   %x %d\n",pkt,pkt->_use_count - 1);
+
+  if (IRouterDebugMallocFree) {
+    fprintf(stderr,"FREE   %lx %d\n",(unsigned long)(uintptr_t)pkt,pkt->_use_count - 1);
     fflush(stderr);
   }
   if (pkt->_use_count == 0) {
-    printf("packet free error, class: %d, src: %08x\n",(unsigned int)pkt->_clas,pkt->_src);
+    printf("packet free error, class: %d, src: %08x\n",pkt->_clas,pkt->_src);
+    return 0;
   }
-  else {
-    if (--pkt->_use_count == 0) {
-      if (pkt->_arg_data != NULL) {
-        for (arg = 0; arg < (int)(unsigned int)pkt->_argc; arg = arg + 1) {
-          if (pkt->_arg_data[arg] != NULL) {
-            free(pkt->_arg_data[arg]);
-          }
-        }
-        free(pkt->_arg_data);
-      }
-      currframe = pkt;
-      while (currframe != NULL) {
-        p_Var1 = currframe->_next_frame;
-        free(currframe);
-        currframe = p_Var1;
-      }
-    }
+  if (--pkt->_use_count != 0)
+    return 0;
+  if (pkt->_arg_data != NULL) {
+    for (arg = 0; arg < pkt->_argc; arg++)
+      free(pkt->_arg_data[arg]);
+    free(pkt->_arg_data);
   }
+  free_frames(pkt);
   return 0;
 }
 
@@ -342,509 +271,292 @@ void IRouterSetQueueSuspendTime(int req_rsp_time, int evt_time)
 {
   req_rsp_suspend_time = req_rsp_time;
   evt_suspend_time = evt_time;
-  return;
 }
 
 void IRouterGetQueueSuspendTime(int *req_rsp_time, int *evt_time)
 {
   *req_rsp_time = req_rsp_suspend_time;
   *evt_time = evt_suspend_time;
-  return;
 }
 
+/* L2s, L3s and IP-routed addresses may exchange extended frames */
+static int extended_frames_ok(IRAddress addr)
+{
+  int type = IR_ADDR_TYPE(addr);
+
+  return type == IR_ADDR_L2 || type == IR_ADDR_L3 || type == IR_ADDR_IP || type == IR_ADDR_IP_OTHER;
+}
+
+/* a packet from id (its next sequence number); NULL on failure. A response
+ * (prev > 1) between L2/L3-type addresses may use extended frames. */
 IRPacket *IRouterMakePacket(IRIdent *id, IRAddress *toaddr, int pdata, int opcode, int clas, int prev, int argcount, IRArgument *arglist)
 {
-  unsigned short uVar1;
-  unsigned int uVar2;
-  int iVar3;
-  int eframe;
   IRPacket *pkt;
-  
-  eframe = 0;
-  if (((toaddr != NULL) && (clas == 1)) && (1 < prev)) {
-    if ((*toaddr & 0x80000000) == 0) {
-      uVar2 = *toaddr >> 0x1c;
-    }
-    else if (*toaddr >> 0x1e == 2) {
-      uVar2 = 0xe;
-    }
-    else {
-      uVar2 = 0xf;
-    }
-    if ((uVar2 != 0) && ((uVar2 < 3 || ((uVar2 < 0x10 && (0xd < uVar2)))))) {
-      if ((id->addr & 0x80000000) == 0) {
-        uVar2 = id->addr >> 0x1c;
-      }
-      else if (id->addr >> 0x1e == 2) {
-        uVar2 = 0xe;
-      }
-      else {
-        uVar2 = 0xf;
-      }
-      if ((uVar2 != 0) && ((uVar2 < 3 || ((uVar2 < 0x10 && (0xd < uVar2)))))) {
-        eframe = 1;
-      }
-    }
-  }
-  uVar1 = id->seqnum;
-  id->seqnum = id->seqnum + 1;
-  iVar3 = IRouterCreatePacket(&pkt,clas,eframe,pdata,(unsigned int)id->authority,opcode,0,(unsigned int)uVar1,toaddr
-                              ,&id->addr,argcount,arglist,NULL,0);
-  if (iVar3 != 0) {
-    pkt = NULL;
-  }
+  int eframe;
+
+  eframe = toaddr != NULL && clas == IR_RSP && prev > 1 && extended_frames_ok(*toaddr) &&
+           extended_frames_ok(id->addr);
+  if (IRouterCreatePacket(&pkt,clas,eframe,pdata,id->authority,opcode,0,id->seqnum++,toaddr,
+                          &id->addr,argcount,arglist,NULL,0) != 0)
+    return NULL;
   return pkt;
 }
 
+/*
+ * Read a packet, frame by frame, with rfcn(fd, &frame, 1024) (it reads one
+ * wire frame into the frame, from _size on, and returns its length). After
+ * the first frame each next one must arrive within a second.
+ */
 int IRouterReadPacket(IRIdent *id, int (*rfcn)(), void *fd, IRPacket **pkt)
 {
-  IRFrame *frame;
-  IRFrame *next;
-  int rval;
-  unsigned char *pbVar1;
-  IRFrame *pIVar2;
-  int iVar3;
-  int selerr;
-  __fd_mask *p_Var4;
-  char __result;
-  int __d1;
-  int __d0;
-  int fdmax;
+  IRFrame *firstframe = NULL, *lastframe = NULL, *frame;
   struct timeval rtime;
   fd_set rdset;
-  int rlen;
-  int rsize;
-  int next_expected_framenum;
-  int arg;
-  IRFrame *lastframe;
-  IRFrame *currframe;
-  IRFrame *firstframe;
-  int32 status;
-  
-  firstframe = NULL;
-  currframe = NULL;
-  while( true ) {
-    pIVar2 = currframe;
+  int status, expected = 0;
+  int sock = (int)(intptr_t)fd;
+
+  for (;;) {
     if (firstframe != NULL) {
       rtime.tv_sec = 1;
       rtime.tv_usec = 0;
-      status = 0;
       FD_ZERO(&rdset);
-      FD_SET((int)(intptr_t)fd, &rdset);
-      iVar3 = select((int)(intptr_t)fd + 1,(fd_set *)&rdset,NULL,NULL,(struct timeval *)&rtime);
-      if (iVar3 < 0) {
-        status = -0x267;
-      }
-      if ((status == 0) &&
-         (FD_ISSET((int)(intptr_t)fd, &rdset) == 0)) {
-        status = -0x268;
-      }
+      FD_SET(sock, &rdset);
+      status = 0;
+      if (select(sock + 1,&rdset,NULL,NULL,&rtime) < 0)
+        status = IR_ERRNO(IRERR_READ_FAILED_SELFAIL);
+      else if (!FD_ISSET(sock, &rdset))
+        status = IR_ERRNO(IRERR_READ_FAILED_TIMEOUT);
       if (status != 0) {
-        while (pIVar2 = firstframe, firstframe != NULL) {
-          firstframe = firstframe->_next_frame;
-          free(pIVar2);
-        }
+        free_frames(firstframe);
         return status;
       }
     }
-    currframe = malloc(0x400 + IR_FRAME_PREFIX);   /* 1024-byte wire frame */
-    if (currframe == NULL) {
-      currframe = NULL;
-      while (pIVar2 = firstframe, firstframe != NULL) {
-        firstframe = firstframe->_next_frame;
-        free(pIVar2);
-      }
-      return -0x25c;
+    frame = malloc(IR_FRAME_MAX + IR_FRAME_PREFIX);
+    if (frame == NULL) {
+      free_frames(firstframe);
+      return IR_ERRNO(IRERR_MALLOC_FAILED);
     }
-    memset(currframe,0,sizeof(IRFrame));
-    status = (*rfcn)(fd,&currframe,0x400);
-    if (status < 1) break;
+    memset(frame,0,sizeof(IRFrame));
+    status = rfcn(fd,&frame,IR_FRAME_MAX);
+    if (status < 1)
+      break;
     /* frames on the wire are big-endian; the original left the tag 0, which its
      * little-endian host's conversion took as "not mine", i.e. big-endian */
-    currframe->_byte_order = 1;
-    IRouterSetFrameByteOrder(currframe,IRByteOrder);
+    frame->_byte_order = 1;
+    IRouterSetFrameByteOrder(frame,IRByteOrder);
     if (firstframe == NULL) {
-      if (-1 < (char)currframe->_fnum) {
-        free(currframe);
-        return -0x265;
+      if (!(frame->_fnum & IR_FNUM_FIRST)) {
+        free(frame);
+        return IR_ERRNO(IRERR_READ_FAILED_NOTFF);
       }
-      if (IRouterDebugMallocFree != 0) {
-        fprintf((FILE *)stderr,"READ  %x\n",currframe);
+      if (IRouterDebugMallocFree) {
+        fprintf(stderr,"READ  %lx\n",(unsigned long)(uintptr_t)frame);
         fflush(stderr);
       }
-      firstframe = currframe;
+      firstframe = frame;
     }
     else {
-      if ((currframe->_fnum & 0x7f) != next_expected_framenum) {
-        while (pIVar2 = firstframe, firstframe != NULL) {
-          firstframe = firstframe->_next_frame;
-          free(pIVar2);
-        }
-        free(currframe);
-        return -0x266;
+      if ((frame->_fnum & 0x7f) != expected) {
+        free_frames(firstframe);
+        free(frame);
+        return IR_ERRNO(IRERR_READ_FAILED_UNEXF);
       }
-      pIVar2->_next_frame = currframe;
+      lastframe->_next_frame = frame;
     }
-    currframe->_use_count = 0;
-    currframe->_next_frame = NULL;
-    next_expected_framenum = (currframe->_fnum & 0x7f) - 1;
-    if (next_expected_framenum == 0) {
+    frame->_use_count = 0;
+    frame->_next_frame = NULL;
+    lastframe = frame;
+    expected = (frame->_fnum & 0x7f) - 1;
+    if (expected == 0) {
       firstframe->_use_count = 1;
       *pkt = firstframe;
       return 0;
     }
   }
-  if (status == -0x25c) {
-    rval = -0x25c;
-  }
-  else if (status == 0) {
-    rval = -0x26d;
-  }
-  else {
-    rval = -0x264;
-  }
-  if (firstframe != NULL) {
-    /* free the frames received so far */
-    for (frame = firstframe->_next_frame; frame != NULL; frame = next) {
-      next = frame->_next_frame;
-      free(frame);
-    }
-    firstframe->_next_frame = NULL;
-  }
-  if (currframe != NULL) {
-    free(currframe);
-  }
-  while (pIVar2 = firstframe, firstframe != NULL) {
-    firstframe = firstframe->_next_frame;
-    free(pIVar2);
-  }
-  return rval;
+  free(frame);
+  free_frames(firstframe);
+  if (status == IR_ERRNO(IRERR_MALLOC_FAILED))
+    return status;
+  if (status == 0)
+    return IR_ERRNO(IRERR_READ_FAILED_EOF);
+  return IR_ERRNO(IRERR_READ_FAILED_RDERR);
 }
 
 int IRouterWritePacket(IRIdent *id, int (*wfcn)(), void *fd, IRPacket *pkt)
 {
-  int iVar1;
-  
-  iVar1 = IRouterWritePacketReliable(id,wfcn,fd,pkt,1);
-  return iVar1;
+  return IRouterWritePacketReliable(id,wfcn,fd,pkt,1);
 }
 
+/*
+ * Write a packet, frame by frame, with wfcn(fd, wire bytes, length) (a
+ * big-endian copy of each frame). The packet is freed when written, and on
+ * failure if foe ("free on error").
+ */
 int IRouterWritePacketReliable(IRIdent *id, int (*wfcn)(), void *fd, IRPacket *pkt, int foe)
 {
-  IRFrame *frame;
-  int status;
-  int wsize;
-  IRFrame *sendframe;
-  int border;
-  IRFrame *p;
-  
-  p = pkt;
-  while( true ) {
-    if (p == NULL) {
-      IRouterFreePacket(pkt);
-      return 0;
-    }
-    wsize = (int)p->_size;
+  IRFrame *p, *frame;
+  int status, wsize;
+
+  for (p = pkt; p != NULL; p = p->_next_frame) {
+    wsize = p->_size;
     frame = malloc(wsize + IR_FRAME_PREFIX);
-    if (frame == NULL) break;
+    if (frame == NULL) {
+      if (foe)
+        IRouterFreePacket(pkt);
+      return IR_ERRNO(IRERR_MALLOC_FAILED);
+    }
     memcpy(frame,p,wsize + IR_FRAME_PREFIX);
     IRouterSetFrameByteOrder(frame,1);
-    status = (*wfcn)(fd,&frame->_size,wsize);
-    if (status != wsize) {
-      free(frame);
-      if (foe != 0) {
-        IRouterFreePacket(pkt);
-      }
-      if (status == 0) {
-        return -0x26e;
-      }
-      return -0x269;
-    }
+    status = wfcn(fd,IR_FRAME_WIRE(frame),wsize);
     free(frame);
-    p = p->_next_frame;
+    if (status != wsize) {
+      if (foe)
+        IRouterFreePacket(pkt);
+      return status == 0 ? IR_ERRNO(IRERR_WRITE_FAILED_EOF) : IR_ERRNO(IRERR_WRITE_FAILED);
+    }
   }
-  if (foe != 0) {
-    IRouterFreePacket(pkt);
-  }
-  return -0x25c;
+  IRouterFreePacket(pkt);
+  return 0;
 }
 
-/* The original swapped with ntohs/htonl, which only swap on a little-endian host;
- * the frame's fields always need swapping when its order differs. */
+/* put a frame's header and argument words in byteorder (1 big-, 2 little-endian).
+ * (The original swapped with ntohs/htonl, which only swap on a little-endian
+ * host.) */
 void IRouterSetFrameByteOrder(IRFrame *frame, int byteorder)
 {
-  uint16_t uVar1;
-  uint32_t uVar2;
   int arg;
-  
-  if (frame->_byte_order != byteorder) {
-    if (byteorder == 2) {
-      uVar1 = __builtin_bswap16(frame->_size);
-      frame->_size = uVar1;
-      uVar2 = __builtin_bswap32(frame->_dest);
-      frame->_dest = uVar2;
-      uVar2 = __builtin_bswap32(frame->_src);
-      frame->_src = uVar2;
-      uVar1 = __builtin_bswap16(frame->_opcode);
-      frame->_opcode = uVar1;
-      for (arg = 0; arg < (int)(unsigned int)frame->_argc; arg = arg + 1) {
-        uVar1 = __builtin_bswap16(frame->_argv[arg]._size);
-        frame->_argv[arg]._size = uVar1;
-        uVar2 = __builtin_bswap32(frame->_argv[arg]._val);
-        frame->_argv[arg]._val = uVar2;
-      }
-      frame->_byte_order = 2;
-    }
-    else {
-      uVar1 = __builtin_bswap16(frame->_size);
-      frame->_size = uVar1;
-      uVar2 = __builtin_bswap32(frame->_dest);
-      frame->_dest = uVar2;
-      uVar2 = __builtin_bswap32(frame->_src);
-      frame->_src = uVar2;
-      uVar1 = __builtin_bswap16(frame->_opcode);
-      frame->_opcode = uVar1;
-      for (arg = 0; arg < (int)(unsigned int)frame->_argc; arg = arg + 1) {
-        uVar1 = __builtin_bswap16(frame->_argv[arg]._size);
-        frame->_argv[arg]._size = uVar1;
-        uVar2 = __builtin_bswap32(frame->_argv[arg]._val);
-        frame->_argv[arg]._val = uVar2;
-      }
-      frame->_byte_order = 1;
-    }
+
+  if (frame->_byte_order == byteorder)
+    return;
+  frame->_size = __builtin_bswap16(frame->_size);
+  frame->_dest = __builtin_bswap32(frame->_dest);
+  frame->_src = __builtin_bswap32(frame->_src);
+  frame->_opcode = __builtin_bswap16(frame->_opcode);
+  for (arg = 0; arg < frame->_argc; arg++) {
+    frame->_argv[arg]._size = __builtin_bswap16(frame->_argv[arg]._size);
+    frame->_argv[arg]._val = __builtin_bswap32(frame->_argv[arg]._val);
   }
-  return;
+  frame->_byte_order = byteorder == 2 ? 2 : 1;
 }
 
+/*
+ * An argument's value: inline values as they are, data arguments as a
+ * pointer to their bytes (assembled into a copy, kept with the packet, when
+ * they run across frames). 0 if there is no such argument.
+ */
 uintptr_t IRArg(IRPacket *pkt, int arg)
 {
-  uint8 *puVar1;
-  uint8 **ppuVar2;
-  int argsize;
-  unsigned int fnum;
-  unsigned int dlen;
-  unsigned char *dptr;
-  unsigned char *bptr;
+  IRArgument *a;
   IRFrame *fptr;
-  
-  if (arg < (int)(unsigned int)pkt->_argc) {
-    if ((pkt->_argv[arg]._clas & 7) == 0) {
-      return pkt->_argv[arg]._val;     /* inline value */
-    }
-    else {
-      fnum = (unsigned int)pkt->_argv[arg]._frame;
-      fptr = pkt;
-      while ((fptr != NULL && (fnum = fnum - 1, fnum != 0))) {
-        fptr = fptr->_next_frame;
-      }
-      if (fptr == NULL) {
-        puVar1 = NULL;
-      }
-      else {
-        argsize = (int)pkt->_argv[arg]._size;
-        puVar1 = IR_DATA_PTR(fptr, pkt->_argv[arg]._val);
-        /* data continues in the next frame(s): assemble a copy */
-        if ((unsigned int)((IR_FRAME_WIRE(fptr) + fptr->_size) - puVar1) < (unsigned int)argsize) {
-          if (pkt->_arg_data == NULL) {
-            ppuVar2 = malloc((unsigned int)pkt->_argc * sizeof(uint8 *));
-            pkt->_arg_data = ppuVar2;
-            if (ppuVar2 == NULL) {
-              return 0;
-            }
-            memset(pkt->_arg_data,0,(unsigned int)pkt->_argc * sizeof(uint8 *));
-          }
-          if (pkt->_arg_data[arg] == NULL) {
-            puVar1 = malloc((unsigned int)pkt->_argv[arg]._size);
-            pkt->_arg_data[arg] = puVar1;
-            if (puVar1 == NULL) {
-              puVar1 = NULL;
-            }
-            else {
-              bptr = pkt->_arg_data[arg];
-              dptr = IR_DATA_PTR(fptr, pkt->_argv[arg]._val);
-              dlen = (IR_FRAME_WIRE(fptr) + fptr->_size) - dptr;
-              do {
-                memcpy(bptr,dptr,dlen);
-                bptr = bptr + dlen;
-                argsize = argsize - dlen;
-                if (argsize != 0) {
-                  fptr = fptr->_next_frame;
-                  dptr = &fptr->_argv[0]._clas;
-                  dlen = argsize;
-                  if ((unsigned int)(fptr->_size - 0x14) <= (unsigned int)argsize) {
-                    dlen = fptr->_size - 0x14;
-                  }
-                }
-              } while (argsize != 0);
-              puVar1 = pkt->_arg_data[arg];
-            }
-          }
-          else {
-            puVar1 = pkt->_arg_data[arg];
-          }
-        }
-      }
-    }
+  unsigned char *data, *bptr, *dptr;
+  unsigned int fnum, dlen;
+  int argsize;
+
+  if (arg >= pkt->_argc)
+    return 0;
+  a = &pkt->_argv[arg];
+  if ((a->_clas & 7) == 0)
+    return a->_val;
+  for (fptr = pkt, fnum = a->_frame; fptr != NULL && --fnum != 0; )
+    fptr = fptr->_next_frame;
+  if (fptr == NULL)
+    return 0;
+  data = IR_DATA_PTR(fptr,a->_val);
+  argsize = a->_size;
+  if ((unsigned int)(IR_FRAME_WIRE(fptr) + fptr->_size - data) >= (unsigned int)argsize)
+    return (uintptr_t)data;     /* all in this frame */
+
+  if (pkt->_arg_data == NULL) {
+    pkt->_arg_data = calloc(pkt->_argc,sizeof(uint8 *));
+    if (pkt->_arg_data == NULL)
+      return 0;
   }
-  else {
-    puVar1 = NULL;
+  if (pkt->_arg_data[arg] != NULL)
+    return (uintptr_t)pkt->_arg_data[arg];
+  pkt->_arg_data[arg] = malloc(a->_size);
+  if (pkt->_arg_data[arg] == NULL)
+    return 0;
+  bptr = pkt->_arg_data[arg];
+  dptr = data;
+  dlen = IR_FRAME_WIRE(fptr) + fptr->_size - data;
+  for (;;) {
+    memcpy(bptr,dptr,dlen);
+    bptr += dlen;
+    argsize -= dlen;
+    if (argsize == 0)
+      break;
+    fptr = fptr->_next_frame;
+    dptr = (unsigned char *)&fptr->_argv[0];
+    dlen = argsize;
+    if ((unsigned int)(fptr->_size - IR_FRAME_HDR) <= (unsigned int)argsize)
+      dlen = fptr->_size - IR_FRAME_HDR;
   }
-  return (uintptr_t)puVar1;
+  return (uintptr_t)pkt->_arg_data[arg];
 }
 
 char *IRFmtClas(int clas)
 {
-  char *pcVar1;
-  
-  if (clas == 1) {
-    pcVar1 = "RSP";
+  switch (clas) {
+  case IR_REQ:
+    return "REQ";
+  case IR_RSP:
+    return "RSP";
+  case IR_EVT:
+    return "EVT";
+  default:
+    return "???";
   }
-  else {
-    if (clas < 2) {
-      if (clas == 0) {
-        return "REQ";
-      }
-    }
-    else if (clas == 2) {
-      return "EVT";
-    }
-    pcVar1 = "???";
-  }
-  return pcVar1;
 }
 
+/* "L1 rack.slot,num,task" and so on, or "IP type task address" */
 char *IRFmtAddr(IRAddress addr, char *bptr)
 {
-  int type;
-  int num;
-  int task;
-  size_t sVar1;
-  uint32_t uVar2;
-  int slot;
-  int rack;
-  char *rptr;
-  
-  if ((addr & 0x80000000) == 0) {
-    type = addr >> 0x1c;
+  static const char *types[] = { "L1 ", "L2 ", "L3 ", "C  ", "I  ", "CI ", "CC " };
+  int type = IR_ADDR_TYPE(addr);
+  uint32_t ip;
+
+  if (type == IR_ADDR_IP || type == IR_ADDR_IP_OTHER) {
+    ip = IRByteOrder == 1 ? addr & 0xffffff : htonl(addr & 0xffffff);
+    sprintf(bptr,"IP %01x %02x %06x",type,IR_ADDR_TASK(addr),ip);
+    return bptr;
   }
-  else if (addr >> 0x1e == 2) {
-    type = 0xe;
-  }
-  else {
-    type = 0xf;
-  }
-  if ((addr & 0x80000000) == 0) {
-    num = addr >> 5 & 0x7f;
-  }
-  else {
-    num = -1;
-  }
-  if ((addr & 0x80000000) == 0) {
-    task = addr & 0x1f;
-  }
-  else {
-    task = addr >> 0x18 & 0x3f;
-  }
-  if (false) {
-switchD_0807d0e6_caseD_7:
+  if (type <= IR_ADDR_CC)
+    strcpy(bptr,types[type]);
+  else
     sprintf(bptr,"%2d ",type);
-  }
-  else {
-    switch(type) {
-    case 0:
-      strcpy(bptr,"L1 ");
-      break;
-    case 1:
-      strcpy(bptr,"L2 ");
-      break;
-    case 2:
-      strcpy(bptr,"L3 ");
-      break;
-    case 3:
-      strcpy(bptr,"C  ");
-      break;
-    case 4:
-      strcpy(bptr,"I  ");
-      break;
-    case 5:
-      strcpy(bptr,"CI ");
-      break;
-    case 6:
-      strcpy(bptr,"CC ");
-      break;
-    default:
-      goto switchD_0807d0e6_caseD_7;
-    case 0xe:
-    case 0xf:
-      if (IRByteOrder == 1) {
-        uVar2 = addr & 0xffffff;
-      }
-      else {
-        uVar2 = htonl(addr & 0xffffff);
-      }
-      sprintf(bptr,"IP %01x %02x %06x",type,addr >> 0x18 & 0x3f,uVar2);
-      return bptr;
-    }
-  }
-  sVar1 = strlen(bptr);
-  sprintf(bptr + sVar1,"%4d.%2d,%2d,%3d ",addr >> 0x12 & 0x3ff,addr >> 0xc & 0x3f,num,task);
+  sprintf(bptr + strlen(bptr),"%4d.%2d,%2d,%3d ",IR_ADDR_RACK(addr),IR_ADDR_SLOT(addr),
+          IR_ADDR_NUM(addr),IR_ADDR_TASK(addr));
   return bptr;
 }
 
 char *IRFmtPkt(char *who, IRPacket *p, char *bptr)
 {
-  char *pcVar1;
-  unsigned int uVar2;
-  unsigned int uVar3;
-  unsigned int uVar4;
-  char buf2 [32];
-  char buf1 [32];
-  char *temp_7bf64f974a1;
-  char *temp_7bfe26d060f;
-  
-  IRFmtAddr(p->_dest,buf1);
-  IRFmtAddr(p->_src,buf2);
-  temp_7bf64f974a1 = buf2;
-  temp_7bfe26d060f = buf1;
-  uVar2 = (unsigned int)p->_opcode;
-  uVar3 = (unsigned int)p->_err;
-  uVar4 = (unsigned int)p->_argc;
-  pcVar1 = IRFmtClas((unsigned int)p->_clas);
-  sprintf(bptr,"%-12.12s %5d %s(%d,%d,%d) D: %s S: %s",who,(unsigned int)IR_SEQNUM(p),
-          pcVar1,uVar4,uVar3,uVar2,temp_7bfe26d060f,temp_7bf64f974a1);
+  char dest[32], src[32];
+
+  IRFmtAddr(p->_dest,dest);
+  IRFmtAddr(p->_src,src);
+  sprintf(bptr,"%-12.12s %5d %s(%d,%d,%d) D: %s S: %s",who,IR_SEQNUM(p),IRFmtClas(p->_clas),
+          p->_argc,p->_err,p->_opcode,dest,src);
   return bptr;
 }
 
+/* one frame's header (NULL: the column heads) */
 void IRPrintFrame(char *who, IRFrame *f)
 {
-  char buff [128];
-  
   if (f == NULL) {
-    fprintf(stderr,"WHO    ADDR     NEXT     SIZE RV ER S0 FF FN CL DEST     SRC      AC S1 OPCD\n")
-    ;
-    fprintf(stderr,"------ -------- -------- ---- -- -- -- -- -- -- -------- -------- -- -- ----\n")
-    ;
+    fprintf(stderr,"WHO    ADDR     NEXT     SIZE RV ER S0 FF FN CL DEST     SRC      AC S1 OPCD\n");
+    fprintf(stderr,"------ -------- -------- ---- -- -- -- -- -- -- -------- -------- -- -- ----\n");
+    return;
   }
-  else {
-    fprintf(stderr,"%-6.6s %08x %08x %04x %02x %02x %02x %02x %02x %02x %08x %08x %02x %02x %04x\n",
-            who,f,f->_next_frame,(unsigned int)f->_size,(unsigned int)f->_rev,(unsigned int)f->_err,(unsigned int)f->_seqnum0,
-            (unsigned int)(f->_fnum >> 7),(unsigned int)(f->_fnum & 0x7f),(unsigned int)f->_clas,f->_dest,f->_src,
-            (unsigned int)f->_argc,(unsigned int)f->_seqnum1,(unsigned int)f->_opcode);
-  }
-  return;
+  fprintf(stderr,"%-6.6s %08lx %08lx %04x %02x %02x %02x %02x %02x %02x %08x %08x %02x %02x %04x\n",
+          who,(unsigned long)(uintptr_t)f,(unsigned long)(uintptr_t)f->_next_frame,f->_size,f->_rev,
+          f->_err,f->_seqnum0,f->_fnum >> 7,f->_fnum & 0x7f,f->_clas,f->_dest,f->_src,f->_argc,
+          f->_seqnum1,f->_opcode);
 }
 
 char *IRFmtError(int errcode)
 {
-  char *pcVar1;
-  
-  if (errcode == 0) {
-    pcVar1 = "no error";
-  }
-  else {
-    pcVar1 = LoggerDefaultMessage(-600 - errcode);
-  }
-  return pcVar1;
+  return errcode == 0 ? "no error" : LoggerDefaultMessage(IR_ERRNO(errcode));
 }
 
 #if UINTPTR_MAX != 0xffffffffu

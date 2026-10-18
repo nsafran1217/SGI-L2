@@ -131,6 +131,38 @@ typedef enum {
     IRERR_FRAME_CONTROL = 26,
     IRERR_PKT_TOO_LARGE = 27,
 } IRErrorCodes;
+
+/* (Added by the reconstruction.) IRouter functions return 0 or -600 - an
+ * IRErrorCodes value (Logger's IRouterErrorList). */
+#define IR_ERRNO(e)  (-600 - (e))
+
+/* IRFrame._clas */
+enum { IR_REQ = 0, IR_RSP = 1, IR_EVT = 2 };
+
+/*
+ * (Added by the reconstruction.) An IRAddress, as IRFmtAddr reads it. With
+ * the top bit clear: type (4 bits; IR_ADDR_L1 ...), rack (10), slot (6),
+ * number (7) and task (5). With it set: an IP-routed address, type 0xe when
+ * the next bit is clear (else 0xf), task in bits 24-29 and the low 24 bits
+ * of the IP address.
+ */
+enum {
+    IR_ADDR_L1 = 0, IR_ADDR_L2 = 1, IR_ADDR_L3 = 2, IR_ADDR_C = 3, IR_ADDR_I = 4,
+    IR_ADDR_CI = 5, IR_ADDR_CC = 6, IR_ADDR_IP = 0xe, IR_ADDR_IP_OTHER = 0xf,
+};
+#define IR_ADDR_IS_IP(a)   (((a) & 0x80000000) != 0)
+#define IR_ADDR_TYPE(a)    (!IR_ADDR_IS_IP(a) ? (int)((a) >> 28) : ((a) >> 30) == 2 ? IR_ADDR_IP : IR_ADDR_IP_OTHER)
+#define IR_ADDR_TASK(a)    (!IR_ADDR_IS_IP(a) ? (int)((a) & 0x1f) : (int)(((a) >> 24) & 0x3f))
+#define IR_ADDR_NUM(a)     (!IR_ADDR_IS_IP(a) ? (int)(((a) >> 5) & 0x7f) : -1)
+#define IR_ADDR_RACK(a)    ((int)(((a) >> 18) & 0x3ff))
+#define IR_ADDR_SLOT(a)    ((int)(((a) >> 12) & 0x3f))
+
+/* IRFrame._fnum: the first frame has the top bit set; the frames are
+ * numbered down to 1. A frame is at most 1024 bytes (extended frames, for
+ * big responses between L2s/L3s, up to 0x3400), the header 20. */
+#define IR_FNUM_FIRST      0x80
+#define IR_FRAME_HDR       20
+#define IR_FRAME_MAX       0x400
 #include "../sys/Logger.h"
 
 /* (added by the reconstruction) a frame's 16-bit sequence number */
