@@ -1681,9 +1681,7 @@ void smp_write(SMP *smp, char *ibptr, int iblen)
           *(undefined4 *)__d1 = 0;
           __d1 = __d1 + 4;
         }
-        pbVar1 = (byte *)((int)wrset.fds_bits +
-                         ((int)(smp->wfd & 0x1fU) >> 3) + ((uint)smp->wfd >> 5) * 4);
-        *pbVar1 = *pbVar1 | '\x01' << (smp->wfd & 7U);
+        FD_SET(smp->wfd, &wrset);
         piVar2 = __errno_location();
         *piVar2 = 0;
         iVar3 = select(iVar3 + 1,NULL,(fd_set *)&wrset,NULL,(struct timeval *)&wtime);
@@ -1704,9 +1702,7 @@ void smp_write(SMP *smp, char *ibptr, int iblen)
           sprintf(x_,"SMP %d waited %d.%06d",smp->grpid,dtime.tv_sec,dtime.tv_usec);
           nvramLogFinsert(x_);
         }
-        if ((*(byte *)((int)wrset.fds_bits +
-                      ((int)(smp->wfd & 0x1fU) >> 3) + ((uint)smp->wfd >> 5) * 4) >> (smp->wfd & 7U)
-            & 1) == 0) {
+        if (FD_ISSET(smp->wfd, &wrset) == 0) {
           sprintf(x__,"SMP %d (%d) select timeout",smp->grpid,smp_count);
           nvramLogFinsert(x__);
           smp->hung = 1;

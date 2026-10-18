@@ -423,21 +423,14 @@ int IRouterReadPacket(IRIdent *id, int (*rfcn)(), void *fd, IRPacket **pkt)
       rtime.tv_sec = 1;
       rtime.tv_usec = 0;
       status = 0;
-      selerr = 0x20;
-      p_Var4 = rdset.fds_bits;
-      for (; selerr != 0; selerr = selerr + -1) {
-        *p_Var4 = 0;
-        p_Var4 = p_Var4 + 1;
-      }
-      pbVar1 = (byte *)((int)rdset.fds_bits + ((int)((uint)fd & 0x1f) >> 3) + ((uint)fd >> 5) * 4);
-      *pbVar1 = *pbVar1 | '\x01' << ((uint)fd & 7);
+      FD_ZERO(&rdset);
+      FD_SET(fd, &rdset);
       iVar3 = select((int)fd + 1,(fd_set *)&rdset,NULL,NULL,(struct timeval *)&rtime);
       if (iVar3 < 0) {
         status = -0x267;
       }
       if ((status == 0) &&
-         ((*(byte *)((int)rdset.fds_bits + ((int)((uint)fd & 0x1f) >> 3) + ((uint)fd >> 5) * 4) >>
-           ((uint)fd & 7) & 1) == 0)) {
+         (FD_ISSET(fd, &rdset) == 0)) {
         status = -0x268;
       }
       if (status != 0) {

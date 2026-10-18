@@ -93,8 +93,7 @@ EventID EventAddInput(int fd, void (*input_func)(), EventData client_data, char 
     if (desc != NULL) {
       strcpy(EventIOList[fd].input_desc,desc);
     }
-    pbVar1 = (byte *)((int)EventReadSet.fds_bits + ((int)(fd & 0x1fU) >> 3) + ((uint)fd >> 5) * 4);
-    *pbVar1 = *pbVar1 | '\x01' << (fd & 7U);
+    FD_SET(fd, &EventReadSet);
     if (EventFDRange <= fd) {
       EventFDRange = fd + 1;
     }
@@ -130,8 +129,7 @@ void EventReplaceInput(int fd, void (*new_input_func)(), EventData new_client_da
     if (new_desc != NULL) {
       strcpy(EventIOList[fd].input_desc,new_desc);
     }
-    pbVar1 = (byte *)((int)EventReadSet.fds_bits + ((int)(fd & 0x1fU) >> 3) + ((uint)fd >> 5) * 4);
-    *pbVar1 = *pbVar1 | '\x01' << (fd & 7U);
+    FD_SET(fd, &EventReadSet);
     if (EventFDRange <= fd) {
       EventFDRange = fd + 1;
     }
@@ -160,8 +158,7 @@ void EventReplaceInputTemp(int fd, void (*new_input_func)(), EventData new_clien
     if (new_desc != NULL) {
       strcpy(EventIOList[fd].input_desc,new_desc);
     }
-    pbVar1 = (byte *)((int)EventReadSet.fds_bits + ((int)(fd & 0x1fU) >> 3) + ((uint)fd >> 5) * 4);
-    *pbVar1 = *pbVar1 | '\x01' << (fd & 7U);
+    FD_SET(fd, &EventReadSet);
     if (EventFDRange <= fd) {
       EventFDRange = fd + 1;
     }
@@ -189,8 +186,7 @@ void EventRestoreInputTemp(int fd)
     EventIOList[fd].input_func_orig = NULL;
     EventIOList[fd].input_data_orig = (EventData)0x0;
     EventIOList[fd].input_desc_orig[0] = '\0';
-    pbVar1 = (byte *)((int)EventReadSet.fds_bits + ((int)(fd & 0x1fU) >> 3) + ((uint)fd >> 5) * 4);
-    *pbVar1 = *pbVar1 | '\x01' << (fd & 7U);
+    FD_SET(fd, &EventReadSet);
     if (EventFDRange <= fd) {
       EventFDRange = fd + 1;
     }
@@ -209,10 +205,8 @@ void EventRemoveInput(EventID id)
     EventIOList[id].input_func = NULL;
     EventIOList[id].input_data = (EventData)0x0;
     EventIOList[id].input_desc[0] = '\0';
-    pbVar1 = (byte *)((int)EventReadSet.fds_bits + ((int)(id & 0x1f) >> 3) + (id >> 5) * 4);
-    *pbVar1 = *pbVar1 & ~('\x01' << (id & 7));
-    pbVar1 = (byte *)((int)EventReadMask.fds_bits + ((int)(id & 0x1f) >> 3) + (id >> 5) * 4);
-    *pbVar1 = *pbVar1 & ~('\x01' << (id & 7));
+    FD_CLR(id, &EventReadSet);
+    FD_CLR(id, &EventReadMask);
     EventSetFDRange(id);
   }
   return;
@@ -236,8 +230,7 @@ EventID EventAddOutput(int fd, void (*output_func)(), EventData client_data, cha
     if (desc != NULL) {
       strcpy(EventIOList[fd].output_desc,desc);
     }
-    pbVar1 = (byte *)((int)EventWriteSet.fds_bits + ((int)(fd & 0x1fU) >> 3) + ((uint)fd >> 5) * 4);
-    *pbVar1 = *pbVar1 | '\x01' << (fd & 7U);
+    FD_SET(fd, &EventWriteSet);
     if (EventFDRange <= fd) {
       EventFDRange = fd + 1;
     }
@@ -257,10 +250,8 @@ void EventRemoveOutput(EventID id)
     EventIOList[id].output_func = NULL;
     EventIOList[id].output_data = (EventData)0x0;
     EventIOList[id].output_desc[0] = '\0';
-    pbVar1 = (byte *)((int)EventWriteSet.fds_bits + ((int)(id & 0x1f) >> 3) + (id >> 5) * 4);
-    *pbVar1 = *pbVar1 & ~('\x01' << (id & 7));
-    pbVar1 = (byte *)((int)EventWriteMask.fds_bits + ((int)(id & 0x1f) >> 3) + (id >> 5) * 4);
-    *pbVar1 = *pbVar1 & ~('\x01' << (id & 7));
+    FD_CLR(id, &EventWriteSet);
+    FD_CLR(id, &EventWriteMask);
     EventSetFDRange(id);
   }
   return;
@@ -271,14 +262,11 @@ void EventEnableOutput(EventID id, int enable)
   byte *pbVar1;
   
   if (enable == 0) {
-    pbVar1 = (byte *)((int)EventWriteSet.fds_bits + ((int)(id & 0x1f) >> 3) + (id >> 5) * 4);
-    *pbVar1 = *pbVar1 & ~('\x01' << (id & 7));
-    pbVar1 = (byte *)((int)EventWriteMask.fds_bits + ((int)(id & 0x1f) >> 3) + (id >> 5) * 4);
-    *pbVar1 = *pbVar1 & ~('\x01' << (id & 7));
+    FD_CLR(id, &EventWriteSet);
+    FD_CLR(id, &EventWriteMask);
   }
   else {
-    pbVar1 = (byte *)((int)EventWriteSet.fds_bits + ((int)(id & 0x1f) >> 3) + (id >> 5) * 4);
-    *pbVar1 = *pbVar1 | '\x01' << (id & 7);
+    FD_SET(id, &EventWriteSet);
   }
   return;
 }
@@ -288,14 +276,11 @@ void EventEnableInput(EventID id, int enable)
   byte *pbVar1;
   
   if (enable == 0) {
-    pbVar1 = (byte *)((int)EventReadSet.fds_bits + ((int)(id & 0x1f) >> 3) + (id >> 5) * 4);
-    *pbVar1 = *pbVar1 & ~('\x01' << (id & 7));
-    pbVar1 = (byte *)((int)EventReadMask.fds_bits + ((int)(id & 0x1f) >> 3) + (id >> 5) * 4);
-    *pbVar1 = *pbVar1 & ~('\x01' << (id & 7));
+    FD_CLR(id, &EventReadSet);
+    FD_CLR(id, &EventReadMask);
   }
   else {
-    pbVar1 = (byte *)((int)EventReadSet.fds_bits + ((int)(id & 0x1f) >> 3) + (id >> 5) * 4);
-    *pbVar1 = *pbVar1 | '\x01' << (id & 7);
+    FD_SET(id, &EventReadSet);
   }
   return;
 }
@@ -386,71 +371,22 @@ void EventRemoveTimeOut(EventID id)
 
 static fd_set fdset_and(fd_set *fd1, fd_set *fd2)
 {
-  byte *pbVar1;
-  int iVar2;
-  __fd_mask *p_Var3;
-  __fd_mask *p_Var4;
-  int __d1;
-  int __d0;
   fd_set outset;
   int i;
-  
-  iVar2 = 0x20;
-  p_Var3 = outset.fds_bits;
-  for (; iVar2 != 0; iVar2 = iVar2 + -1) {
-    *p_Var3 = 0;
-    p_Var3 = p_Var3 + 1;
+
+  /* NULL means "no restriction": the result is the other set */
+  FD_ZERO(&outset);
+  if (fd1 != NULL && fd2 == NULL)
+    return *fd1;
+  if (fd1 == NULL && fd2 != NULL)
+    return *fd2;
+  if (fd1 == NULL && fd2 == NULL)
+    return outset;
+  for (i = 0; i < FD_SETSIZE; i++) {
+    if (FD_ISSET(i, fd1) && FD_ISSET(i, fd2))
+      FD_SET(i, &outset);
   }
-  if ((fd1 == NULL) || (fd2 != NULL)) {
-    if ((fd1 == NULL) && (fd2 != NULL)) {
-      iVar2 = 0x20;
-      p_Var3 = __return_storage_ptr__->fds_bits;
-      for (; iVar2 != 0; iVar2 = iVar2 + -1) {
-        *p_Var3 = fd2->fds_bits[0];
-        fd2 = (fd_set *)((int)fd2 + 4);
-        p_Var3 = p_Var3 + 1;
-      }
-    }
-    else if ((fd1 == NULL) && (fd2 == NULL)) {
-      iVar2 = 0x20;
-      p_Var3 = outset.fds_bits;
-      p_Var4 = __return_storage_ptr__->fds_bits;
-      for (; iVar2 != 0; iVar2 = iVar2 + -1) {
-        *p_Var4 = *p_Var3;
-        p_Var3 = p_Var3 + 1;
-        p_Var4 = p_Var4 + 1;
-      }
-    }
-    else {
-      for (i = 0; i < 0x400; i = i + 1) {
-        if (((*(byte *)((int)fd1->fds_bits + ((int)(i & 0x1fU) >> 3) + ((uint)i >> 5) * 4) >>
-              (i & 7U) & 1) != 0) &&
-           ((*(byte *)((int)fd2->fds_bits + ((int)(i & 0x1fU) >> 3) + ((uint)i >> 5) * 4) >>
-             (i & 7U) & 1) != 0)) {
-          pbVar1 = (byte *)((int)outset.fds_bits + ((int)(i & 0x1fU) >> 3) + ((uint)i >> 5) * 4);
-          *pbVar1 = *pbVar1 | '\x01' << (i & 7U);
-        }
-      }
-      iVar2 = 0x20;
-      p_Var3 = outset.fds_bits;
-      p_Var4 = __return_storage_ptr__->fds_bits;
-      for (; iVar2 != 0; iVar2 = iVar2 + -1) {
-        *p_Var4 = *p_Var3;
-        p_Var3 = p_Var3 + 1;
-        p_Var4 = p_Var4 + 1;
-      }
-    }
-  }
-  else {
-    iVar2 = 0x20;
-    p_Var3 = __return_storage_ptr__->fds_bits;
-    for (; iVar2 != 0; iVar2 = iVar2 + -1) {
-      *p_Var3 = fd1->fds_bits[0];
-      fd1 = (fd_set *)((int)fd1 + 4);
-      p_Var3 = p_Var3 + 1;
-    }
-  }
-  return __return_storage_ptr__;
+  return outset;
 }
 
 void event_process(int oneshot, fd_set *rd_subset, fd_set *wr_subset, EventTimerEntry *tlist, int tcnt)
@@ -616,8 +552,7 @@ LAB_080738ba:
     i = 0;
     while ((i < EventFDRange && (EventStopFlag == 0))) {
       if ((true) &&
-         ((*(byte *)((int)EventWriteMask.fds_bits + ((int)(i & 0x1fU) >> 3) + ((uint)i >> 5) * 4) >>
-           (i & 7U) & 1) != 0)) {
+         (FD_ISSET(i, &EventWriteMask) != 0)) {
         if (EventIOList[i].output_func == NULL) {
           LogError(-0x1fa,"EventStart",0,"");
           EventRemoveOutput(i);
@@ -632,8 +567,7 @@ LAB_080738ba:
     i = 0;
     while ((i < EventFDRange && (EventStopFlag == 0))) {
       if ((true) &&
-         ((*(byte *)((int)EventReadMask.fds_bits + ((int)(i & 0x1fU) >> 3) + ((uint)i >> 5) * 4) >>
-           (i & 7U) & 1) != 0)) {
+         (FD_ISSET(i, &EventReadMask) != 0)) {
         if (EventIOList[i].input_func == NULL) {
           LogError(-0x1f9,"EventStart",0,"");
           EventRemoveInput(i);
@@ -734,16 +668,9 @@ static void EventRemoveBadFD(void)
   int i;
   
   for (i = 0; i < EventFDRange; i = i + 1) {
-    if ((*(byte *)((int)EventReadSet.fds_bits + ((int)(i & 0x1fU) >> 3) + ((uint)i >> 5) * 4) >>
-         (i & 7U) & 1) != 0) {
-      iVar3 = 0x20;
-      p_Var4 = EventReadMask.fds_bits;
-      for (; iVar3 != 0; iVar3 = iVar3 + -1) {
-        *p_Var4 = 0;
-        p_Var4 = p_Var4 + 1;
-      }
-      pbVar1 = (byte *)((int)EventReadMask.fds_bits + ((int)(i & 0x1fU) >> 3) + ((uint)i >> 5) * 4);
-      *pbVar1 = *pbVar1 | '\x01' << (i & 7U);
+    if (FD_ISSET(i, &EventReadSet) != 0) {
+      FD_ZERO(&EventReadMask);
+      FD_SET(i, &EventReadMask);
       iVar3 = select(EventFDRange,(fd_set *)&EventReadMask,NULL,NULL,
                      (struct timeval *)&zero_time);
       if (iVar3 < 0) {
@@ -758,16 +685,13 @@ static void EventRemoveBadFD(void)
         }
       }
     }
-    if ((*(byte *)((int)EventWriteSet.fds_bits + ((int)(i & 0x1fU) >> 3) + ((uint)i >> 5) * 4) >>
-         (i & 7U) & 1) != 0) {
+    if (FD_ISSET(i, &EventWriteSet) != 0) {
       __d1 = (int)&EventWriteMask;
       for (iVar3 = 0x20; iVar3 != 0; iVar3 = iVar3 + -1) {
         *(undefined4 *)__d1 = 0;
         __d1 = __d1 + 4;
       }
-      pbVar1 = (byte *)((int)EventWriteMask.fds_bits + ((int)(i & 0x1fU) >> 3) + ((uint)i >> 5) * 4)
-      ;
-      *pbVar1 = *pbVar1 | '\x01' << (i & 7U);
+      FD_SET(i, &EventWriteMask);
       iVar3 = select(EventFDRange,NULL,(fd_set *)&EventWriteMask,NULL,
                      (struct timeval *)&zero_time);
       if (iVar3 < 0) {

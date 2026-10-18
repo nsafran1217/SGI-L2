@@ -422,16 +422,12 @@ void discover_service(void)
     *(undefined4 *)__d1 = 0;
     __d1 = __d1 + 4;
   }
-  pbVar1 = (byte *)((int)rfd.fds_bits +
-                   ((int)(discover_sd & 0x1fU) >> 3) + ((uint)discover_sd >> 5) * 4);
-  *pbVar1 = *pbVar1 | '\x01' << (discover_sd & 7U);
+  FD_SET(discover_sd, &rfd);
   to.tv_sec = 0;
   to.tv_usec = 10;
   iVar2 = select(discover_sd + 1,(fd_set *)&rfd,NULL,NULL,(struct timeval *)&to);
   if (iVar2 == 1) {
-    if ((*(byte *)((int)rfd.fds_bits +
-                  ((int)(discover_sd & 0x1fU) >> 3) + ((uint)discover_sd >> 5) * 4) >>
-         (discover_sd & 7U) & 1) != 0) {
+    if (FD_ISSET(discover_sd, &rfd) != 0) {
       discover_response(NULL,discover_sd);
     }
   }

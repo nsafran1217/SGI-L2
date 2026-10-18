@@ -327,8 +327,7 @@ int sn1SCDiscoverL2Response(int sd, sn1SC_L2 *l2, int wait)
       *(undefined4 *)__d1 = 0;
       __d1 = __d1 + 4;
     }
-    pbVar1 = (byte *)((int)rfd.fds_bits + ((int)(sd & 0x1fU) >> 3) + ((uint)sd >> 5) * 4);
-    *pbVar1 = *pbVar1 | '\x01' << (sd & 7U);
+    FD_SET(sd, &rfd);
     if (wait == 0) {
       ___result = NULL;
     }
@@ -345,8 +344,7 @@ int sn1SCDiscoverL2Response(int sd, sn1SC_L2 *l2, int wait)
       return -1;
     }
     cliaddr.sin_family = 2;
-    if ((*(byte *)((int)rfd.fds_bits + ((int)(sd & 0x1fU) >> 3) + ((uint)sd >> 5) * 4) >> (sd & 7U)
-        & 1) == 0) {
+    if (FD_ISSET(sd, &rfd) == 0) {
       return 1;
     }
     sVar4 = recvfrom(sd,pkt,0x2000,0,(struct sockaddr *)&cliaddr,(socklen_t *)&asize);

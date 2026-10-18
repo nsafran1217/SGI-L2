@@ -197,14 +197,12 @@ int IRouterGetPacketOS(IRIdent *id, IRPacket **pkt, IRClient **client, int wait,
         *(undefined4 *)__d1 = 0;
         __d1 = __d1 + 4;
       }
-      pbVar1 = (byte *)((int)fdset.__fds_bits + ((int)(sd & 0x1fU) >> 3) + ((uint)sd >> 5) * 4);
-      *pbVar1 = *pbVar1 | '\x01' << (sd & 7U);
+      FD_SET(sd, &fdset);
       iVar2 = select(fdmax,(fd_set *)&fdset,NULL,NULL,(struct timeval *)&wait_time);
       if (iVar2 < 0) {
         return -0x267;
       }
-      if ((*(byte *)((int)fdset.__fds_bits + ((int)(sd & 0x1fU) >> 3) + ((uint)sd >> 5) * 4) >>
-           (sd & 7U) & 1) == 0) {
+      if (FD_ISSET(sd, &fdset) == 0) {
         return -0x268;
       }
       iVar2 = IRouterReadPacket(id,pipe_in,(void *)sd,pkt);

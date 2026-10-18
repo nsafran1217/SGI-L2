@@ -261,9 +261,7 @@ int IRouterGetPacketL3(IRIdent *id, IRPacket **pkt, IRClient **client, int wait,
       *(undefined4 *)__d1 = 0;
       __d1 = __d1 + 4;
     }
-    pbVar1 = (byte *)((int)evt_subset.fds_bits +
-                     ((int)((*client)->socket & 0x1fU) >> 3) + ((uint)(*client)->socket >> 5) * 4);
-    *pbVar1 = *pbVar1 | '\x01' << ((*client)->socket & 7U);
+    FD_SET((*client)->socket, &evt_subset);
   }
   RouterListClients(rtr_set_input_func);
   if (wait == 0) {
