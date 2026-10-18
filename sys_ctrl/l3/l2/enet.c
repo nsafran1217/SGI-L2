@@ -3,64 +3,37 @@
  *
  * Reconstructed from the STABS debug info and Ghidra decompilation of l2.
  * Original: /data/cf/sysco/scs123.patch/sys_ctrl/l3/l2/enet.c
+ *
+ * The L2's network consoles: telnet-style SMP sessions on SMP_PORT, and on
+ * SMP_QUIET_PORT for connections that are not logged.
  */
 
-#include <linux/limits.h>
-#include "l2.h"
 #include <stdio.h>
-#include <stddef.h>
-#include <stdarg.h>
 #include <stdlib.h>
-#include <sys/types.h>
-#include <time.h>
-#include <fcntl.h>
-#include <errno.h>
-#include <signal.h>
-#include <termios.h>
-#include <unistd.h>
-#include <getopt.h>
 #include <string.h>
-#include "../../common/Router/Socket.h"
-#include "../../common/Router/Event.h"
-#include <sys/time.h>
-#include "../../common/IRouter/IRouter.h"
-#include "../../common/sys/sysctl_types.h"
-#include <netinet/in.h>
-#include <limits.h>
-#include <syslimits.h>
-#include <stdint.h>
-#include "../../common/sys/sysutils.h"
-#include <pthread.h>
-#include <sched.h>
-#include "../../common/sys/Logger.h"
-#include "../sys/LoggerMsg.h"
-#include "../../common/IRouter/IRouter2Router.h"
-#include "../../common/Router/Router.h"
-#include "../../common/sys/PPP.h"
-#include "../../common/sys/brick_types.h"
-#include "../../common/main/EnetServer.h"
-#include "../../common/main/L2Cfg.h"
-#include "../../common/main/L1Cfg.h"
-#include "l2_rev.h"
+#include "l2.h"
 #include "enet.h"
-#include "decomp.h"     /* Ghidra types/macros; remove once the file is cleaned up */
+#include "smp.h"
 
-int enet_only;
+#define IR_IP_L3    0xc0000000  /* an L3 client's IRouter address: | its L2's, task = socket */
+#define MAX_SOCKETS 256         /* ids[] is indexed by the socket */
+
+int enet_only;                  /* -enet: no serial consoles (serial.c) */
 SMP *enet_smp;
-static IRIdent ids[256];
+static IRIdent ids[MAX_SOCKETS];
 
 void enet_init(void)
 {
-  memset(ids,0,0x800);
-  enet_export(IR_PORT_BIAS + 0x1f41);
-  enet_export(IR_PORT_BIAS + 0x1f43);
-  return;
+  memset(ids,0,sizeof(ids));
+  enet_export(IR_PORT_BIAS + SMP_PORT);
+  enet_export(IR_PORT_BIAS + SMP_QUIET_PORT);
 }
 
+/* listen on port; exits if it can't */
 void enet_export(int port)
 {
   int fd;
-  
+
   fd = SocketExportInetConnection(port);
   if (fd < 0) {
     printf("FATAL: can\'t export connection for SMP port %d\n",port);
@@ -68,53 +41,46 @@ void enet_export(int port)
   }
   fprintf(stderr,"INFO: SMP listening on port: %d\n",port);
   EventAddInput(fd,enet_accept,(EventData)(intptr_t)port,"enet_export");
-  return;
 }
 
+/* a connection on port's listening socket sd: an SMP session, addressed as
+ * an L3 client with its socket as the task */
 void enet_accept(int port, int sd)
 {
-  IRIdent *id_00;
-  int s;
-  int iVar1;
-  char *pcVar2;
+  char peer_name[256];
   uint32 peer_addr;
-  char peer_name [256];
   IRIdent *id;
-  
+  int s;
+
   s = SocketAcceptInetConnection(sd,1);
   if (s < 0) {
     fprintf(stderr,"INFO: SMP failed to accept netwok connection\n");
+    return;
   }
-  else {
-    iVar1 = SocketGetPeerAddr(s,&peer_addr);
-    if (iVar1 == 0) {
-      iVar1 = SocketGetName(peer_addr,peer_name,0x100);
-      if (iVar1 != 0) {
-        strcpy(peer_name,"unknown");
-      }
-    }
-    else {
-      peer_addr = 0xffffffff;
-      strcpy(peer_name,"unknown");
-    }
-    if (port != IR_PORT_BIAS + 0x1f43) {
-      iVar1 = port;
-      pcVar2 = SocketAddrStr(peer_addr);
-      fprintf(stderr,"INFO: SMP accepted network connection, %s (%s:%d)\n",peer_name,pcVar2,iVar1);
-    }
-    id_00 = ids + s;
-    IRouterInitID(id_00,0,0);
-    id_00->addr = (id_00->addr & 0x3fffffff) | 0xc0000000;
-    id_00->addr = (id_00->addr & 0xc0ffffff) | (s & 0x3fU) << 0x18;
-    smp_init(id_00,s,s,enet_reset,peer_addr,port);
+  if (s >= MAX_SOCKETS) {
+    /* (the original wrote past ids[]) */
+    fprintf(stderr,"INFO: SMP refused network connection, too many open files\n");
+    SocketClose(s);
+    return;
   }
-  return;
+  if (SocketGetPeerAddr(s,&peer_addr) != 0) {
+    peer_addr = 0xffffffff;
+    strcpy(peer_name,"unknown");
+  }
+  else if (SocketGetName(peer_addr,peer_name,sizeof(peer_name)) != 0)
+    strcpy(peer_name,"unknown");
+  if (port != IR_PORT_BIAS + SMP_QUIET_PORT)
+    fprintf(stderr,"INFO: SMP accepted network connection, %s (%s:%d)\n",peer_name,
+            SocketAddrStr(peer_addr),port);
+  id = &ids[s];
+  IRouterInitID(id,s,0);
+  id->addr |= IR_IP_L3;
+  smp_init(id,s,s,enet_reset,peer_addr,port);
 }
 
+/* an SMP's reset function: close its socket */
 void enet_reset(int sd)
 {
-  if (sd != -1) {
+  if (sd != -1)
     SocketClose(sd);
-  }
-  return;
 }

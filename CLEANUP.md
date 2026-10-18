@@ -87,6 +87,8 @@ settled; it is the slowest build).
 ### 3. Structure (after the code reads cleanly)
 - L1 transport interface under `l3/l2/l1.c` (sgil1 driver, L1 network link,
   serial/PPP) and a libusb backend: `l2` without the kernel driver.
+- The console's `shell` command with Unix98 ptys (`posix_openpt()`; pty.c
+  only knows BSD ptys, which current kernels lack).
 - Then: portability beyond Linux (macOS/BSD via libusb and FLTK), build
   system if the Makefile stops being enough.
 

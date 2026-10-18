@@ -3,64 +3,58 @@
  *
  * Reconstructed from the STABS debug info and Ghidra decompilation of l2.
  * Original: /data/cf/sysco/scs123.patch/sys_ctrl/l3/l2/pty.c
+ *
+ * A pseudo-terminal for the console's "shell" command (smp_shell()), the
+ * BSD way: the first free master /dev/pty[p-s][0-f], then its slave
+ * /dev/tty... . Linux dropped BSD ptys (CONFIG_LEGACY_PTYS), so on current
+ * kernels there is none and "shell" fails, with the original too.
  */
 
-#include <unistd.h>
-#include <stdio.h>
-#include <stddef.h>
-#include <stdarg.h>
-#include <errno.h>
+#include <fcntl.h>
 #include <string.h>
-#include <sys/types.h>
-#include <time.h>
 #include <sys/stat.h>
-#include <sys/file.h>
+#include <unistd.h>
 #include "pty.h"
-#include "decomp.h"     /* Ghidra types/macros; remove once the file is cleaned up */
 
-static char pty_name[12];
+static char pty_name[12];      /* the master's name, then the slave's */
 
+/* open a free master; -1 if there is none */
 int pty_master(void)
 {
-  static char ptychar[5] = "pqrs";
-  static char hexchar[17] = "0123456789abcdef";
-  int master_fd;
-  int iVar1;
+  static const char ptychar[] = "pqrs";
+  static const char hexchar[] = "0123456789abcdef";
   struct stat statbuff;
-  char *ptr;
+  const char *ptr;
+  int fd;
   int i;
-  
-  ptr = ptychar;
-  while( true ) {
-    if (*ptr == '\0') {
-      return -1;
-    }
+
+  for (ptr = ptychar; *ptr != '\0'; ptr++) {
     strcpy(pty_name,"/dev/ptyXY");
     pty_name[8] = *ptr;
     pty_name[9] = '0';
-    master_fd = stat(pty_name,&statbuff);
-    if (master_fd < 0) break;
-    for (i = 0; i < 0x10; i = i + 1) {
-      pty_name[9] = ((char *)&hexchar)[i];
-      iVar1 = open(pty_name,2);
-      if (-1 < iVar1) {
-        return iVar1;
-      }
+    if (stat(pty_name,&statbuff) < 0)       /* no such bank: stop */
+      break;
+    for (i = 0; i < 16; i++) {
+      pty_name[9] = hexchar[i];
+      fd = open(pty_name,O_RDWR);
+      if (fd >= 0)
+        return fd;
     }
-    ptr = ptr + 1;
   }
   return -1;
 }
 
+/* open the slave of the master pty_master() last opened; on failure close
+ * the master and return -1 */
 int pty_slave(int master_fd)
 {
   int slave_fd;
-  
-  pty_name[5] = 't';
-  slave_fd = open(pty_name,2);
+
+  pty_name[5] = 't';                        /* /dev/ptyXY -> /dev/ttyXY */
+  slave_fd = open(pty_name,O_RDWR);
   if (slave_fd < 0) {
     close(master_fd);
-    slave_fd = -1;
+    return -1;
   }
   return slave_fd;
 }

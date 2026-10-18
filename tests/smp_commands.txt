@@ -1,0 +1,30 @@
+# Lines typed at the L2's consoles (tests/smp_test.py): Python string escapes,
+# so editing keys can be sent. Only commands that do not change state.
+help
+version
+helx\x08p
+junk\x15version
+config
+destination
+env
+ip
+l2
+l2dsp
+route
+nvram
+smp
+serial
+multisys
+share
+psmode
+sysname
+rackid
+select
+log
+autopower
+l2dbg
+bogus_command
+hlp smp
+hlp shell
+shell
+date

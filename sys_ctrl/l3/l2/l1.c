@@ -24,7 +24,6 @@
 #include "sgil1.h"
 #include "../../common/sys/l3paths.h"   /* configurable paths (new) */
 #include "decomp.h"     /* Ghidra types/macros; remove once the file is cleaned up */
-void dmp(char *s, unsigned char *bptr, int blen, int newline);
 
 static char *l1_usb_path_str(sgil1_cfg_t *cfg, int format);
 

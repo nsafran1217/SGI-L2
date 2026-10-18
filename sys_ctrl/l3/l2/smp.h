@@ -45,6 +45,11 @@ struct SMP_s {
 };
 typedef struct SMP_s SMP;
 
+/* the SMP (console) network ports, plus IR_PORT_BIAS (enet.c); the serial
+ * consoles also give smp_init() SMP_PORT */
+#define SMP_PORT        8001
+#define SMP_QUIET_PORT  8003    /* connections not logged */
+
 /* prototypes (not recorded in STABS; reconstructed from definitions) */
 /* smp.c */
 extern SMP *smp_list;

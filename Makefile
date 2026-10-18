@@ -165,7 +165,11 @@ CLEAN_SRCS := \
 	sys_ctrl/l3/sys/syslogLib.c \
 	sys_ctrl/l3/IRouter/IRouterL3.c \
 	sys_ctrl/common/main/EnetServer.c \
-	sys_ctrl/common/main/L2Cfg.c
+	sys_ctrl/common/main/L2Cfg.c \
+	sys_ctrl/l3/l2/dmp.c \
+	sys_ctrl/l3/l2/pty.c \
+	sys_ctrl/l3/l2/serial.c \
+	sys_ctrl/l3/l2/enet.c
 $(CLEAN_SRCS:%.c=$(B)/%.o): CFLAGS += -Wunused-variable -Wunused-but-set-variable \
 	-Wunused-label -Wpointer-sign
 
@@ -241,6 +245,7 @@ check: all
 	$(if $(QEMU),,for t in tests/unit/*_test.sh; do $$t || exit 1; done)
 	NEW_BIN=$(CHECK_BIN) tests/difftest.sh
 	NEW_BIN=$(CHECK_BIN) tests/l2term_test.py
+	NEW_BIN=$(CHECK_BIN) tests/smp_test.py
 	NEW_BIN=$(CHECK_BIN) tests/nvram_test.py
 	NEW_BIN=$(CHECK_BIN) tests/l1net_test.py
 	NEW_BIN=$(CHECK_BIN) tests/l1_test.py
