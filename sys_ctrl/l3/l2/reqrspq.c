@@ -163,7 +163,7 @@ void rspq_put(REQRSPQ *q, unsigned int seqn, IRAddress dest)
   uint sort;
   
   sort = 0;
-  qe = malloc(0x18);
+  qe = malloc(sizeof(RSPQ));
   qe->seqn = seqn;
   qe->dest = dest;
   qe->next = NULL;

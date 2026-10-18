@@ -49,35 +49,27 @@ char *BuffWriteDone(BuffWrite_t *o, int free_buff)
   return buffout;
 }
 
+/* Append str (len bytes, or all of it if len is -1) to the buffer; data is a
+ * BuffWrite_t. Grows in 1 KB steps, or len + 200 for long strings. */
 int BuffWrite(void *data, char *str, int len)
 {
-  size_t __size;
+  BuffWrite_t *o = data;
   int addlen;
-  void *pvVar1;
-  BuffWrite_t *o;
-  
+
   if (len == -1) {
     len = strlen(str);
   }
-  if (len < 0x400) {
-    addlen = 0x400;
+  addlen = (len < 0x400) ? 0x400 : len + 200;
+  if (o->buff == NULL) {
+    o->blen = addlen;
+    o->buff = malloc(addlen);
+    o->ulen = 0;
   }
-  else {
-    addlen = len + 200;
+  else if (o->blen < len + o->ulen) {
+    o->blen = addlen + o->blen;
+    o->buff = realloc(o->buff, o->blen);
   }
-  if (*(int *)data == 0) {
-    *(int *)((int)data + 4) = addlen;
-    pvVar1 = malloc(addlen);
-    *(void **)data = pvVar1;
-    *(undefined4 *)((int)data + 8) = 0;
-  }
-  else if (*(int *)((int)data + 4) < len + *(int *)((int)data + 8)) {
-    __size = addlen + *(int *)((int)data + 4);
-    *(size_t *)((int)data + 4) = __size;
-    pvVar1 = realloc(*(void **)data,__size);
-    *(void **)data = pvVar1;
-  }
-  strcpy((char *)(*(int *)data + *(int *)((int)data + 8)),str);
-  *(int *)((int)data + 8) = len + *(int *)((int)data + 8);
+  strcpy(o->buff + o->ulen, str);
+  o->ulen = len + o->ulen;
   return len;
 }

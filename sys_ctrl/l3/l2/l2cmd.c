@@ -174,8 +174,9 @@ static void l2cmd_timeout(int to, void *data)
 {
   L2CMD *c;
   
-  if (*(int *)((int)data + 0xc) != 0) {
-    (**(code **)((int)data + 0xc))(data,to,*(undefined4 *)((int)data + 0x18));
+  c = (__typeof__(c))data;   /* Ghidra merged c into data */
+  if (c->tofunc != 0) {
+    (*c->tofunc)(data,to,c->data);
   }
   return;
 }
@@ -184,8 +185,9 @@ static void l2cmd_etimeout(char *msg, void *data)
 {
   L2CMD *c;
   
-  if (*(int *)((int)data + 0x10) != 0) {
-    (**(code **)((int)data + 0x10))(data,msg,*(undefined4 *)((int)data + 0x18));
+  c = (__typeof__(c))data;   /* Ghidra merged c into data */
+  if (c->etofunc != 0) {
+    (*c->etofunc)(data,msg,c->data);
   }
   return;
 }
@@ -596,7 +598,7 @@ static int l2cmd_demo(CmdData *cptr, char **results, L2CMD *c)
       rarg[0]._size = 0;
       rarg[1]._clas = '\x02';
       rarg[1]._frame = '\0';
-      rarg[1]._val = (uint32)cptr->str_stack[0];
+      rarg[1]._val = IR_PTR_VAL(cptr->str_stack[0]);
       sVar3 = strlen(cptr->str_stack[0]);
       rarg[1]._size = (short)sVar3 + 1;
       target_pkt(c,0x1ffff00b,3,2,rarg,1,0,1);
@@ -1568,14 +1570,14 @@ int l2cmd_power(CmdData *cptr, char **results, L2CMD *c)
                  ((node->port_list[port].l1cfg)->power_state == '\0')) {
                 addr = ((uint)(node->port_list[port].l1cfg)->rack << 6 |
                        (uint)((node->port_list[port].l1cfg)->slot & 0x3f)) << 0xc | 3;
-                argv[1]._val = (uint32)strdup("power up");
+                argv[1]._val = IR_PTR_VAL(strdup("power up"));
                 argv[0]._clas = '\0';
                 argv[0]._frame = '\0';
                 argv[0]._val = 0;
                 argv[0]._size = 0;
                 argv[1]._clas = '\n';
                 argv[1]._frame = '\0';
-                sVar5 = strlen((char *)argv[1]._val);
+                sVar5 = strlen((char *)IR_VAL_PTR(argv[1]._val));
                 argv[1]._size = (short)sVar5 + 1;
                 pkt = IRouterMakePacket(c->id,&addr,0,0,0,2,2,argv);
                 reqq_put(c->q,pkt,1,0);
@@ -1645,7 +1647,7 @@ int l2cmd_power(CmdData *cptr, char **results, L2CMD *c)
                        (port = port + 1,
                        *(char *)(*(int *)(cptr_ + addr * 0x1c + 0x174) + 0x10 + argc * 0x30) == '\0'
                        )) {
-                      p = (IRPacket *)((int)&p->_next_frame + 1);
+                      p = (IRPacket *)((int)&p->_next_frame + 1);   /* FIXME(64): Ghidra reused p as an integer counter */
                     }
                   }
                 }
@@ -1671,14 +1673,14 @@ int l2cmd_power(CmdData *cptr, char **results, L2CMD *c)
                                               argc * 0x30) << 6 |
                               *(byte *)(*(int *)(cptr_ + addr * 0x1c + 0x174) + 4 + argc * 0x30) &
                               0x3f) << 0xc | 3;
-                      argv[1]._val = (uint32)strdup("power down");
+                      argv[1]._val = IR_PTR_VAL(strdup("power down"));
                       argv[0]._clas = '\0';
                       argv[0]._frame = '\0';
                       argv[0]._val = 0;
                       argv[0]._size = 0;
                       argv[1]._clas = '\n';
                       argv[1]._frame = '\0';
-                      sVar5 = strlen((char *)argv[1]._val);
+                      sVar5 = strlen((char *)IR_VAL_PTR(argv[1]._val));
                       argv[1]._size = (short)sVar5 + 1;
                       found = (int)IRouterMakePacket(c->id,&addr_,0,0,0,2,2,argv);
                       reqq_put(c->q,(IRPacket *)found,1,0);
@@ -1730,7 +1732,7 @@ int l2cmd_power(CmdData *cptr, char **results, L2CMD *c)
               argc = argc + 1;
               break;
             case '\x02':
-              p = (IRPacket *)((int)&p->_next_frame + 1);
+              p = (IRPacket *)((int)&p->_next_frame + 1);   /* FIXME(64): Ghidra reused p as an integer counter */
               break;
             case '\x03':
               port = port + 1;
@@ -1911,25 +1913,26 @@ int pbay_rsp(IRPacket *rsp, L2CMD *c, IRAddress *dest, int pktsleft, cmd_respons
   int i;
   pbay_data *pd;
   
+  pd = (__typeof__(pd))data;   /* Ghidra merged pd into data */
   emsg[0] = '\0';
   memset(emsg + 1,0,99);
   strlen(cmd_rsp->sptr);
-  if (*(int *)data == 0) {
+  if (pd->snlist == 0) {
     pvVar2 = calloc(pktsleft + 1,4);
-    *(void **)data = pvVar2;
+    pd->snlist = pvVar2;
     pvVar2 = calloc(pktsleft + 1,4);
-    *(void **)((int)data + 4) = pvVar2;
+    pd->snconns = pvVar2;
     pvVar2 = calloc(pktsleft + 1,4);
-    *(void **)((int)data + 8) = pvVar2;
+    pd->snnum = pvVar2;
     pvVar2 = calloc(pktsleft + 1,4);
-    *(void **)((int)data + 0xc) = pvVar2;
+    pd->snaddr = pvVar2;
   }
   if (rsp == NULL) {
     serial = format_address(*dest);
     sprintf(emsg,"ERROR: no response from %s\n",serial);
   }
   else if (rsp->_err == '\0') {
-    if (*(int *)((int)data + 0x14) == 0) {
+    if (pd->stage == 0) {
       if ((rsp->_argv[0]._clas & 7) == 0) {
         uVar3 = rsp->_argv[0]._val;
       }
@@ -1938,7 +1941,7 @@ int pbay_rsp(IRPacket *rsp, L2CMD *c, IRAddress *dest, int pktsleft, cmd_respons
       }
       if (uVar3 != 0) {
         if ((rsp->_argv[1]._clas & 7) == 0) {
-          pcVar4 = (char *)rsp->_argv[1]._val;
+          pcVar4 = (char *)IR_VAL_PTR(rsp->_argv[1]._val);
         }
         else {
           pcVar4 = (char *)IRArg(rsp,1);
@@ -1953,13 +1956,13 @@ int pbay_rsp(IRPacket *rsp, L2CMD *c, IRAddress *dest, int pktsleft, cmd_respons
         goto LAB_08059522;
       }
     }
-    if ((*(int *)((int)data + 0x14) == 0) && (rsp->_argc < 2)) {
+    if ((pd->stage == 0) && (rsp->_argc < 2)) {
       pcVar4 = format_address(*dest);
       sprintf(emsg,"%s:  Pbay busy initializing or PBay communication failure\n",pcVar4);
     }
-    else if (*(int *)((int)data + 0x14) == 0) {
+    else if (pd->stage == 0) {
       if ((rsp->_argv[1]._clas & 7) == 0) {
-        pcVar4 = (char *)rsp->_argv[1]._val;
+        pcVar4 = (char *)IR_VAL_PTR(rsp->_argv[1]._val);
       }
       else {
         pcVar4 = (char *)IRArg(rsp,1);
@@ -1969,27 +1972,27 @@ int pbay_rsp(IRPacket *rsp, L2CMD *c, IRAddress *dest, int pktsleft, cmd_respons
         sVar5 = strlen(pcVar4);
         pcVar4[sVar5 - 1] = '\0';
       }
-      for (i = 0; i < *(int *)((int)data + 0x10); i = i + 1) {
-        iVar8 = strcmp(*(char **)(*(int *)data + i * 4),pcVar4);
+      for (i = 0; i < pd->sncnt; i = i + 1) {
+        iVar8 = strcmp(pd->snlist[i],pcVar4);
         if (iVar8 == 0) {
-          piVar1 = (int *)(*(int *)((int)data + 8) + i * 4);
+          piVar1 = &pd->snnum[i];
           *piVar1 = *piVar1 + 1;
           break;
         }
       }
-      if (i == *(int *)((int)data + 0x10)) {
+      if (i == pd->sncnt) {
         pcVar4 = strdup(pcVar4);
-        *(char **)(*(int *)data + i * 4) = pcVar4;
+        pd->snlist[i] = pcVar4;
         pvVar2 = calloc(100,1);
-        *(void **)(*(int *)((int)data + 4) + i * 4) = pvVar2;
-        piVar1 = (int *)(*(int *)((int)data + 8) + i * 4);
+        pd->snconns[i] = pvVar2;
+        piVar1 = &pd->snnum[i];
         *piVar1 = *piVar1 + 1;
-        *(IRAddress *)(*(int *)((int)data + 0xc) + i * 4) = *dest;
-        *(int *)((int)data + 0x10) = *(int *)((int)data + 0x10) + 1;
+        pd->snaddr[i] = *dest;
+        pd->sncnt = pd->sncnt + 1;
       }
       pcVar4 = format_address(*dest);
-      strcat(*(char **)(*(int *)((int)data + 4) + i * 4),pcVar4);
-      strcat(*(char **)(*(int *)((int)data + 4) + i * 4)," ");
+      strcat(pd->snconns[i],pcVar4);
+      strcat(pd->snconns[i]," ");
     }
   }
   else {
@@ -1998,9 +2001,9 @@ int pbay_rsp(IRPacket *rsp, L2CMD *c, IRAddress *dest, int pktsleft, cmd_respons
     sprintf(emsg,"ERROR: couldn\'t send packet to %s, %s\n",pcVar6,pcVar4);
   }
 LAB_08059522:
-  if (*(int *)((int)data + 0x14) == 0) {
+  if (pd->stage == 0) {
     if (emsg[0] != '\0') {
-      if (*(int *)((int)data + 0x18) == 0) {
+      if (pd->errcnt == 0) {
         pcVar4 = cmd_rsp->eptr;
         if (cmd_rsp->eptr == NULL) {
           pcVar4 = "";
@@ -2021,7 +2024,7 @@ LAB_08059522:
                 "WARNING: ERRORS while reading PowerBay serial numbers from L1 Controllers:\n");
         strlen(pcVar4 + iVar8);
       }
-      *(int *)((int)data + 0x18) = *(int *)((int)data + 0x18) + 1;
+      pd->errcnt = pd->errcnt + 1;
       pcVar4 = cmd_rsp->eptr;
       if (cmd_rsp->eptr == NULL) {
         pcVar4 = "";
@@ -2046,8 +2049,8 @@ LAB_08059522:
     }
   }
   else {
-    for (i = 0; (i < *(int *)((int)data + 0x10) &&
-                (*(IRAddress *)(*(int *)((int)data + 0xc) + i * 4) != *dest)); i = i + 1) {
+    for (i = 0; (i < pd->sncnt &&
+                (pd->snaddr[i] != *dest)); i = i + 1) {
     }
     pcVar4 = cmd_rsp->eptr;
     if (cmd_rsp->eptr == NULL) {
@@ -2064,11 +2067,11 @@ LAB_08059522:
     }
     cmd_rsp->eptr = cmd_rsp->sptr + cmd_rsp->slen;
     pcVar4 = cmd_rsp->sptr + cmd_rsp->slen;
-    if (i == *(int *)((int)data + 0x10)) {
+    if (i == pd->sncnt) {
       pcVar6 = "?????????????";
     }
     else {
-      pcVar6 = *(char **)(*(int *)data + i * 4);
+      pcVar6 = pd->snlist[i];
     }
     pcVar7 = format_address(*dest);
     sprintf(pcVar4,"%s:   [PowerBay %s]\n",pcVar7,pcVar6);
@@ -2108,41 +2111,41 @@ LAB_08059522:
     sVar5 = strlen(pcVar4);
     iVar8 = sVar5 + cmd_rsp->slen;
     cmd_rsp->slen = iVar8;
-    if (cmd_rsp->size <= iVar8 + *(int *)((int)data + 0x10) * 0x50 + 0x10) {
-      sVar5 = cmd_rsp->size + 0x200 + *(int *)((int)data + 0x10) * 0x50;
+    if (cmd_rsp->size <= iVar8 + pd->sncnt * 0x50 + 0x10) {
+      sVar5 = cmd_rsp->size + 0x200 + pd->sncnt * 0x50;
       cmd_rsp->size = sVar5;
       pcVar4 = realloc(cmd_rsp->sptr,sVar5);
       cmd_rsp->sptr = pcVar4;
     }
     cmd_rsp->eptr = cmd_rsp->sptr + cmd_rsp->slen;
     rptr = cmd_rsp->sptr + cmd_rsp->slen;
-    if ((*(int *)((int)data + 0x18) == 0) && (cmd_rsp->status != -1)) {
+    if ((pd->errcnt == 0) && (cmd_rsp->status != -1)) {
       iVar8 = 0;
     }
     else {
       iVar8 = -1;
     }
     cmd_rsp->status = iVar8;
-    if ((*(int *)((int)data + 0x14) == 0) && (*(int *)((int)data + 0x18) != 0)) {
+    if ((pd->stage == 0) && (pd->errcnt != 0)) {
       strcat(rptr,"\n");
       sVar5 = strlen(rptr);
       rptr = rptr + sVar5;
     }
-    if (*(int *)((int)data + 0x20) == 0) {
-      for (i = 0; i < *(int *)((int)data + 0x10); i = i + 1) {
-        sprintf(rptr,"PowerBay %s: %s\n",*(undefined4 *)(*(int *)data + i * 4),
-                *(undefined4 *)(*(int *)((int)data + 4) + i * 4));
+    if (pd->cmd == 0) {
+      for (i = 0; i < pd->sncnt; i = i + 1) {
+        sprintf(rptr,"PowerBay %s: %s\n",pd->snlist[i],
+                pd->snconns[i]);
         sVar5 = strlen(rptr);
         rptr = rptr + sVar5;
       }
     }
-    else if ((*(int *)((int)data + 0x14) == 0) && (0 < *(int *)((int)data + 0x10))) {
-      sprintf(cmd,"pbay %s",*(undefined4 *)((int)data + 0x20));
+    else if ((pd->stage == 0) && (0 < pd->sncnt)) {
+      sprintf(cmd,"pbay %s",pd->cmd);
       dest_reset(c->dest);
-      memcpy(c->dest->list,*(void **)((int)data + 0xc),*(int *)((int)data + 0x10) * 4);
-      c->dest->count = *(int *)((int)data + 0x10);
+      memcpy(c->dest->list,pd->snaddr,pd->sncnt * 4);
+      c->dest->count = pd->sncnt;
       c->dest->type = 1;
-      *(undefined4 *)((int)data + 0x14) = 1;
+      pd->stage = 1;
       reqrspq_reset(c->q);
       broadcast_l1(c,1,cmd,1,0,0xff,NULL,1);
       if (0 < c->q->rspq_pending) {
@@ -2166,19 +2169,19 @@ LAB_08059522:
              "ERROR: pbay command not sent to any L1\'s due to previous errors!\n");
       cmd_rsp->status = -1;
     }
-    *(uint *)(*(int *)((int)data + 0x1c) + 0x1c) =
-         *(uint *)(*(int *)((int)data + 0x1c) + 0x1c) & 0xfffffffd;
-    l2cmd_process_response(*(L2CMD **)((int)data + 0x1c),cmd_rsp->sptr,cmd_rsp->status);
-    for (i = 0; i < *(int *)((int)data + 0x10); i = i + 1) {
-      free(*(void **)(*(int *)data + i * 4));
-      free(*(void **)(*(int *)((int)data + 4) + i * 4));
+    pd->orig_c->busy =
+         pd->orig_c->busy & 0xfffffffd;
+    l2cmd_process_response(pd->orig_c,cmd_rsp->sptr,cmd_rsp->status);
+    for (i = 0; i < pd->sncnt; i = i + 1) {
+      free(pd->snlist[i]);
+      free(pd->snconns[i]);
     }
-    free(*(void **)data);
-    free(*(void **)((int)data + 4));
-    free(*(void **)((int)data + 8));
-    free(*(void **)((int)data + 0xc));
-    if (*(int *)((int)data + 0x20) != 0) {
-      free(*(void **)((int)data + 0x20));
+    free(pd->snlist);
+    free(pd->snconns);
+    free(pd->snnum);
+    free(pd->snaddr);
+    if (pd->cmd != 0) {
+      free(pd->cmd);
     }
     free(data);
   }
@@ -3487,22 +3490,23 @@ static int ver_summary_rsp(IRPacket *rsp, L2CMD *c, IRAddress *dest, int pktslef
   ver_summary_data *sd;
   bool print_errcnt;
   
+  sd = (__typeof__(sd))data;   /* Ghidra merged sd into data */
   emsg[0] = '\0';
   memset(emsg + 1,0,99);
   sVar2 = strlen(cmd_rsp->sptr);
   rptr = cmd_rsp->sptr + sVar2;
-  if (*(int *)((int)data + 4) == 0) {
+  if (sd->verslist == 0) {
     pvVar3 = calloc(pktsleft + 1,4);
-    *(void **)((int)data + 4) = pvVar3;
+    sd->verslist = pvVar3;
     pvVar3 = calloc(pktsleft + 1,4);
-    *(void **)((int)data + 8) = pvVar3;
+    sd->versnum = pvVar3;
     if (((*dest & 0x80000000) == 0) && (*dest >> 0x1c == 0)) {
       puVar7 = "L1";
     }
     else {
       puVar7 = "L2";
     }
-    *(undefined **)((int)data + 0x14) = puVar7;
+    sd->ptype = puVar7;
   }
   if (rsp == NULL) {
     verstr = format_address(*dest);
@@ -3517,7 +3521,7 @@ static int ver_summary_rsp(IRPacket *rsp, L2CMD *c, IRAddress *dest, int pktslef
     }
     if (uVar5 == 0) {
       if ((rsp->_argv[1]._clas & 7) == 0) {
-        pcVar6 = (char *)rsp->_argv[1]._val;
+        pcVar6 = (char *)IR_VAL_PTR(rsp->_argv[1]._val);
       }
       else {
         pcVar6 = (char *)IRArg(rsp,1);
@@ -3528,20 +3532,20 @@ static int ver_summary_rsp(IRPacket *rsp, L2CMD *c, IRAddress *dest, int pktslef
         sprintf(emsg,"    ERROR: could not get flash version of %s\n",pcVar6);
       }
       else {
-        for (i = 0; i < *(int *)((int)data + 0xc); i = i + 1) {
-          iVar8 = strcmp(*(char **)(*(int *)((int)data + 4) + i * 4),version);
+        for (i = 0; i < sd->verscnt; i = i + 1) {
+          iVar8 = strcmp(sd->verslist[i],version);
           if (iVar8 == 0) {
-            piVar1 = (int *)(*(int *)((int)data + 8) + i * 4);
+            piVar1 = &sd->versnum[i];
             *piVar1 = *piVar1 + 1;
             break;
           }
         }
-        if (i == *(int *)((int)data + 0xc)) {
+        if (i == sd->verscnt) {
           pcVar6 = strdup(version);
-          *(char **)(*(int *)((int)data + 4) + *(int *)((int)data + 0xc) * 4) = pcVar6;
-          piVar1 = (int *)(*(int *)((int)data + 8) + *(int *)((int)data + 0xc) * 4);
+          *(char **)(sd->verslist + sd->verscnt * 4) = pcVar6;
+          piVar1 = (int *)(sd->versnum + sd->verscnt * 4);
           *piVar1 = *piVar1 + 1;
-          *(int *)((int)data + 0xc) = *(int *)((int)data + 0xc) + 1;
+          sd->verscnt = sd->verscnt + 1;
         }
       }
     }
@@ -3561,8 +3565,8 @@ static int ver_summary_rsp(IRPacket *rsp, L2CMD *c, IRAddress *dest, int pktslef
     pcVar4 = format_address(*dest);
     sprintf(emsg,"    ERROR: couldn\'t send packet to %s, %s\n",pcVar4,pcVar6);
   }
-  if ((emsg[0] != '\0') && (*(int *)data == 0)) {
-    if (*(int *)((int)data + 0x10) == 0) {
+  if ((emsg[0] != '\0') && (sd->quiet == 0)) {
+    if (sd->errcnt == 0) {
       pcVar6 = cmd_rsp->eptr;
       if (cmd_rsp->eptr == NULL) {
         pcVar6 = "";
@@ -3578,8 +3582,8 @@ static int ver_summary_rsp(IRPacket *rsp, L2CMD *c, IRAddress *dest, int pktslef
       }
       cmd_rsp->eptr = cmd_rsp->sptr + cmd_rsp->slen;
       rptr = cmd_rsp->sptr + cmd_rsp->slen;
-      uVar9 = *(undefined4 *)((int)data + 0x14);
-      iVar8 = strcmp(*(char **)((int)data + 0x14),"L1");
+      uVar9 = sd->ptype;
+      iVar8 = strcmp(sd->ptype,"L1");
       if (iVar8 == 0) {
         puVar7 = "\n";
       }
@@ -3591,7 +3595,7 @@ static int ver_summary_rsp(IRPacket *rsp, L2CMD *c, IRAddress *dest, int pktslef
       sVar2 = strlen(rptr);
       rptr = rptr + sVar2;
     }
-    *(int *)((int)data + 0x10) = *(int *)((int)data + 0x10) + 1;
+    sd->errcnt = sd->errcnt + 1;
     pcVar6 = cmd_rsp->eptr;
     if (cmd_rsp->eptr == NULL) {
       pcVar6 = "";
@@ -3624,77 +3628,77 @@ static int ver_summary_rsp(IRPacket *rsp, L2CMD *c, IRAddress *dest, int pktslef
     sVar2 = strlen(pcVar6);
     iVar8 = sVar2 + cmd_rsp->slen;
     cmd_rsp->slen = iVar8;
-    if (cmd_rsp->size <= iVar8 + *(int *)((int)data + 0xc) * 0x50 + 0x10) {
-      sVar2 = cmd_rsp->size + 0x200 + *(int *)((int)data + 0xc) * 0x50;
+    if (cmd_rsp->size <= iVar8 + sd->verscnt * 0x50 + 0x10) {
+      sVar2 = cmd_rsp->size + 0x200 + sd->verscnt * 0x50;
       cmd_rsp->size = sVar2;
       pcVar6 = realloc(cmd_rsp->sptr,sVar2);
       cmd_rsp->sptr = pcVar6;
     }
     cmd_rsp->eptr = cmd_rsp->sptr + cmd_rsp->slen;
     rptr_ = cmd_rsp->sptr + cmd_rsp->slen;
-    if ((cmd_rsp->status == -1) || (*(int *)((int)data + 0x10) != 0)) {
+    if ((cmd_rsp->status == -1) || (sd->errcnt != 0)) {
       iVar8 = -1;
     }
     else {
       iVar8 = 0;
     }
     cmd_rsp->status = iVar8;
-    if (*(int *)((int)data + 0x10) != 0) {
+    if (sd->errcnt != 0) {
       strcat(rptr_,"\n");
       sVar2 = strlen(rptr_);
       rptr_ = rptr_ + sVar2;
     }
-    if ((*(int *)((int)data + 0xc) == 1) && (*(int *)data == 0)) {
-      if (**(int **)((int)data + 8) == 1) {
+    if ((sd->verscnt == 1) && (sd->quiet == 0)) {
+      if (*sd->versnum == 1) {
         sprintf(rptr_,"%s Controller is running firmware version %s\n",
-                *(undefined4 *)((int)data + 0x14),**(undefined4 **)((int)data + 4));
+                sd->ptype,*sd->verslist);
       }
       else {
-        if (*(int *)((int)data + 0x10) == 0) {
+        if (sd->errcnt == 0) {
           puVar7 = "All ";
         }
         else {
           puVar7 = "";
         }
         sprintf(rptr_,"%s%d %s Controllers are running firmware version %s\n",puVar7,
-                **(undefined4 **)((int)data + 8),*(undefined4 *)((int)data + 0x14),
-                **(undefined4 **)((int)data + 4));
+                *sd->versnum,sd->ptype,
+                *sd->verslist);
       }
       sVar2 = strlen(rptr_);
       rptr_ = rptr_ + sVar2;
       print_errcnt = true;
     }
-    else if (1 < *(int *)((int)data + 0xc)) {
+    else if (1 < sd->verscnt) {
       sprintf(rptr_,"WARNING: multiple %s Controller firmware versions detected!\n",
-              *(undefined4 *)((int)data + 0x14));
+              sd->ptype);
       sVar2 = strlen(rptr_);
       rptr_ = rptr_ + sVar2;
-      for (i = 0; i < *(int *)((int)data + 0xc); i = i + 1) {
+      for (i = 0; i < sd->verscnt; i = i + 1) {
         sprintf(rptr_,"%d %s Controllers are running firmware version %s\n",
-                *(undefined4 *)(*(int *)((int)data + 8) + i * 4),*(undefined4 *)((int)data + 0x14),
-                *(undefined4 *)(*(int *)((int)data + 4) + i * 4));
+                sd->versnum[i],sd->ptype,
+                sd->verslist[i]);
         sVar2 = strlen(rptr_);
         rptr_ = rptr_ + sVar2;
       }
       print_errcnt = true;
     }
-    if ((print_errcnt) && (*(int *)((int)data + 0x10) != 0)) {
+    if ((print_errcnt) && (sd->errcnt != 0)) {
       sprintf(rptr_,"%d %s Controller(s) could not be checked due to error(s)\n",
-              *(undefined4 *)((int)data + 0x10),*(undefined4 *)((int)data + 0x14));
+              sd->errcnt,sd->ptype);
     }
-    for (i = 0; i < *(int *)((int)data + 0xc); i = i + 1) {
-      free(*(void **)(*(int *)((int)data + 4) + i * 4));
+    for (i = 0; i < sd->verscnt; i = i + 1) {
+      free(sd->verslist[i]);
     }
-    free(*(void **)((int)data + 4));
-    free(*(void **)((int)data + 8));
-    *(undefined4 *)((int)data + 4) = 0;
-    *(undefined4 *)((int)data + 8) = 0;
-    *(undefined4 *)((int)data + 0xc) = 0;
-    *(undefined4 *)((int)data + 0x10) = 0;
+    free(sd->verslist);
+    free(sd->versnum);
+    sd->verslist = 0;
+    sd->versnum = 0;
+    sd->verscnt = 0;
+    sd->errcnt = 0;
     if (c->q->reqq_length < 1) {
-      *(uint *)(*(int *)((int)data + 0x18) + 0x1c) =
-           *(uint *)(*(int *)((int)data + 0x18) + 0x1c) & 0xfffffffd;
-      l2cmd_process_response(*(L2CMD **)((int)data + 0x18),cmd_rsp->sptr,cmd_rsp->status);
+      sd->orig_c->busy =
+           sd->orig_c->busy & 0xfffffffd;
+      l2cmd_process_response(sd->orig_c,cmd_rsp->sptr,cmd_rsp->status);
       free(data);
     }
   }

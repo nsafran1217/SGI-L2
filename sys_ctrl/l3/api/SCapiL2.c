@@ -60,7 +60,7 @@ int sn1SCDiscoverL2(char *dev, char *client_info, sn1SC_L2 **l2_return_list, int
   l2_local = 0;
   *l2_cnt = 0;
   l2_list_size = 10;
-  l2_list = malloc(0xb68);
+  l2_list = malloc(10 * sizeof(sn1SC_L2));
   if (l2_list == NULL) {
     iVar1 = -1;
   }

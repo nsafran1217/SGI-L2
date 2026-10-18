@@ -1148,7 +1148,7 @@ int sn1SCTextCmd(IRAddress *toaddr, char *cmd, char **rsp)
   av[0]._size = 0;
   av[1]._clas = '\n';
   av[1]._frame = '\0';
-  av[1]._val = (uint32)strdup(cmd);
+  av[1]._val = IR_PTR_VAL(strdup(cmd));
   pcVar1 = strdup(cmd);
   rstr = (char *)strlen(pcVar1);
   av[1]._size = (short)rstr + 1;

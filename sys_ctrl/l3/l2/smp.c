@@ -1227,7 +1227,7 @@ void smp_process_packet(SMP *smp, IRPacket *p, int source, void (*w)())
   for (arg = 0; arg < (int)(uint)p->_argc; arg = arg + 1) {
     if ((p->_argv[arg]._clas & 7) == 2) {
       if ((p->_argv[arg]._clas & 7) == 0) {
-        sptr = (char *)p->_argv[arg]._val;
+        sptr = (char *)IR_VAL_PTR(p->_argv[arg]._val);
       }
       else {
         sptr = (char *)IRArg(p,arg);
@@ -1404,7 +1404,7 @@ LAB_08050790:
       else {
         iVar1 = -1;
         if ((pkt->_argv[1]._clas & 7) == 0) {
-          pcVar2 = (char *)pkt->_argv[1]._val;
+          pcVar2 = (char *)IR_VAL_PTR(pkt->_argv[1]._val);
         }
         else {
           pcVar2 = (char *)IRArg(pkt,1);
@@ -1529,29 +1529,30 @@ static void smp_command_done(L2CMD *c, void *data, char *crsp, int rval)
   SMP *smp;
   char buff [80];
   
+  smp = (__typeof__(smp))data;   /* Ghidra merged smp into data */
   if (crsp != NULL) {
     smp_output(data,crsp,-1);
   }
   iVar2 = reqq_empty(c->q);
   if ((iVar2 != 0) && (iVar2 = rspq_empty(c->q), iVar2 != 0)) {
     c->busy = 0;
-    if (*(int *)(*(int *)((int)data + 0x1c) + 8) == 2) {
+    if (smp->grp->mode == 2) {
       conaddr = smp_chkcon_present(data);
       if (conaddr == 0) {
         return;
       }
       smp_console(data,conaddr,1);
     }
-    else if (*(int *)(*(int *)((int)data + 0x1c) + 8) == 4) {
-      pcVar3 = format_address(*(IRAddress *)(*(int *)((int)data + 0x1c) + 0x14));
+    else if (smp->grp->mode == 4) {
+      pcVar3 = format_address(smp->grp->l1addr);
       sprintf(buff,"\nre-entering L1 mode %s, <CTRL-T> to escape to L2\n",pcVar3);
       smp_output(data,buff,-1);
       smp_set_mode(data,3);
     }
-    else if (*(int *)(*(int *)((int)data + 0x1c) + 8) == 3) {
+    else if (smp->grp->mode == 3) {
       cfg = L2CfgMFindBrickCfg(&L2CfgLocal,
-                               *(uint *)(*(int *)((int)data + 0x1c) + 0x14) >> 0x12 & 0x3ff,
-                               *(uint *)(*(int *)((int)data + 0x1c) + 0x14) >> 0xc & 0x3f,0);
+                               smp->grp->l1addr >> 0x12 & 0x3ff,
+                               smp->grp->l1addr >> 0xc & 0x3f,0);
       if ((cfg != NULL) && (cfg->console_enabled != '\0')) {
         smp_output(data,"L1 appears to be in console mode, switching it to L1 mode\n",-1);
         smp_input_l1sysco(data,0x14);
@@ -1560,15 +1561,14 @@ static void smp_command_done(L2CMD *c, void *data, char *crsp, int rval)
         smp_input_l1sysco(data,10);
       }
     }
-    else if (*(int *)(*(int *)((int)data + 0x1c) + 8) == 0) {
+    else if (smp->grp->mode == 0) {
       smp_prompt(data);
     }
-    if (*(int *)(*(int *)((int)data + 0x1c) + 0x24) != 0) {
-      while (*(int *)(*(int *)((int)data + 0x1c) + 0x24) != 0) {
-        piVar1 = (int *)(*(int *)((int)data + 0x1c) + 0x24);
+    if (smp->grp->ilen != 0) {
+      while (smp->grp->ilen != 0) {
+        piVar1 = &smp->grp->ilen;
         *piVar1 = *piVar1 + -1;
-        smp_input(data,(char *)(*(int *)((int)data + 0x1c) +
-                               *(int *)(*(int *)((int)data + 0x1c) + 0x24) + 0x20),1);
+        smp_input(data,&smp->grp->ibuf[smp->grp->ilen],1);
       }
     }
   }
@@ -1926,10 +1926,10 @@ static void smp_event(int opcode, int group, char *bptr)
     argv[2]._size = 0;
   }
   else {
-    argv[2]._val = (uint32)strdup(bptr);
+    argv[2]._val = IR_PTR_VAL(strdup(bptr));
     argv[2]._clas = '\n';
     argv[2]._frame = '\0';
-    sVar1 = strlen((char *)argv[2]._val);
+    sVar1 = strlen((char *)IR_VAL_PTR(argv[2]._val));
     argv[2]._size = (short)sVar1 + 1;
   }
   p = IRouterMakePacket(&l2_console_id,NULL,0,(uint)(opcode != 4),2,2,3,argv);

@@ -134,7 +134,7 @@ void cmd_process_request(IRPacket *req)
   
   rptr = NULL;
   if ((req->_argv[1]._clas & 7) == 0) {
-    cmd = (char *)req->_argv[1]._val;
+    cmd = (char *)IR_VAL_PTR(req->_argv[1]._val);
   }
   else {
     cmd = (char *)IRArg(req,1);
@@ -204,7 +204,7 @@ void cmd_process_request(IRPacket *req)
         else {
           argv[1]._clas = '\n';
           argv[1]._frame = '\0';
-          argv[1]._val = (uint32)rptr;
+          argv[1]._val = IR_PTR_VAL(rptr);
           sVar1 = strlen(rptr);
           argv[1]._size = (short)sVar1 + 1;
         }
@@ -215,11 +215,11 @@ void cmd_process_request(IRPacket *req)
       argv[0]._frame = '\0';
       argv[0]._val = 0xffffffff;
       argv[0]._size = 0;
-      argv[1]._val = (uint32)strdup("ERROR: command library is busy\n");
+      argv[1]._val = IR_PTR_VAL(strdup("ERROR: command library is busy\n"));
       argv[1]._clas = '\n';
       argv[1]._frame = '\0';
-      rptr = (char *)argv[1]._val;
-      sVar1 = strlen((char *)argv[1]._val);
+      rptr = (char *)IR_VAL_PTR(argv[1]._val);
+      sVar1 = strlen((char *)IR_VAL_PTR(argv[1]._val));
       argv[1]._size = (short)sVar1 + 1;
     }
     argc = 2;
@@ -312,7 +312,7 @@ static void cmd_send_response(L2CMD *c, void *data, char *sptr, int rval)
           pcVar2[sVar3] = '\0';
           cmd_argv[cmd_argc]._clas = '\n';
           cmd_argv[cmd_argc]._frame = '\0';
-          cmd_argv[cmd_argc]._val = (uint32)pcVar2;
+          cmd_argv[cmd_argc]._val = IR_PTR_VAL(pcVar2);
           iVar1 = cmd_argc;
           sVar3 = strlen(pcVar2);
           cmd_argv[iVar1]._size = (short)sVar3 + 1;
@@ -575,7 +575,7 @@ int cmd_process_packet_args(IRPacket *rsp, L2CMD *c, IRAddress *dest, cmd_respon
       iVar4 = sVar2 + cmd_rsp->slen;
       cmd_rsp->slen = iVar4;
       if ((rsp->_argv[arg]._clas & 7) == 0) {
-        pcVar1 = (char *)rsp->_argv[arg]._val;
+        pcVar1 = (char *)IR_VAL_PTR(rsp->_argv[arg]._val);
       }
       else {
         pcVar1 = (char *)IRArg(rsp,arg);
@@ -584,7 +584,7 @@ int cmd_process_packet_args(IRPacket *rsp, L2CMD *c, IRAddress *dest, cmd_respon
       if ((uint)cmd_rsp->size <= sVar2 + iVar4 + 0x10) {
         iVar4 = cmd_rsp->size;
         if ((rsp->_argv[arg]._clas & 7) == 0) {
-          pcStack_c = (char *)rsp->_argv[arg]._val;
+          pcStack_c = (char *)IR_VAL_PTR(rsp->_argv[arg]._val);
         }
         else {
           pcStack_c = (char *)IRArg(rsp,arg);
@@ -597,7 +597,7 @@ int cmd_process_packet_args(IRPacket *rsp, L2CMD *c, IRAddress *dest, cmd_respon
       }
       cmd_rsp->eptr = cmd_rsp->sptr + cmd_rsp->slen;
       if ((rsp->_argv[arg]._clas & 7) == 0) {
-        pcVar1 = (char *)rsp->_argv[arg]._val;
+        pcVar1 = (char *)IR_VAL_PTR(rsp->_argv[arg]._val);
       }
       else {
         pcVar1 = (char *)IRArg(rsp,arg);

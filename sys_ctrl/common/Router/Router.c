@@ -1044,11 +1044,11 @@ static int RouterProcessConfigInit(RouterClient *client, int argcountin)
     RouterDoOutput(client,0,0x18,1,&arglist,NULL,NULL,NULL,
                    NULL,0,NULL);
     RouterFlushOutput(client,0);
-    __s = malloc(0x48);
+    __s = malloc(sizeof(RouterConfig));
     if (__s == NULL) {
       RouterMemError();
     }
-    memset(__s,0,0x48);
+    memset(__s,0,sizeof(RouterConfig));
     __s->rev = (uint)*(byte *)(uVar1 + 1) << 0x10 | (uint)*(byte *)(uVar1 + 2) << 8 |
                (uint)*(byte *)(uVar1 + 3);
     __s->flags = (uint)*(byte *)(uVar1 + 5) << 0x10 | (uint)*(byte *)(uVar1 + 6) << 8 |
@@ -1085,11 +1085,11 @@ static int RouterProcessConfigRequest(RouterClient *client, int argcountin)
     RouterDoOutput(client,0,0x21,1,&arglist,NULL,NULL,NULL,
                    NULL,0,NULL);
     RouterFlushOutput(client,0);
-    __s = malloc(0x48);
+    __s = malloc(sizeof(RouterConfig));
     if (__s == NULL) {
       RouterMemError();
     }
-    memset(__s,0,0x48);
+    memset(__s,0,sizeof(RouterConfig));
     __s->rev = (uint)*(byte *)(uVar1 + 1) << 0x10 | (uint)*(byte *)(uVar1 + 2) << 8 |
                (uint)*(byte *)(uVar1 + 3);
     __s->flags = (uint)*(byte *)(uVar1 + 5) << 0x10 | (uint)*(byte *)(uVar1 + 6) << 8 |
@@ -1122,11 +1122,11 @@ static int RouterProcessConfigResponse(RouterClient *client, int argcountin)
   
   if (argcountin == 1) {
     uVar1 = client->InArgList->val;
-    __s = malloc(0x48);
+    __s = malloc(sizeof(RouterConfig));
     if (__s == NULL) {
       RouterMemError();
     }
-    memset(__s,0,0x48);
+    memset(__s,0,sizeof(RouterConfig));
     __s->rev = (uint)*(byte *)(uVar1 + 1) << 0x10 | (uint)*(byte *)(uVar1 + 2) << 8 |
                (uint)*(byte *)(uVar1 + 3);
     __s->flags = (uint)*(byte *)(uVar1 + 5) << 0x10 | (uint)*(byte *)(uVar1 + 6) << 8 |
@@ -1135,7 +1135,7 @@ static int RouterProcessConfigResponse(RouterClient *client, int argcountin)
       free(client->in_cfg);
     }
     if ((client->out_cfg == NULL) ||
-       (iVar2 = memcmp(__s,client->out_cfg,0x48), iVar2 != 0)) {
+       (iVar2 = memcmp(__s,client->out_cfg,sizeof(RouterConfig)), iVar2 != 0)) {
       client->in_cfg = __s;
     }
     else {
@@ -1425,7 +1425,7 @@ void RouterPack(RouterClient *client, int opcode, int class, int argcount, Route
   if ((client->out_cfg != NULL) && ((client->out_cfg->flags & 0x80000000) != 0)) {
     compress = 1;
   }
-  pRVar6 = malloc(0x28);
+  pRVar6 = malloc(sizeof(RouterQEntry));
   *entry = pRVar6;
   if (pRVar6 == NULL) {
     RouterMemError();
@@ -1442,7 +1442,7 @@ void RouterPack(RouterClient *client, int opcode, int class, int argcount, Route
       size = size + 8;
     }
     else {
-      size = size + 4 + ((*(int *)(arglist + i) >> 8) + 3U & 0xfffffffc);
+      size = size + 4 + ((arglist[i].size) + 3U & 0xfffffffc);
     }
   }
   pRVar7 = malloc(size + 8);
@@ -1461,7 +1461,7 @@ void RouterPack(RouterClient *client, int opcode, int class, int argcount, Route
   data_start = (uchar *)((*entry)->packet + 1);
   buf_ptr = data_start;
   for (i = 0; i < argcount; i = i + 1) {
-    lbitbuf.value = htonl(arglist[i].clas << 0x18 | *(int *)(arglist + i) >> 8);
+    lbitbuf.value = htonl(arglist[i].clas << 0x18 | arglist[i].size);
     memcpy(buf_ptr,&lbitbuf,4);
     buf_ptr = buf_ptr + 4;
     if (arglist[i].clas == 0) {
@@ -1470,8 +1470,8 @@ void RouterPack(RouterClient *client, int opcode, int class, int argcount, Route
       buf_ptr = buf_ptr + 4;
     }
     else {
-      memcpy(buf_ptr,(void *)arglist[i].val,*(int *)(arglist + i) >> 8);
-      buf_ptr = buf_ptr + ((*(int *)(arglist + i) >> 8) + 3U & 0xfffffffc);
+      memcpy(buf_ptr,(void *)arglist[i].val,arglist[i].size);
+      buf_ptr = buf_ptr + ((arglist[i].size) + 3U & 0xfffffffc);
     }
   }
   if ((compress == 0) || (size < 1)) {

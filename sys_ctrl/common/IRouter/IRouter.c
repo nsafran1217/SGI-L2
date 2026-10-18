@@ -64,7 +64,7 @@ static IRFrame *IRouterCreateFrame(int size, int min, int max, int *act, IRFrame
     *act = max;
     size = max;
   }
-  __s = malloc(size + 0x10);
+  __s = malloc(size + IR_FRAME_PREFIX);
   if (__s == NULL) {
     while (firstframe != NULL) {
       p_Var1 = firstframe->_next_frame;
@@ -74,7 +74,7 @@ static IRFrame *IRouterCreateFrame(int size, int min, int max, int *act, IRFrame
     __s = NULL;
   }
   else {
-    memset(__s,0,size + 0x10);
+    memset(__s,0,size + IR_FRAME_PREFIX);
     __s->_rev = '\x02';
     if (firstframe != NULL) {
       memcpy(&__s->_size,&firstframe->_size,0x14);
@@ -129,7 +129,7 @@ static int IRouterCreatePacket(IRPacket **rpkt, int clas, int eframe, int pdata,
         pktsize = 0x14;
         for (arg = 0; arg < argcount; arg = arg + 1) {
           if ((arglist[arg]._clas & 8) != 0) {
-            free((void *)arglist[arg]._val);
+            free(IR_VAL_PTR(arglist[arg]._val));
           }
         }
         argcount = 0;
@@ -178,10 +178,10 @@ static int IRouterCreatePacket(IRPacket **rpkt, int clas, int eframe, int pdata,
               else {
                 fragsize = pktpayload;
               }
-              memcpy(dataptr,(void *)(argoffset + arglist[arg]._val),fragsize);
+              memcpy(dataptr,(uint8 *)IR_VAL_PTR(arglist[arg]._val) + argoffset,fragsize);
               if (!fragcount) {
                 firstframe->_argv[arg]._frame = (byte)framenum;
-                firstframe->_argv[arg]._val = (int)dataptr - (int)currframe;
+                firstframe->_argv[arg]._val = IR_DATA_OFFSET(currframe, dataptr);
                 fragcount = true;
               }
               argoffset = argoffset + fragsize;
@@ -202,7 +202,7 @@ static int IRouterCreatePacket(IRPacket **rpkt, int clas, int eframe, int pdata,
               }
             } while (pktpayload != 0);
             if ((arglist[arg]._clas & 8) != 0) {
-              free((void *)arglist[arg]._val);
+              free(IR_VAL_PTR(arglist[arg]._val));
             }
           }
           else {
@@ -216,12 +216,12 @@ static int IRouterCreatePacket(IRPacket **rpkt, int clas, int eframe, int pdata,
               curframesize = 0x14;
               dataptr = &currframe->_argv[0]._clas;
             }
-            memcpy(dataptr,(void *)arglist[arg]._val,pktpayload);
+            memcpy(dataptr,IR_VAL_PTR(arglist[arg]._val),pktpayload);
             if ((arglist[arg]._clas & 8) != 0) {
-              free((void *)arglist[arg]._val);
+              free(IR_VAL_PTR(arglist[arg]._val));
             }
             firstframe->_argv[arg]._frame = (byte)framenum;
-            firstframe->_argv[arg]._val = (int)dataptr - (int)currframe;
+            firstframe->_argv[arg]._val = IR_DATA_OFFSET(currframe, dataptr);
             dataptr = dataptr + pktpayload;
             curframesize = curframesize + pktpayload;
             currframe->_size = (uint16)curframesize;
@@ -445,7 +445,7 @@ int IRouterReadPacket(IRIdent *id, int (*rfcn)(), void *fd, IRPacket **pkt)
         return status;
       }
     }
-    currframe = malloc(0x410);
+    currframe = malloc(0x400 + IR_FRAME_PREFIX);   /* 1024-byte wire frame */
     if (currframe == NULL) {
       currframe = NULL;
       while (pIVar2 = firstframe, firstframe != NULL) {
@@ -540,9 +540,9 @@ int IRouterWritePacketReliable(IRIdent *id, int (*wfcn)(), void *fd, IRPacket *p
       return 0;
     }
     wsize = (int)p->_size;
-    frame = malloc(wsize + 0x10);
+    frame = malloc(wsize + IR_FRAME_PREFIX);
     if (frame == NULL) break;
-    memcpy(frame,p,wsize + 0x10);
+    memcpy(frame,p,wsize + IR_FRAME_PREFIX);
     IRouterSetFrameByteOrder(frame,1);
     status = (*wfcn)(fd,&frame->_size,wsize);
     if (status != wsize) {
@@ -609,7 +609,7 @@ void IRouterSetFrameByteOrder(IRFrame *frame, int byteorder)
   return;
 }
 
-unsigned int IRArg(IRPacket *pkt, int arg)
+uintptr_t IRArg(IRPacket *pkt, int arg)
 {
   uint8 *puVar1;
   uint8 **ppuVar2;
@@ -622,7 +622,7 @@ unsigned int IRArg(IRPacket *pkt, int arg)
   
   if (arg < (int)(uint)pkt->_argc) {
     if ((pkt->_argv[arg]._clas & 7) == 0) {
-      puVar1 = (uint8 *)pkt->_argv[arg]._val;
+      return pkt->_argv[arg]._val;     /* inline value */
     }
     else {
       fnum = (uint)pkt->_argv[arg]._frame;
@@ -635,15 +635,16 @@ unsigned int IRArg(IRPacket *pkt, int arg)
       }
       else {
         argsize = (int)pkt->_argv[arg]._size;
-        puVar1 = (uint8 *)((int)fptr->_argv + (pkt->_argv[arg]._val - 0x24));
-        if ((int)fptr + ((fptr->_size + 0x10) - (int)puVar1) < (uint)argsize) {
+        puVar1 = IR_DATA_PTR(fptr, pkt->_argv[arg]._val);
+        /* data continues in the next frame(s): assemble a copy */
+        if ((uint)((IR_FRAME_WIRE(fptr) + fptr->_size) - puVar1) < (uint)argsize) {
           if (pkt->_arg_data == NULL) {
-            ppuVar2 = malloc((uint)pkt->_argc * 4);
+            ppuVar2 = malloc((uint)pkt->_argc * sizeof(uint8 *));
             pkt->_arg_data = ppuVar2;
             if (ppuVar2 == NULL) {
               return 0;
             }
-            memset(pkt->_arg_data,0,(uint)pkt->_argc * 4);
+            memset(pkt->_arg_data,0,(uint)pkt->_argc * sizeof(uint8 *));
           }
           if (pkt->_arg_data[arg] == NULL) {
             puVar1 = malloc((uint)pkt->_argv[arg]._size);
@@ -653,8 +654,8 @@ unsigned int IRArg(IRPacket *pkt, int arg)
             }
             else {
               bptr = pkt->_arg_data[arg];
-              dptr = (uchar *)((int)fptr->_argv + (pkt->_argv[arg]._val - 0x24));
-              dlen = (int)fptr + ((fptr->_size + 0x10) - (int)dptr);
+              dptr = IR_DATA_PTR(fptr, pkt->_argv[arg]._val);
+              dlen = (IR_FRAME_WIRE(fptr) + fptr->_size) - dptr;
               do {
                 memcpy(bptr,dptr,dlen);
                 bptr = bptr + dlen;
@@ -681,7 +682,7 @@ unsigned int IRArg(IRPacket *pkt, int arg)
   else {
     puVar1 = NULL;
   }
-  return (uint)puVar1;
+  return (uintptr_t)puVar1;
 }
 
 char *IRFmtClas(int clas)
@@ -839,3 +840,31 @@ char *IRFmtError(int errcode)
   }
   return pcVar1;
 }
+
+#if UINTPTR_MAX != 0xffffffffu
+/* 64-bit hosts: pointers placed in a 32-bit IRArgument _val (see IR_PTR_VAL
+ * in IRouter.h) are kept in a ring; the value is slot + 1 (0 stays NULL).
+ * A pointer only needs to live until the packet is built from the argument
+ * list, a few stores later; the ring holds the last 65536. */
+#define IR_PTR_RING 65536
+static const void *ir_ptr_ring[IR_PTR_RING];
+static uint32 ir_ptr_next;
+
+uint32 IRPtrToVal(const void *p)
+{
+  uint32 slot;
+
+  if (p == NULL)
+    return 0;
+  slot = ir_ptr_next++ % IR_PTR_RING;
+  ir_ptr_ring[slot] = p;
+  return slot + 1;
+}
+
+void *IRValToPtr(uint32 v)
+{
+  if (v == 0 || v > IR_PTR_RING)
+    return NULL;
+  return (void *)ir_ptr_ring[v - 1];
+}
+#endif

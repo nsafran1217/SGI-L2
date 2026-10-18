@@ -193,7 +193,7 @@ void power_process_request(void)
   argv[0]._size = 0;
   argv[1]._clas = '\n';
   argv[1]._frame = '\0';
-  argv[1]._val = (uint32)cmd;
+  argv[1]._val = IR_PTR_VAL(cmd);
   sVar1 = strlen(cmd);
   argv[1]._size = (short)sVar1 + 1;
   p = IRouterMakePacket(&l2_apwr_id,&a,0,0,0,2,2,argv);
@@ -222,7 +222,7 @@ void power_process_response(IRPacket *p)
     }
     if ((1 < p->_argc) && ((p->_argv[1]._clas & 7) == 2)) {
       if ((p->_argv[1]._clas & 7) == 0) {
-        format = (char *)p->_argv[1]._val;
+        format = (char *)IR_VAL_PTR(p->_argv[1]._val);
       }
       else {
         format = (char *)IRArg(p,1);

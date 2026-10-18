@@ -117,7 +117,7 @@ static void lpbk_process_request(int session)
   argv[0]._size = 0;
   argv[1]._clas = '\x01';
   argv[1]._frame = '\0';
-  argv[1]._val = (uint32)Lpbk[session].bptr;
+  argv[1]._val = IR_PTR_VAL(Lpbk[session].bptr);
   argv[1]._size = (uint16)Lpbk[session].blen;
   p = IRouterMakePacket(&l2_lpbk_id,&l1addr,0,0,0,2,2,argv);
   gettimeofday((struct timeval *)&Lpbk[session].pkt_start_time,NULL);
@@ -152,7 +152,7 @@ void lpbk_process_response(IRPacket *p)
       session = IRArg(p,0);
     }
     if ((p->_argv[1]._clas & 7) == 0) {
-      arg = (uchar *)p->_argv[1]._val;
+      arg = (uchar *)IR_VAL_PTR(p->_argv[1]._val);
     }
     else {
       arg = (uchar *)IRArg(p,1);

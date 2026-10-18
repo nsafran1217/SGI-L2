@@ -90,7 +90,7 @@ int target_l2(L2CMD *c, char **results, int ip, char *cptr, int response, int de
     argv[0]._size = 0;
     argv[1]._clas = '\x02';
     argv[1]._frame = '\0';
-    argv[1]._val = (uint32)cptr;
+    argv[1]._val = IR_PTR_VAL(cptr);
     sVar4 = strlen(cptr);
     argv[1]._size = (short)sVar4 + 1;
     p = IRouterMakePacket(c->id,&addr,0,0,0,2,2,argv);
@@ -137,7 +137,7 @@ int target_l1(L2CMD *c, int ip, int port, int l1, char *cptr, int response, int 
       addr = 0xffff003;
       argv[1]._clas = '\x02';
       argv[1]._frame = '\0';
-      argv[1]._val = (uint32)cmd_;
+      argv[1]._val = IR_PTR_VAL(cmd_);
       sVar2 = strlen(cmd_);
       argv[1]._size = (short)sVar2 + 1;
       p = IRouterMakePacket(c->id,&addr,0,0,0,2,2,argv);

@@ -1549,7 +1549,7 @@ void L2CfgMCfgL2_rev1(L2Cfg *head, IRPacket *pkt)
       ports = IRArg(pkt,l2i * 2 + 3);
     }
     if ((pkt->_argv[l2i * 2 + 4]._clas & 7) == 0) {
-      l2cfg = (L2CfgIRouter *)pkt->_argv[l2i * 2 + 4]._val;
+      l2cfg = (L2CfgIRouter *)IR_VAL_PTR(pkt->_argv[l2i * 2 + 4]._val);
     }
     else {
       l2cfg = (L2CfgIRouter *)IRArg(pkt,l2i * 2 + 4);
@@ -1561,7 +1561,7 @@ void L2CfgMCfgL2_rev1(L2Cfg *head, IRPacket *pkt)
         if (head->port_list[port].l1cfg != NULL) {
           free(head->port_list[port].l1cfg);
         }
-        pLVar3 = malloc(0xc0);
+        pLVar3 = malloc(4 * sizeof(L2CfgL1));
         head->port_list[port].l1cfg = pLVar3;
         memset(head->port_list[port].l1cfg,0,0xc0);
         head->port_list[port].l1count = 4;
@@ -1643,7 +1643,7 @@ void L2CfgMCfgL2(L2Cfg *head, IRPacket *p)
     clen = 0;
     for (a = 2; a < (int)(uint)bVar2; a = a + 1) {
       if ((p->_argv[a]._clas & 7) == 0) {
-        pcVar3 = (char *)p->_argv[a]._val;
+        pcVar3 = (char *)IR_VAL_PTR(p->_argv[a]._val);
       }
       else {
         pcVar3 = (char *)IRArg(p,a);
@@ -1658,7 +1658,7 @@ void L2CfgMCfgL2(L2Cfg *head, IRPacket *p)
     cptr = pcVar3;
     for (a = 2; pcVar4 = pcVar3, a < (int)(uint)bVar2; a = a + 1) {
       if ((p->_argv[a]._clas & 7) == 0) {
-        pcVar4 = (char *)p->_argv[a]._val;
+        pcVar4 = (char *)IR_VAL_PTR(p->_argv[a]._val);
       }
       else {
         pcVar4 = (char *)IRArg(p,a);
@@ -2172,11 +2172,11 @@ static int l1l2(L2CfgPort *l2port, int l1, int index, char *cfgp, int size)
     l2_l1cfg.conn_state = '\x02';
   }
   if (l2port->l1count == 0) {
-    pLVar2 = malloc(0x30);
+    pLVar2 = malloc(sizeof(L2CfgL1));
     l2port->l1cfg = pLVar2;
   }
   else {
-    pLVar2 = realloc(l2port->l1cfg,(l2port->l1count + 1) * 0x30);
+    pLVar2 = realloc(l2port->l1cfg, (l2port->l1count + 1) * sizeof(L2CfgL1));
     l2port->l1cfg = pLVar2;
   }
   l2port->l1count = l2port->l1count + 1;
@@ -2242,7 +2242,7 @@ int L2CfgMCfgPort(L2Cfg *head, int port, IRPacket *p)
       for (l1 = 0; l1 < 4; l1 = l1 + 1) {
         uVar1 = p->_argv[l1 + 1]._size;
         if ((p->_argv[l1 + 1]._clas & 7) == 0) {
-          cfgp = (char *)p->_argv[l1 + 1]._val;
+          cfgp = (char *)IR_VAL_PTR(p->_argv[l1 + 1]._val);
         }
         else {
           cfgp = (char *)IRArg(p,l1 + 1);
@@ -2267,7 +2267,7 @@ int L2CfgMCfgPort(L2Cfg *head, int port, IRPacket *p)
         rsp = IRArg(p,3);
       }
       if ((p->_argv[4]._clas & 7) == 0) {
-        idxp = (char *)p->_argv[4]._val;
+        idxp = (char *)IR_VAL_PTR(p->_argv[4]._val);
       }
       else {
         idxp = (char *)IRArg(p,4);

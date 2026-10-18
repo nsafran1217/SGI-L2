@@ -13,7 +13,7 @@ set -u
 here=$(cd "$(dirname "$0")" && pwd)
 src=$(cd "$here/.." && pwd)
 orig=${1:-$src/../ist/ist-software-extracted/IST/snxsc_l3/stand/sysco/bin}
-new=$src/build/bin
+new=${NEW_BIN:-$src/build/bin}   # NEW_BIN: test another build (e.g. build64/bin)
 cmds=$here/l2_commands.txt
 work=$(mktemp -d)
 trap 'kill $dpid 2>/dev/null; [ "${KEEP:-}" ] && echo "kept $work" || rm -rf "$work"' EXIT INT TERM

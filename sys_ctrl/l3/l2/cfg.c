@@ -225,7 +225,7 @@ switchD_08052562_default:
     __src = ssn;
     sVar1 = strlen(ssn);
     __dest = malloc(sVar1 + 1);
-    argv[1]._val = (uint32)strcpy(__dest,__src);
+    argv[1]._val = IR_PTR_VAL(strcpy(__dest,__src));
     sVar1 = strlen(ssn);
     argv[1]._size = (short)sVar1 + 1;
   }
@@ -281,19 +281,19 @@ void cfg_ping_l2(RouterClient *client)
   pcVar2 = L2CfgMQuery(&L2CfgLocal,0,0);
   sVar3 = strlen(pcVar2);
   pcVar2 = malloc(sVar3 + 1);
-  argv[2]._val = (uint32)strcpy(pcVar2,pcVar1);
+  argv[2]._val = IR_PTR_VAL(strcpy(pcVar2,pcVar1));
   argv[2]._clas = '\n';
   argv[2]._frame = '\0';
-  sVar3 = strlen((char *)argv[2]._val);
+  sVar3 = strlen((char *)IR_VAL_PTR(argv[2]._val));
   argv[2]._size = (short)sVar3 + 1;
   pcVar1 = L2CfgMQuery(&L2CfgLocal,2,0);
   pcVar2 = L2CfgMQuery(&L2CfgLocal,2,0);
   sVar3 = strlen(pcVar2);
   pcVar2 = malloc(sVar3 + 1);
-  argv[3]._val = (uint32)strcpy(pcVar2,pcVar1);
+  argv[3]._val = IR_PTR_VAL(strcpy(pcVar2,pcVar1));
   argv[3]._clas = '\n';
   argv[3]._frame = '\0';
-  sVar3 = strlen((char *)argv[3]._val);
+  sVar3 = strlen((char *)IR_VAL_PTR(argv[3]._val));
   argv[3]._size = (short)sVar3 + 1;
   dst = dst & 0xffffff | 0x84000000;
   if (IRByteOrder == 1) {
@@ -395,7 +395,7 @@ void cfg_process_request(IRPacket *req_p)
     local_EAX_1156 = strcpy(pcVar2,local_EAX_1156);
     argv[argc]._clas = '\n';
     argv[argc]._frame = '\0';
-    argv[argc]._val = (uint32)local_EAX_1156;
+    argv[argc]._val = IR_PTR_VAL(local_EAX_1156);
     sVar3 = strlen(local_EAX_1156);
     argv[argc]._size = (short)sVar3 + 1;
     argc = argc + 1;
@@ -403,7 +403,7 @@ void cfg_process_request(IRPacket *req_p)
   free(cfg);
   argv[argc]._clas = '\n';
   argv[argc]._frame = '\0';
-  argv[argc]._val = (uint32)evt;
+  argv[argc]._val = IR_PTR_VAL(evt);
   sVar3 = strlen(evt);
   argv[argc]._size = (short)sVar3 + 1;
   rsp_p = IRouterMakePacket(&l2_cfg_id,&req_p->_src,(uint)(req_p->_pdata_auth >> 3),0,1,
@@ -528,7 +528,7 @@ void pp(IRPacket *p)
   for (arg = 0; arg < (int)(uint)p->_argc; arg = arg + 1) {
     if ((p->_argv[arg]._clas & 7) == 1) {
       if ((p->_argv[arg]._clas & 7) == 0) {
-        sptr = (char *)p->_argv[arg]._val;
+        sptr = (char *)IR_VAL_PTR(p->_argv[arg]._val);
       }
       else {
         sptr = (char *)IRArg(p,arg);
@@ -827,7 +827,7 @@ void cfg_system_sn(IRPacket *p)
   cfg = L2CfgMFindBrickCfg(&L2CfgLocal,rack,slot,0);
   if (cfg != NULL) {
     if ((p->_argv[3]._clas & 7) == 0) {
-      __src = (char *)p->_argv[3]._val;
+      __src = (char *)IR_VAL_PTR(p->_argv[3]._val);
     }
     else {
       __src = (char *)IRArg(p,3);
@@ -1007,7 +1007,7 @@ void cfg_configcheck(int start_timer)
         pcVar4 = pcVar1;
         sVar3 = strlen(pcVar1);
         __dest = malloc(sVar3 + 1);
-        argv[2]._val = (uint32)strcpy(__dest,pcVar4);
+        argv[2]._val = IR_PTR_VAL(strcpy(__dest,pcVar4));
         sVar3 = strlen(pcVar1);
         argv[2]._size = (short)sVar3 + 1;
       }
@@ -1023,7 +1023,7 @@ void cfg_configcheck(int start_timer)
         pcVar1 = pcVar2;
         sVar3 = strlen(pcVar2);
         pcVar4 = malloc(sVar3 + 1);
-        argv[3]._val = (uint32)strcpy(pcVar4,pcVar1);
+        argv[3]._val = IR_PTR_VAL(strcpy(pcVar4,pcVar1));
         sVar3 = strlen(pcVar2);
         argv[3]._size = (short)sVar3 + 1;
       }
@@ -1166,7 +1166,7 @@ void cfg_disconnect(RouterClient *client)
     rarg[1]._size = 0;
     rarg[2]._clas = '\x02';
     rarg[2]._frame = '\0';
-    rarg[2]._val = (uint32)qbuf;
+    rarg[2]._val = IR_PTR_VAL(qbuf);
     sVar2 = strlen(qbuf);
     rarg[2]._size = (short)sVar2 + 1;
     pkt = IRouterMakePacket(&l2_cfg_id,NULL,0,1000,2,2,3,rarg);

@@ -417,7 +417,7 @@ int l1d_open(int connect)
     iVar3 = l1d_fd;
     if (connect != 0) {
       l1d_fd_connected = 1;
-      PPPInit(&ppp,ppp_ibuf,8,ppp_obuf,0x100,0,1,0x10,0,l1d_ppperr,NULL);
+      PPPInit(&ppp,ppp_ibuf,8,ppp_obuf,0x100,0,1,IR_FRAME_PREFIX,0,l1d_ppperr,NULL);
       sVar1 = (*wfcn)(l1d_fd,"\r",1);
       if (sVar1 == 1) {
         sleep(2);

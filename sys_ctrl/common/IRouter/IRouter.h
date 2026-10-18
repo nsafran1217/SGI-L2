@@ -133,6 +133,34 @@ typedef enum {
 } IRErrorCodes;
 #include "../sys/Logger.h"
 
+/* --- added by the reconstruction: architecture-independent frame access --- */
+#include <stddef.h>
+#include <stdint.h>
+
+/* A frame in memory is a few host-only fields followed by the wire frame,
+ * which starts at _size: a 20-byte header, 8-byte arguments, then data. */
+#define IR_FRAME_PREFIX   offsetof(IRFrame, _size)      /* 16 on i386 */
+#define IR_FRAME_WIRE(f)  ((uint8 *)&(f)->_size)
+
+/* A data argument's _val is its frame offset as the original i386 code laid
+ * frames out in memory: wire offset + 16. Keep that wire convention. */
+#define IR_DATA_OFFSET(f, p) ((uint32)((uint8 *)(p) - IR_FRAME_WIRE(f)) + 0x10)
+#define IR_DATA_PTR(f, v)    (IR_FRAME_WIRE(f) + ((v) - 0x10))
+
+/* Pointers stored in an IRArgument's 32-bit _val: the source of a data
+ * argument until IRouterMakePacket copies it into the frame (never on the
+ * wire). On 32-bit hosts the pointer itself, as in the original; on 64-bit
+ * hosts a handle into a ring of recently stored pointers (IRouter.c). */
+#if UINTPTR_MAX == 0xffffffffu
+#define IR_PTR_VAL(p)  ((uint32)(uintptr_t)(p))
+#define IR_VAL_PTR(v)  ((void *)(uintptr_t)(v))
+#else
+uint32 IRPtrToVal(const void *p);
+void *IRValToPtr(uint32 v);
+#define IR_PTR_VAL(p)  IRPtrToVal(p)
+#define IR_VAL_PTR(v)  IRValToPtr(v)
+#endif
+
 /* prototypes (not recorded in STABS; reconstructed from definitions) */
 #include "IRouterInt.h"   /* for the prototypes */
 /* IRouter.c */
@@ -162,7 +190,7 @@ int IRouterReadPacket(IRIdent *id, int (*rfcn)(), void *fd, IRPacket **pkt);
 int IRouterWritePacket(IRIdent *id, int (*wfcn)(), void *fd, IRPacket *pkt);
 int IRouterWritePacketReliable(IRIdent *id, int (*wfcn)(), void *fd, IRPacket *pkt, int foe);
 void IRouterSetFrameByteOrder(IRFrame *frame, int byteorder);
-unsigned int IRArg(IRPacket *pkt, int arg);
+uintptr_t IRArg(IRPacket *pkt, int arg);   /* original: unsigned int; returns data pointers */
 char *IRFmtClas(int clas);
 char *IRFmtAddr(IRAddress addr, char *bptr);
 char *IRFmtPkt(char *who, IRPacket *p, char *bptr);

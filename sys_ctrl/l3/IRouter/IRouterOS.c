@@ -300,7 +300,7 @@ static int pipe_in(int fd, unsigned char **pptr, int plen)
   uint dlen;
   uchar *dptr;
   
-  bptr = *pptr + 0x10;
+  bptr = *pptr + IR_FRAME_PREFIX;   /* wire frame starts at IRFrame._size */
   blen = 0;
   rlen = 0;
   if (fd == -1) {

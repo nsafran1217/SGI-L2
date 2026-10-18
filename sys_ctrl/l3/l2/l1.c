@@ -586,7 +586,7 @@ void l1_open(void)
     exit(1);
   }
   if ((l2_l1_conn_mode < 5) && (2 < l2_l1_conn_mode)) {
-    PPPInit(&ppp,ppp_ibuf,8,ppp_obuf,0x100,0,1,0x10,0,l1_ppperr,NULL);
+    PPPInit(&ppp,ppp_ibuf,8,ppp_obuf,0x100,0,1,IR_FRAME_PREFIX,0,l1_ppperr,NULL);
     if (l2_l1_conn_mode == 3) {
       status = write(l2_l1_ports[0].fd,"\r",1);
     }
@@ -821,7 +821,7 @@ int l1_read_usb(int fd, unsigned char **bptr, int blen)
   }
   piVar1 = __errno_location();
   *piVar1 = 0;
-  status = read(fd,*bptr + 0x10,blen);
+  status = read(fd,*bptr + IR_FRAME_PREFIX,blen);
   if (status < 0) {
     piVar1 = __errno_location();
     dev_still_open = l1_usb_recover(fd,*piVar1);
@@ -865,7 +865,7 @@ LAB_0804c4f1:
     fprintf(stderr,"l1_read_usb() out, status %d, errno %d\n",status,*piVar1);
   }
   if (1 < l2_debug) {
-    dmp("READ",*bptr + 0x10,status,1);
+    dmp("READ",*bptr + IR_FRAME_PREFIX,status,1);
   }
   if (dev_still_open == 0) {
     status = 0;
@@ -945,7 +945,7 @@ int l1_read_l1net(int fd, unsigned char **pbptr, int blen)
   uchar *bptr;
   
   puVar1 = *pbptr;
-  bptr = puVar1 + 0x10;
+  bptr = puVar1 + IR_FRAME_PREFIX;
   piVar3 = __errno_location();
   *piVar3 = 0;
   status = SocketRead(fd,bptr,2);
@@ -1266,7 +1266,7 @@ int l1_parse_usbpath(char *usbpath)
     }
     free(l1_usbpath_list);
   }
-  l1_usbpath_list = malloc(0x28);
+  l1_usbpath_list = malloc(10 * sizeof(char *));
   if (l1_usbpath_list == NULL) {
     fprintf(stderr,"ERROR: -usbpath: could not allocate memory to store USB path\n");
     iVar1 = -1;
@@ -1305,7 +1305,7 @@ int l1_parse_usbpath(char *usbpath)
       sprintf(path,"b%d;p%d%s",busno,pathno,path2);
       if (l1_usbpath_count == l1_usbpath_size) {
         l1_usbpath_size = l1_usbpath_size + 10;
-        l1_usbpath_list = realloc(l1_usbpath_list,l1_usbpath_size * 4);
+        l1_usbpath_list = realloc(l1_usbpath_list, l1_usbpath_size * sizeof(char *));
         if (l1_usbpath_list == NULL) {
           fprintf(stderr,"-usbpath: could not allocate memory to store USB path\n");
           return -1;
