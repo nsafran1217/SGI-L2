@@ -1,0 +1,29 @@
+# data file for the Fltk User Interface Designer (fluid)
+version 1.0308
+header_name {.h}
+code_name {.cxx}
+comment {Reconstructed from the l2gui binary (make_cmdwin, ui/cmdwin.cxx).
+Included by cmdwin.cc, which declares the callbacks.} {in_source not_in_header
+}
+
+Function {make_cmdwin()} {open
+} {
+  Fl_Window {} {
+    label {Command Window} open
+    xywh {0 64 320 176} type Double modal visible
+    code0 {o->position(0, 64);}
+  } {
+    Fl_Output cmdtxt {private
+      xywh {14 10 291 125} type Multiline box FLAT_BOX color 49 labeltype NO_LABEL
+    }
+    Fl_Button ok_button {
+      label OK private
+      xywh {48 145 110 25} box ROUND_UP_BOX down_box ROUND_DOWN_BOX
+    }
+    Fl_Button cancel_button {
+      label Cancel
+      callback cancel_button_cb private
+      xywh {178 145 110 25} box ROUND_UP_BOX down_box ROUND_DOWN_BOX
+    }
+  }
+}

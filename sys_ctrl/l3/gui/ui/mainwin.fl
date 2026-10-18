@@ -1,0 +1,74 @@
+# data file for the Fltk User Interface Designer (fluid)
+version 1.0308
+header_name {.h}
+code_name {.cxx}
+comment {Reconstructed from the l2gui binary (make_mainwin, ui/mainwin.cxx).
+Included by mainwin.cc, which declares the callbacks and windows.} {in_source not_in_header
+}
+
+Function {make_mainwin()} {open
+} {
+  Fl_Window {} {
+    label {L2 Controller GUI}
+    callback {printf("mainwin cb!\\n");} open
+    xywh {0 0 320 240} type Double box NO_BOX labeltype NORMAL_LABEL visible
+  } {
+    Fl_Group control_area {open private
+      xywh {-1 64 323 176} box FLAT_BOX color 45
+    } {
+      Fl_Button {} {
+        label {Power UP}
+        callback power_up_cb
+        xywh {15 74 98 25} box ROUND_UP_BOX down_box ROUND_DOWN_BOX selection_color 39
+      }
+      Fl_Button {} {
+        label {Power DOWN}
+        callback power_down_cb
+        xywh {15 107 98 25} box ROUND_UP_BOX down_box ROUND_DOWN_BOX selection_color 39
+      }
+      Fl_Button {} {
+        label RESET
+        callback reset_cb
+        xywh {15 140 98 25} box ROUND_UP_BOX down_box ROUND_DOWN_BOX selection_color 39
+      }
+      Fl_Button {} {
+        label NMI
+        callback nmi_cb
+        xywh {15 174 98 25} box ROUND_UP_BOX down_box ROUND_DOWN_BOX selection_color 39
+      }
+      Fl_Button {} {
+        label {System Info...}
+        xywh {142 74 159 25} box ROUND_UP_BOX down_box ROUND_DOWN_BOX selection_color 39 hide deactivate
+      }
+      Fl_Button {} {
+        label {Warnings/Faults...}
+        xywh {142 107 159 25} box ROUND_UP_BOX down_box ROUND_DOWN_BOX selection_color 39 hide deactivate
+      }
+      Fl_Button {} {
+        label {L1/L2 Logs...}
+        xywh {142 140 157 25} box ROUND_UP_BOX down_box ROUND_DOWN_BOX selection_color 39 hide deactivate
+      }
+      Fl_Button {} {
+        label {Performance Graphs...}
+        callback {graphwin_show();}
+        xywh {142 174 157 25} box ROUND_UP_BOX down_box ROUND_DOWN_BOX selection_color 39 hide deactivate
+      }
+      Fl_Box current_dest {
+        label {r * s *}
+        xywh {67 214 251 21} align 20
+      }
+      Fl_Button {} {
+        label {DEST:}
+        callback {destwin_show(1);}
+        xywh {2 213 62 25} down_box DOWN_BOX selection_color 39
+      }
+    }
+    Fl_Output status {private
+      xywh {0 0 242 64} type Multiline box FLAT_BOX selection_color 7 align 0
+    }
+    Fl_Button {} {
+      callback {l2gui_show(logowin, 0, 0);}
+      image {images/sgilogo_tiny.xpm} xywh {242 0 80 64} box FLAT_BOX down_box FLAT_BOX color 7 selection_color 7 labelcolor 7
+    }
+  }
+}

@@ -1486,6 +1486,8 @@ void RouterPack(RouterClient *client, int opcode, int class, int argcount, Route
     }
     else {
       memcpy(buf_ptr,(void *)arglist[i].val,arglist[i].size);
+      /* the original left the alignment padding uninitialized: heap bytes on the wire */
+      memset(buf_ptr + arglist[i].size,0,-arglist[i].size & 3U);
       buf_ptr = buf_ptr + ((arglist[i].size) + 3U & 0xfffffffc);
     }
   }

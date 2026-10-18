@@ -1,0 +1,296 @@
+# data file for the Fltk User Interface Designer (fluid)
+version 1.0308
+header_name {.h}
+code_name {.cxx}
+comment {Reconstructed from the l2gui binary (make_destwin, ui/destwin.cxx).
+Included by destwin.cc, which declares the callbacks and relabels the
+rack/slot buttons at run time.} {in_source not_in_header
+}
+
+Function {make_destwin()} {open
+} {
+  Fl_Window {} {
+    label {Destination window} open
+    xywh {0 0 320 240} type Double box NO_BOX visible
+  } {
+    Fl_Group rackpart {open private
+      xywh {-1 0 323 241} box FLAT_BOX color 45
+    } {
+      Fl_Box {} {
+        label {New DEST:}
+        xywh {1 176 81 23} align 20
+      }
+      Fl_Group rackpart_choice {open private
+        xywh {1 0 130 36}
+      } {
+        Fl_Button rackpart_rack {
+          label {Rack/Slot}
+          callback rackpart_rack_cb private
+          xywh {2 2 62 32} type Radio down_box DOWN_BOX value 1 selection_color 7
+        }
+        Fl_Button rackpart_part {
+          label Partition
+          callback rackpart_part_cb private
+          xywh {65 2 63 32} type Radio down_box DOWN_BOX selection_color 7
+        }
+      }
+      Fl_Button rackpart_all {
+        label ALL
+        callback rackpart_all_cb private
+        xywh {2 38 30 28} type Toggle down_box DOWN_BOX selection_color 7
+      }
+      Fl_Button rackpart_clr {
+        label CLR
+        callback rackpart_clr_cb private
+        xywh {34 38 30 28} down_box DOWN_BOX selection_color 39
+      }
+      Fl_Button rackpart_prev {
+        label {<<}
+        callback rackpart_prev_cb private
+        xywh {66 38 30 28} down_box DOWN_BOX selection_color 39
+      }
+      Fl_Button rackpart_next {
+        label {>>}
+        callback rackpart_next_cb private
+        xywh {98 38 30 28} down_box DOWN_BOX selection_color 39
+      }
+      Fl_Button {} {
+        label Apply
+        callback apply_button_cb
+        xywh {32 205 64 31} box ROUND_UP_BOX down_box ROUND_DOWN_BOX selection_color 39
+      }
+      Fl_Button {} {
+        label Cancel
+        callback cancel_button_cb
+        xywh {224 205 63 31} box ROUND_UP_BOX down_box ROUND_DOWN_BOX selection_color 39
+      }
+      Fl_Group slot_area {open
+        xywh {157 1 163 172} box EMBOSSED_FRAME
+      } {
+        Fl_Box {} {
+          label {Slots:}
+          xywh {160 8 53 21} align 20
+        }
+        Fl_Button slot_all {
+          label ALL
+          callback slot_all_cb
+          xywh {224 5 30 28} type Toggle down_box DOWN_BOX selection_color 7
+        }
+        Fl_Button slot_clr {
+          label CLR
+          callback slot_clr_cb
+          xywh {256 5 30 28} down_box DOWN_BOX selection_color 39
+        }
+        Fl_Group slot_button_group {open private
+          xywh {157 33 161 135}
+        } {
+          Fl_Button slot0 {
+            label 0
+            user_data 0
+            callback slot_button_cb
+            xywh {160 38 30 28} type Toggle down_box DOWN_BOX selection_color 7
+          }
+          Fl_Button slot1 {
+            label 1
+            user_data 1
+            callback slot_button_cb
+            xywh {192 38 30 28} type Toggle down_box DOWN_BOX selection_color 7
+          }
+          Fl_Button slot2 {
+            label 2
+            user_data 2
+            callback slot_button_cb
+            xywh {224 38 30 28} type Toggle down_box DOWN_BOX selection_color 7
+          }
+          Fl_Button slot3 {
+            label 3
+            user_data 3
+            callback slot_button_cb
+            xywh {256 38 30 28} type Toggle down_box DOWN_BOX selection_color 7
+          }
+          Fl_Button slot4 {
+            label 4
+            user_data 4
+            callback slot_button_cb
+            xywh {288 38 30 28} type Toggle down_box DOWN_BOX selection_color 7
+          }
+          Fl_Button slot5 {
+            label 5
+            user_data 5
+            callback slot_button_cb
+            xywh {160 72 30 28} type Toggle down_box DOWN_BOX selection_color 7
+          }
+          Fl_Button slot6 {
+            label 6
+            user_data 6
+            callback slot_button_cb
+            xywh {192 72 30 28} type Toggle down_box DOWN_BOX selection_color 7
+          }
+          Fl_Button slot7 {
+            label 7
+            user_data 7
+            callback slot_button_cb
+            xywh {224 72 30 28} type Toggle down_box DOWN_BOX selection_color 7
+          }
+          Fl_Button slot8 {
+            label 8
+            user_data 8
+            callback slot_button_cb
+            xywh {256 72 30 28} type Toggle down_box DOWN_BOX selection_color 7
+          }
+          Fl_Button slot9 {
+            label 9
+            user_data 9
+            callback slot_button_cb
+            xywh {288 72 30 28} type Toggle down_box DOWN_BOX selection_color 7
+          }
+          Fl_Button slot10 {
+            label 10
+            user_data 10
+            callback slot_button_cb
+            xywh {160 106 30 28} type Toggle down_box DOWN_BOX selection_color 7
+          }
+          Fl_Button slot11 {
+            label 11
+            user_data 11
+            callback slot_button_cb
+            xywh {192 106 30 28} type Toggle down_box DOWN_BOX selection_color 7
+          }
+          Fl_Button slot12 {
+            label 12
+            user_data 12
+            callback slot_button_cb
+            xywh {224 106 30 28} type Toggle down_box DOWN_BOX selection_color 7
+          }
+          Fl_Button slot13 {
+            label 13
+            user_data 13
+            callback slot_button_cb
+            xywh {256 106 30 28} type Toggle down_box DOWN_BOX selection_color 7
+          }
+          Fl_Button slot14 {
+            label 14
+            user_data 14
+            callback slot_button_cb
+            xywh {288 106 30 28} type Toggle down_box DOWN_BOX selection_color 7
+          }
+          Fl_Button slot15 {
+            label 15
+            user_data 15
+            callback slot_button_cb
+            xywh {160 140 30 28} type Toggle down_box DOWN_BOX selection_color 7
+          }
+          Fl_Button slot16 {
+            label 16
+            user_data 16
+            callback slot_button_cb
+            xywh {192 140 30 28} type Toggle down_box DOWN_BOX selection_color 7
+          }
+          Fl_Button slot17 {
+            label 17
+            user_data 17
+            callback slot_button_cb
+            xywh {224 140 30 28} type Toggle down_box DOWN_BOX selection_color 7
+          }
+          Fl_Button slot18 {
+            label 18
+            user_data 18
+            callback slot_button_cb
+            xywh {256 140 30 28} type Toggle down_box DOWN_BOX selection_color 7
+          }
+          Fl_Button slot19 {
+            label 19
+            user_data 19
+            callback slot_button_cb
+            xywh {288 140 30 28} type Toggle down_box DOWN_BOX selection_color 7 resizable
+          }
+        }
+      }
+      Fl_Group rackpart_button_group {open private
+        xywh {1 69 130 101}
+      } {
+        Fl_Button rack0 {
+          label 0
+          user_data 0
+          callback rackpart_button_cb
+          xywh {2 72 30 28} type Toggle down_box DOWN_BOX selection_color 7
+        }
+        Fl_Button rack1 {
+          label 1
+          user_data 1
+          callback rackpart_button_cb
+          xywh {34 72 30 28} type Toggle down_box DOWN_BOX selection_color 7
+        }
+        Fl_Button rack2 {
+          label 2
+          user_data 2
+          callback rackpart_button_cb
+          xywh {66 72 30 28} type Toggle down_box DOWN_BOX selection_color 7
+        }
+        Fl_Button rack3 {
+          label 3
+          user_data 3
+          callback rackpart_button_cb
+          xywh {98 72 30 28} type Toggle down_box DOWN_BOX selection_color 7
+        }
+        Fl_Button rack4 {
+          label 4
+          user_data 4
+          callback rackpart_button_cb
+          xywh {2 106 30 29} type Toggle down_box DOWN_BOX selection_color 7
+        }
+        Fl_Button rack5 {
+          label 5
+          user_data 5
+          callback rackpart_button_cb
+          xywh {34 106 30 29} type Toggle down_box DOWN_BOX selection_color 7
+        }
+        Fl_Button rack6 {
+          label 6
+          user_data 6
+          callback rackpart_button_cb
+          xywh {66 106 30 29} type Toggle down_box DOWN_BOX selection_color 7
+        }
+        Fl_Button rack7 {
+          label 7
+          user_data 7
+          callback rackpart_button_cb
+          xywh {98 106 30 29} type Toggle down_box DOWN_BOX selection_color 7
+        }
+        Fl_Button rack8 {
+          label 8
+          user_data 8
+          callback rackpart_button_cb
+          xywh {2 140 30 29} type Toggle down_box DOWN_BOX selection_color 7
+        }
+        Fl_Button rack9 {
+          label 9
+          user_data 9
+          callback rackpart_button_cb
+          xywh {34 140 30 29} type Toggle down_box DOWN_BOX selection_color 7
+        }
+        Fl_Button rack10 {
+          label 10
+          user_data 10
+          callback rackpart_button_cb
+          xywh {66 140 30 29} type Toggle down_box DOWN_BOX selection_color 7
+        }
+        Fl_Button rack11 {
+          label 11
+          user_data 11
+          callback rackpart_button_cb
+          xywh {98 140 30 29} type Toggle down_box DOWN_BOX selection_color 7
+        }
+      }
+    }
+    Fl_Button reset_btn {
+      label {Reset DEST}
+      callback reset_button_cb private
+      xywh {108 205 103 31} box ROUND_UP_BOX down_box ROUND_DOWN_BOX selection_color 39
+    }
+    Fl_Box dest_result {
+      label {r * s *} private
+      xywh {71 176 232 23} align 20
+    }
+  }
+}

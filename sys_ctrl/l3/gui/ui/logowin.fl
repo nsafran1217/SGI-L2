@@ -1,0 +1,23 @@
+# data file for the Fltk User Interface Designer (fluid)
+version 1.0308
+header_name {.h}
+code_name {.cxx}
+comment {Reconstructed from the l2gui binary (make_logowin, ui/logowin.cxx).
+Included by logowin.cc. make_logowin() is extern "C" in the original too.} {in_source not_in_header
+}
+
+Function {make_logowin()} {open C
+} {
+  Fl_Window {} {
+    label {Screen Saver (SGI Logo...)} open
+    xywh {0 0 320 240} type Double color 7 selection_color 7 visible
+  } {
+    Fl_Box {} {
+      image {images/sgilogo.xpm} xywh {0 0 320 240}
+    }
+    Fl_Button {} {
+      callback {logowin->hide();}
+      xywh {0 0 320 265} box NO_BOX
+    }
+  }
+}

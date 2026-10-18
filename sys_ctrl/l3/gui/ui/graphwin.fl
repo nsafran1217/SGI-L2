@@ -1,0 +1,24 @@
+# data file for the Fltk User Interface Designer (fluid)
+version 1.0308
+header_name {.h}
+code_name {.cxx}
+comment {Reconstructed from the l2gui binary (make_graphwin, ui/graphwin.cxx).
+Included by graphwin.cc, which adds the chart to graph_area.} {in_source not_in_header
+}
+
+Function {make_graphwin()} {open
+} {
+  Fl_Window {} {
+    label {Performance Graph window} open
+    xywh {0 0 320 240} type Double visible
+  } {
+    Fl_Group graph_area {open
+      xywh {-1 0 321 204}
+    } {}
+    Fl_Button {} {
+      label Done
+      callback {graphwin_hide();}
+      xywh {121 210 91 25} box ROUND_UP_BOX down_box ROUND_DOWN_BOX selection_color 39
+    }
+  }
+}

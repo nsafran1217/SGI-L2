@@ -6,6 +6,10 @@
 #                   every output must match the original binaries'
 #   make clean
 #
+# l2gui also needs FLTK, built from ../refs/fltk by ../retools/setup_fltk.sh
+# (32 or 64 to match ARCH); without it l2gui is skipped. FLTK_CONFIG=<fltk-config>
+# selects another FLTK 1.3/1.4 build.
+#
 # ARCH=-m32 keeps struct layouts identical to the originals (checked by make test).
 
 CC      ?= gcc
@@ -20,7 +24,8 @@ CFLAGS  += -Wno-error=int-conversion \
            -Wno-error=incompatible-pointer-types -Wno-error=return-mismatch
 # Debian's libc6-dev-i386 puts the 32-bit glibc headers under the x86_64 multiarch dir
 ifeq ($(ARCH),-m32)
-CFLAGS  += $(if $(wildcard /usr/include/i386-linux-gnu/bits),,-isystem /usr/include/x86_64-linux-gnu)
+ISYSTEM := $(if $(wildcard /usr/include/i386-linux-gnu/bits),,-isystem /usr/include/x86_64-linux-gnu)
+CFLAGS  += $(ISYSTEM)
 endif
 LDFLAGS += $(ARCH) $(EXTRA_LDFLAGS)
 CFLAGS  += $(EXTRA_CFLAGS)   # e.g. EXTRA_CFLAGS=-fsanitize=address EXTRA_LDFLAGS=-fsanitize=address
@@ -94,8 +99,45 @@ L2CMD_SRCS := \
 L2PASSWD_SRCS := \
 	sys_ctrl/l3/utils/l2passwd.c
 
+L2GUI_SRCS := \
+	sys_ctrl/l3/gui/mainwin.cc \
+	sys_ctrl/l3/gui/logowin.cc \
+	sys_ctrl/l3/gui/destwin.cc \
+	sys_ctrl/l3/gui/graphwin.cc \
+	sys_ctrl/l3/gui/cmdwin.cc \
+	sys_ctrl/l3/gui/l2gui.cc \
+	sys_ctrl/l3/gui/config.cc \
+	sys_ctrl/l3/gui/l2comm.cc
+L2GUI_CSRCS := \
+	sys_ctrl/l3/main/SysCfg.c \
+	sys_ctrl/l3/api/SCapiConn.c \
+	sys_ctrl/common/sys/Cmd.c
+L2GUI_UI := mainwin logowin destwin graphwin cmdwin
+
+# FLTK for l2gui. Its -D_FILE_OFFSET_BITS=64 is left out: the GUI shares
+# structs with libsgi.a, which is built without it.
+FLTK_BITS   := $(if $(filter -m32,$(ARCH)),32,64)
+FLTK_CONFIG ?= $(abspath ../tools/fltk/release-1.3.8-$(FLTK_BITS)/bin/fltk-config)
+FLUID       ?= $(dir $(FLTK_CONFIG))fluid
+# (native builds only: a cross build, with QEMU set, has no FLTK for its target)
+WITH_L2GUI  := $(if $(QEMU),,$(wildcard $(FLTK_CONFIG)))
+ifneq ($(WITH_L2GUI),)
+FLTK_CXXFLAGS := $(filter-out -D_FILE_OFFSET_BITS% -D_LARGEFILE%,$(shell $(FLTK_CONFIG) --cxxflags))
+FLTK_LDFLAGS  := $(if $(filter 32,$(FLTK_BITS)),-L$(abspath ../tools/fltk/i386-lib)) \
+                 $(shell $(FLTK_CONFIG) --ldstaticflags)
+endif
+CXXFLAGS ?= -g -O0
+CXXFLAGS += $(ARCH) -fno-strict-aliasing -fsigned-char -Icompat -Wall -Wno-write-strings \
+            -Wno-unused-variable -Wno-unused-but-set-variable -Wno-unused-function \
+            $(ISYSTEM) $(FLTK_CXXFLAGS) $(EXTRA_CFLAGS)
+
 LIB_OBJS := $(LIB_SRCS:%.c=$(B)/%.o)
 TOOLS    := l2 l2term l2cmd l2passwd
+ifneq ($(WITH_L2GUI),)
+TOOLS    += l2gui
+else ifeq ($(QEMU),)
+$(info l2gui skipped: no $(FLTK_CONFIG) (run ../retools/setup_fltk.sh $(FLTK_BITS)))
+endif
 
 .PHONY: all test difftest clean
 all: $(TOOLS:%=$(B)/bin/%)
@@ -105,6 +147,16 @@ $(B)/%.o: %.c
 	$(CC) $(CFLAGS) -MMD -MP -c $< -o $@
 
 -include $(shell find $(B) -name '*.d' 2>/dev/null)
+
+# FLUID output goes to $(B)/gen; each gui/X.cc includes its "ui/X.cxx"
+UI_GEN := $(foreach u,$(L2GUI_UI),$(B)/gen/sys_ctrl/l3/gui/ui/$(u).cxx)
+$(B)/gen/sys_ctrl/l3/gui/ui/%.cxx: sys_ctrl/l3/gui/ui/%.fl $(wildcard sys_ctrl/l3/gui/ui/images/*)
+	@mkdir -p $(dir $@)
+	cd $(dir $@) && $(FLUID) -c -o $*.cxx -h $*.h $(abspath $<)
+
+$(B)/sys_ctrl/l3/gui/%.o: sys_ctrl/l3/gui/%.cc $(UI_GEN)
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS) -I$(B)/gen/sys_ctrl/l3/gui -MMD -MP -c $< -o $@
 
 $(B)/libsgi.a: $(LIB_OBJS)
 	$(AR) rcs $@ $^
@@ -125,6 +177,10 @@ $(B)/bin/l2passwd: $(L2PASSWD_SRCS:%.c=$(B)/%.o) $(B)/libsgi.a
 	@mkdir -p $(dir $@)
 	$(CC) $(LDFLAGS) $^ $(LDLIBS) $(CRYPT) -o $@
 
+$(B)/bin/l2gui: $(L2GUI_SRCS:%.cc=$(B)/%.o) $(L2GUI_CSRCS:%.c=$(B)/%.o) $(B)/libsgi.a
+	@mkdir -p $(dir $@)
+	$(CXX) $(LDFLAGS) $^ $(LDLIBS) $(FLTK_LDFLAGS) -o $@
+
 # Cross builds: QEMU='qemu-s390x -L <sysroot>' also writes $(B)/qemu-bin/ wrappers,
 # for running the tests with NEW_BIN=$PWD/$(B)/qemu-bin (see README.md)
 ifneq ($(QEMU),)
@@ -143,6 +199,7 @@ difftest: all
 	tests/difftest.sh
 	tests/l2term_test.py
 	tests/nvram_test.py
+	$(if $(filter l2gui,$(TOOLS)),NEW_BIN=$(abspath $(B))/bin tests/l2gui_test.py)
 
 clean:
 	rm -rf $(B)
