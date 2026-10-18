@@ -249,7 +249,7 @@ LAB_0805270c:
     if (L2CfgLocal.port_list[port].state != 2) {
       ping_delay = 2;
     }
-    sprintf(desc,"cfg_ping_l1 (%s)",port * 0x48 + 0x820d0a4);
+    sprintf(desc,"cfg_ping_l1 (%s)",l2_l1_ports[port].device);
     EVar2 = EventAddTimeOut(ping_delay,0,cfg_ping_l1,(EventData)(intptr_t)device,desc);
     l2_l1_ports[port].timer = EVar2;
   }

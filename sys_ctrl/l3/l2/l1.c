@@ -366,7 +366,7 @@ int l1_close_usb_device(int device, int reopen, char *who)
       if (iVar1 != 0) {
         piVar2 = __errno_location();
         pcVar3 = strerror(*piVar2);
-        fprintf(stderr,"ERROR: can\'t close %s, %s - %s\n",dname,device * 0x48 + 0x820d0a4,pcVar3);
+        fprintf(stderr,"ERROR: can\'t close %s, %s - %s\n",dname,l2_l1_ports[device].device,pcVar3);
         return -1;
       }
       stream = stderr;

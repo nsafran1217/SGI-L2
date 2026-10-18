@@ -1959,7 +1959,9 @@ int fprintf(FILE *restrict stream, const char *restrict format, ...)
       write(2,vbuf,sVar2);
     }
     else {
-      if (stream == NULL) {
+      /* (via a volatile copy: glibc declares stream nonnull, which would let
+       * the compiler drop this test) */
+      if (*(FILE *volatile *)&stream == NULL) {
         opcode = 4;
       }
       else {
