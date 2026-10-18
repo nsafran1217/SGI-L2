@@ -96,5 +96,5 @@ settled; it is the slowest build).
 |---|---|
 | 0 | done: warning-free with `-Wall -Wextra` (less `-Wunused-parameter`), `-Werror` (`WERROR=` to drop it); `tools/objcmp.sh` proves mechanical commits; `make check` / `check-all` |
 | 1 | done: Ghidra type names (`ulong` by hand, the rest with `tools/retoken.py`), decompiler notes, decimal syslog lines, small char constants, `CONCAT11` → `IR_SEQNUM()`, `code` pointers typed; `compat/decomp.h` is down to three standard includes. Left for phase 2 (needs types/meaning per site): `'\0'` compared with non-character values, `'\x80'`+ constants |
-| 2 | in progress: done: common/Router, common/IRouter, common/sys (all, with unit tests against main in `tests/unit/`) |
+| 2 | in progress. Done: all of common/ (Router, IRouter, sys, main), l3/main, l3/api, l3/IRouter, l3/sys; printf format checking restored (`-fno-builtin-fprintf` + `compat/printf_check.h`). Unit tests against main in `tests/unit/` (one per rewritten module the differential tests miss); new differential tests: `options_test.sh` (system controller options), `l1direct_test.py` (direct serial L1), the daemons' output in `difftest.sh`. Left: l3/l2 (smallest first, l2cmd.c last), l3/utils, l3/gui |
 | 3 | |

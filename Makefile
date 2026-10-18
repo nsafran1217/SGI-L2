@@ -164,7 +164,8 @@ CLEAN_SRCS := \
 	sys_ctrl/l3/IRouter/IRouterOS.c \
 	sys_ctrl/l3/sys/syslogLib.c \
 	sys_ctrl/l3/IRouter/IRouterL3.c \
-	sys_ctrl/common/main/EnetServer.c
+	sys_ctrl/common/main/EnetServer.c \
+	sys_ctrl/common/main/L2Cfg.c
 $(CLEAN_SRCS:%.c=$(B)/%.o): CFLAGS += -Wunused-variable -Wunused-but-set-variable \
 	-Wunused-label -Wpointer-sign
 
