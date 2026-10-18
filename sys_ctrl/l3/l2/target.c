@@ -75,15 +75,15 @@ int target_l2(L2CMD *c, char **results, int ip, char *cptr, int response, int de
     iVar1 = l2cmd_process(c,cptr,results,NULL);
   }
   else {
-    addr = addr & 0x3fffffff | 0x80000000;
+    addr = (addr & 0x3fffffff) | 0x80000000;
     if (IRByteOrder == 1) {
-      uVar2 = ip & 0xffffffU | 0x80000000;
+      uVar2 = (ip & 0xffffffU) | 0x80000000;
     }
     else {
       uVar3 = ntohl(ip);
-      uVar2 = addr & 0xff000000 | uVar3 & 0xffffff;
+      uVar2 = (addr & 0xff000000) | (uVar3 & 0xffffff);
     }
-    addr = uVar2 & 0xc0ffffff | 0x3000000;
+    addr = (uVar2 & 0xc0ffffff) | 0x3000000;
     argv[0]._clas = '\0';
     argv[0]._frame = '\0';
     argv[0]._val = 0;

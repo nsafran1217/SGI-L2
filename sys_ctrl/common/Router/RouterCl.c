@@ -62,7 +62,7 @@ void RouterRetryConnection(RouterClient *client)
 {
   int use;
   
-  RouterConnect((client->id).hostname,client->port,client->process_id,client->use & 0x600U | 0xc041,
+  RouterConnect((client->id).hostname,client->port,client->process_id,(client->use & 0x600U) | 0xc041,
                 client->timeout,(int)client->out_limit,&client->groups,client->connect_cb,
                 client->request_cb,client->event_cb,client->error_cb,client->retrys + 1);
   return;
@@ -75,12 +75,12 @@ void RouterSetGroups(RouterClient *client, RouterGroupSet *groups)
   RouterFreeGroups(client);
   if ((groups != NULL) && (groups->count != 0)) {
     (client->groups).count = groups->count;
-    pcVar1 = malloc(groups->count + 7 >> 3);
+    pcVar1 = malloc((groups->count + 7) >> 3);
     (client->groups).bits = pcVar1;
     if (pcVar1 == NULL) {
       RouterMemError();
     }
-    memcpy((client->groups).bits,groups->bits,groups->count + 7 >> 3);
+    memcpy((client->groups).bits,groups->bits,(groups->count + 7) >> 3);
   }
   return;
 }
@@ -257,10 +257,10 @@ static int RouterProcessAccept(RouterClient *client, int argcountin)
       RouterDoOutput(client,ProcessID,8,argcount,arglist,NULL,NULL,
                      NULL,NULL,0,NULL);
       if ((client->use & 0x600U) == 0x200) {
-        client->use = client->use & 0xffffffc0U | 6;
+        client->use = (client->use & 0xffffffc0U) | 6;
       }
       else {
-        client->use = client->use & 0xffffffc0U | 4;
+        client->use = (client->use & 0xffffffc0U) | 4;
       }
       if (client->connect_cb != NULL) {
         (*client->connect_cb)(client,1,&nullarglist);

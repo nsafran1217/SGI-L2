@@ -497,7 +497,7 @@ static int RouterAcceptClient(RouterClient *client, int argcountin)
       LogError(-0x13f,"RouterAcceptClient",0,"");
       return -1;
     }
-    if (client->InArgList[2].size != (client->groups).count + 7 >> 3) {
+    if (client->InArgList[2].size != ((client->groups).count + 7) >> 3) {
       LogError(-0x140,"RouterAcceptClient",0,"");
       return -1;
     }
@@ -613,7 +613,7 @@ static int RouterGetClientArguments(RouterClient *client)
     bVar1 = *(byte *)(uVar4 + 5);
     bVar2 = *(byte *)(uVar4 + 6);
     bVar3 = *(byte *)(uVar4 + 7);
-    client->use = client->use & 0x3000U | uVar7 & 0x4000;
+    client->use = (client->use & 0x3000U) | (uVar7 & 0x4000);
     if ((uVar7 & 0x600) == 0x200) {
       client->use = client->use | 0x286;
     }

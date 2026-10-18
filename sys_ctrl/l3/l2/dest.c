@@ -152,7 +152,7 @@ LAB_08060f80:
 joined_r0x080610aa:
                 if (cVar1 == '\0') goto LAB_08060f80;
               }
-              addr = (rack << 6 | slot & 0x3fU) << 0xc;
+              addr = (rack << 6 | (slot & 0x3fU)) << 0xc;
               found = false;
               for (index = 0; (!found && (index < d->count)); index = index + 1) {
                 found = d->list[index] == addr;
@@ -227,7 +227,7 @@ int dest_l2(DEST *d, CmdData *cptr)
       else {
         addr = ntohl(l2node->ip_addr);
       }
-      d->list[d->count] = addr & 0xffffff | 0x83000000;
+      d->list[d->count] = (addr & 0xffffff) | 0x83000000;
       d->count = d->count + 1;
     }
   }

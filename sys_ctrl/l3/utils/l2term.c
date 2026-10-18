@@ -224,8 +224,8 @@ int tty_config(void)
     c_oflag = termios.c_oflag;
     c_lflag = termios.c_lflag;
     memcpy(c_cc,termios.c_cc,0x20);
-    termios.c_iflag = termios.c_iflag & 0xffffe83f | 0x20;
-    termios.c_oflag = termios.c_oflag & 0xfffffffb | 1;
+    termios.c_iflag = (termios.c_iflag & 0xffffe83f) | 0x20;
+    termios.c_oflag = (termios.c_oflag & 0xfffffffb) | 1;
     termios.c_lflag = termios.c_lflag & 0xfffffff5;
     termios.c_cc[0] = '\0';
     termios.c_cc[10] = '\0';

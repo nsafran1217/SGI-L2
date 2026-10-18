@@ -105,8 +105,8 @@ void enet_accept(int port, int sd)
     }
     id_00 = ids + s;
     IRouterInitID(id_00,0,0);
-    id_00->addr = id_00->addr & 0x3fffffff | 0xc0000000;
-    id_00->addr = id_00->addr & 0xc0ffffff | (s & 0x3fU) << 0x18;
+    id_00->addr = (id_00->addr & 0x3fffffff) | 0xc0000000;
+    id_00->addr = (id_00->addr & 0xc0ffffff) | (s & 0x3fU) << 0x18;
     smp_init(id_00,s,s,enet_reset,peer_addr,port);
   }
   return;

@@ -190,7 +190,7 @@ static int BRICK_TASKNUM_SLAB(int btype, int tasknum)
   int iStack_8;
   
   if (btype == 0x36) {
-    iStack_8 = (tasknum / 6 + (tasknum >> 0x1f) >> 2) - (tasknum >> 0x1f);
+    iStack_8 = ((tasknum / 6 + (tasknum >> 0x1f)) >> 2) - (tasknum >> 0x1f);
   }
   else {
     if (btype < 0x37) {

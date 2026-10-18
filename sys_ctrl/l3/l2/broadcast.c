@@ -147,7 +147,7 @@ int broadcast_l2(L2CMD *c, char **results, char *cmd, int response, int delay, i
   while (addr = iVar2 + -1, -1 < addr) {
     l2_addr = c->dest->list[iVar2 + -1];
     argv[1]._val = IR_PTR_VAL(strdup(cmd));
-    l2_addr = l2_addr & 0xc0ffffff | 0x3000000;
+    l2_addr = (l2_addr & 0xc0ffffff) | 0x3000000;
     argv[0]._clas = '\0';
     argv[0]._frame = '\0';
     argv[0]._val = 0;
@@ -273,10 +273,10 @@ switchD_0805f8b9_caseD_25:
              (((iVar1 & 0x20000U) == 0 || (pLVar4->power_state != '\0')))) {
             argv[1]._val = IR_PTR_VAL(strdup(cmd));
             if ((brick_addr & 0x80000000) == 0) {
-              brick_addr = brick_addr & 0xffffffe0 | 3;
+              brick_addr = (brick_addr & 0xffffffe0) | 3;
             }
             else {
-              brick_addr = brick_addr & 0xc0ffffff | 0x3000000;
+              brick_addr = (brick_addr & 0xc0ffffff) | 0x3000000;
             }
             argv[0]._clas = '\0';
             argv[0]._frame = '\0';
@@ -378,10 +378,10 @@ switchD_0805f5b6_caseD_25:
                (((iVar1 & 0x20000U) == 0 || (l1->power_state != '\0')))) {
               argv[1]._val = IR_PTR_VAL(strdup(cmd));
               if ((brick_addr & 0x80000000) == 0) {
-                brick_addr = brick_addr & 0xffffffe0 | 3;
+                brick_addr = (brick_addr & 0xffffffe0) | 3;
               }
               else {
-                brick_addr = brick_addr & 0xc0ffffff | 0x3000000;
+                brick_addr = (brick_addr & 0xc0ffffff) | 0x3000000;
               }
               argv[0]._clas = '\0';
               argv[0]._frame = '\0';

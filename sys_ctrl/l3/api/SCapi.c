@@ -590,7 +590,7 @@ int sn1SCInitL2App(char *cname, char *host, int task)
   else {
     iVar1 = IR_PORT_BIAS + 0x232c;
   }
-  iVar1 = sn1SCInitPortAddr(cname,host,task,iVar1,task & 0x1fU | 0x1ffff000);
+  iVar1 = sn1SCInitPortAddr(cname,host,task,iVar1,(task & 0x1fU) | 0x1ffff000);
   return iVar1;
 }
 

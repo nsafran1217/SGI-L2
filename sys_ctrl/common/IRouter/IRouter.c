@@ -146,8 +146,8 @@ static int IRouterCreatePacket(IRPacket **rpkt, int clas, int eframe, int pdata,
       firstframe->_seqnum0 = (uint8)seqnum;
       firstframe->_seqnum1 = (uint8)((uint)seqnum >> 8);
       firstframe->_clas = (uint8)clas;
-      firstframe->_pdata_auth = firstframe->_pdata_auth & 7 | (char)pdata << 3;
-      firstframe->_pdata_auth = firstframe->_pdata_auth & 0xf8 | (byte)authority & 7;
+      firstframe->_pdata_auth = (firstframe->_pdata_auth & 7) | (char)pdata << 3;
+      firstframe->_pdata_auth = (firstframe->_pdata_auth & 0xf8) | ((byte)authority & 7);
       if (dest != NULL) {
         memcpy(&firstframe->_dest,dest,4);
       }
@@ -229,12 +229,12 @@ static int IRouterCreatePacket(IRPacket **rpkt, int clas, int eframe, int pdata,
           }
         }
       }
-      firstframe->_fnum = firstframe->_fnum & 0x7f | 0x80;
+      firstframe->_fnum = (firstframe->_fnum & 0x7f) | 0x80;
       firstframe->_argc = (uint8)argcount;
       if (framenum < 0x80) {
         currframe = firstframe;
         do {
-          currframe->_fnum = (byte)framenum | currframe->_fnum & 0x80;
+          currframe->_fnum = (byte)framenum | (currframe->_fnum & 0x80);
           currframe = currframe->_next_frame;
           framenum = framenum + -1;
         } while (framenum != 0);
@@ -277,11 +277,11 @@ int IRouterInit(uint32 ip)
   }
   IRouterLocalAddress = 0x80000000;
   if (IRByteOrder == 1) {
-    IRouterLocalAddress = ip & 0xffffff | 0x80000000;
+    IRouterLocalAddress = (ip & 0xffffff) | 0x80000000;
   }
   else {
     uVar1 = ntohl(ip);
-    IRouterLocalAddress = IRouterLocalAddress & 0xff000000 | uVar1 & 0xffffff;
+    IRouterLocalAddress = (IRouterLocalAddress & 0xff000000) | (uVar1 & 0xffffff);
   }
   IRouterInitID(&IRouterInternalID,1,3);
   return 0;
@@ -290,7 +290,7 @@ int IRouterInit(uint32 ip)
 int IRouterInitID(IRIdent *id, uint32 task, int authority)
 {
   id->addr = IRouterLocalAddress;
-  id->addr = id->addr & 0xc0ffffff | (task & 0x3f) << 0x18;
+  id->addr = (id->addr & 0xc0ffffff) | (task & 0x3f) << 0x18;
   id->authority = (uint8)authority;
   id->seqnum = 0;
   return 0;

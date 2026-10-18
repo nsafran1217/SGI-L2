@@ -82,10 +82,10 @@ void lpbk(int session, IRAddress addr, int length, int count, SMP *smp)
     Lpbk[session].bcount = count;
     Lpbk[session].blen = length;
     if ((addr & 0x80000000) == 0) {
-      IVar3 = addr & 0xffffffe0 | 0x12;
+      IVar3 = (addr & 0xffffffe0) | 0x12;
     }
     else {
-      IVar3 = addr & 0xc0ffffff | 0x12000000;
+      IVar3 = (addr & 0xc0ffffff) | 0x12000000;
     }
     Lpbk[session].l1addr = IVar3;
     Lpbk[session].smp = smp;

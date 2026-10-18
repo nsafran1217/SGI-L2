@@ -408,7 +408,7 @@ int RouterPriGroupEventOut(int process_id, int group, int opcode, int argcount, 
   for (; client_ptr != NULL; client_ptr = client_ptr->next) {
     if (((client_ptr->process_id == process_id) && ((uint)group <= (client_ptr->groups).count)) &&
        ((byte)((client_ptr->groups).bits[group_index >> 3] &
-              (byte)(1 << ((char)group + (char)(iVar1 >> 3) * -8 & 0x1fU))) != 0)) {
+              (byte)(1 << (((char)group + (char)(iVar1 >> 3) * -8) & 0x1fU))) != 0)) {
       RouterDoOutput(client_ptr,opcode,0x80,argcount,arglist,NULL,NULL,
                      NULL,NULL,priority & 0xff,purge_data);
       events_sent = events_sent + 1;
@@ -539,7 +539,7 @@ int RouterDisconnectClients(int timeout)
 
 void RouterDisconnect(RouterClient *client, int timeout)
 {
-  client->use = client->use & 0xffffffc0U | 8;
+  client->use = (client->use & 0xffffffc0U) | 8;
   if (timeout < 1) {
     timeout = 1;
   }
@@ -1021,7 +1021,7 @@ static int RouterProcessDisRequest(RouterClient *client)
 {
   RouterQRemoveRequests(client,&client->out_queue);
   RouterCheckOutputMonitor(client);
-  client->use = client->use & 0xffffffc0U | 0x10;
+  client->use = (client->use & 0xffffffc0U) | 0x10;
   RouterDoOutput(client,0,0x12,0,NULL,NULL,NULL,
                  NULL,NULL,0xff,NULL);
   return 0;
@@ -1458,7 +1458,7 @@ void RouterPack(RouterClient *client, int opcode, int class, int argcount, Route
       size = size + 8;
     }
     else {
-      size = size + 4 + ((arglist[i].size) + 3U & 0xfffffffc);
+      size = size + 4 + (((arglist[i].size) + 3U) & 0xfffffffc);
     }
   }
   pRVar7 = malloc(size + 8);
@@ -1488,7 +1488,7 @@ void RouterPack(RouterClient *client, int opcode, int class, int argcount, Route
       memcpy(buf_ptr,(void *)arglist[i].val,arglist[i].size);
       /* the original left the alignment padding uninitialized: heap bytes on the wire */
       memset(buf_ptr + arglist[i].size,0,-arglist[i].size & 3U);
-      buf_ptr = buf_ptr + ((arglist[i].size) + 3U & 0xfffffffc);
+      buf_ptr = buf_ptr + (((arglist[i].size) + 3U) & 0xfffffffc);
     }
   }
   if ((compress == 0) || (size < 1)) {
@@ -1635,7 +1635,7 @@ int RouterUnpack(RouterClient *client, RouterHeader *packet)
         RouterMemError();
       }
       memcpy((void *)client->InArgList[i].val,buf_ptr,client->InArgList[i].size);
-      buf_ptr = buf_ptr + (client->InArgList[i].size + 3U & 0xfffffffc);
+      buf_ptr = buf_ptr + ((client->InArgList[i].size + 3U) & 0xfffffffc);
       client->InArgList[i].fre = 1;
     }
     i = i + 1;

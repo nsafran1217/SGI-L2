@@ -34,17 +34,17 @@ static U16 pppfcs(int fcs, unsigned char *bptr, unsigned int blen, unsigned char
   ushort uVar1;
   
   while (blen = blen - 1, uVar1 = (ushort)((uint)fcs >> 8), blen != 0xffffffff) {
-    fcs = (int)(uVar1 & 0xff ^ fcstab[(fcs & 0xffffU ^ (uint)*bptr) & 0xff]);
+    fcs = (int)((uVar1 & 0xff) ^ fcstab[((fcs & 0xffffU) ^ (uint)*bptr) & 0xff]);
     bptr = bptr + 1;
   }
-  return fcstab[(fcs & 0xffffU ^ (uint)*fptr) & 0xff] >> 8 ^
-         fcstab[((uint)(uVar1 & 0xff ^ fcstab[(fcs & 0xffffU ^ (uint)*fptr) & 0xff]) ^ (uint)fptr[1]
+  return fcstab[((fcs & 0xffffU) ^ (uint)*fptr) & 0xff] >> 8 ^
+         fcstab[((uint)((uVar1 & 0xff) ^ fcstab[((fcs & 0xffffU) ^ (uint)*fptr) & 0xff]) ^ (uint)fptr[1]
                 ) & 0xff];
 }
 
 static U16 pppnext(int cptr, int fcs)
 {
-  return (ushort)((uint)fcs >> 8) & 0xff ^ fcstab[(fcs & 0xffffU ^ cptr & 0xffU) & 0xff];
+  return ((ushort)((uint)fcs >> 8) & 0xff) ^ fcstab[((fcs & 0xffffU) ^ (cptr & 0xffU)) & 0xff];
 }
 
 static void call_efcn(PPPInstance *pptr, unsigned int status, unsigned char *bptr, unsigned int blen, unsigned char *csbuf, unsigned char *rawbuf, unsigned int rawlen)

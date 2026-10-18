@@ -119,10 +119,10 @@ void route_process_request(IRAddress addr, SMP *smp)
     route_pending = 1;
     route_smp = smp;
     if ((addr & 0x80000000) == 0) {
-      route_addr = addr & 0xffffffe0 | 0x17;
+      route_addr = (addr & 0xffffffe0) | 0x17;
     }
     else {
-      route_addr = addr & 0xc0ffffff | 0x17000000;
+      route_addr = (addr & 0xc0ffffff) | 0x17000000;
     }
     for (arg = 0; arg < 0x40; arg = arg + 1) {
       argv[arg]._clas = '\0';

@@ -1425,10 +1425,10 @@ static int l2cmd_hreboot_l1(CmdData *cptr, char **results, L2CMD *c)
     else if (iVar2 == 1) {
       uVar1 = c->dest->list[0];
       if ((uVar1 & 0x80000000) == 0) {
-        addr = uVar1 & 0xffffffe0 | 6;
+        addr = (uVar1 & 0xffffffe0) | 6;
       }
       else {
-        addr = uVar1 & 0xc0ffffff | 0x6000000;
+        addr = (uVar1 & 0xc0ffffff) | 0x6000000;
       }
       argv[0]._clas = '\0';
       argv[0]._frame = '\0';
@@ -2859,7 +2859,7 @@ static int l2cmd_ip(CmdData *cptr, char **results)
         }
       }
       else {
-        ip_broadcast = ip_addr & ip_netmask | ~ip_netmask;
+        ip_broadcast = (ip_addr & ip_netmask) | ~ip_netmask;
       }
       if (rptr == *results) {
         nvramSet(6,ip_addr);
@@ -3034,7 +3034,7 @@ static int l2cmd_select(CmdData *cptr, char **results, L2CMD *c)
         strcpy(*results,"not valid on this brick - use \'console0|con0|console1...\'\n");
         return -1;
       }
-      conaddr = conaddr & 0xfffff01f | 0x80;
+      conaddr = (conaddr & 0xfffff01f) | 0x80;
       conaddr = smp_set_conaddr(c->data,conaddr);
       if (conaddr == 0) {
         strcpy(*results,
@@ -3061,7 +3061,7 @@ static int l2cmd_select(CmdData *cptr, char **results, L2CMD *c)
         return -1;
       }
       iVar2 = tolower((int)*cptr->toks[2]);
-      conaddr = conaddr & 0xfffff01f | (iVar2 - 0x61U & 0x7f) << 5;
+      conaddr = (conaddr & 0xfffff01f) | ((iVar2 - 0x61U) & 0x7f) << 5;
       conaddr = smp_set_conaddr(c->data,conaddr);
       if (conaddr == 0) {
         strcpy(*results,
@@ -3087,7 +3087,7 @@ static int l2cmd_select(CmdData *cptr, char **results, L2CMD *c)
         strcpy(*results,"not valid on this brick - use \'0a|0c|1a...\'\n");
         return -1;
       }
-      conaddr = conaddr & 0xfffff01f | (cptr->exp_stack[0] & 0x7f) << 5;
+      conaddr = (conaddr & 0xfffff01f) | (cptr->exp_stack[0] & 0x7f) << 5;
       conaddr = smp_set_conaddr(c->data,conaddr);
       if (conaddr == 0) {
         strcpy(*results,
@@ -3114,10 +3114,10 @@ static int l2cmd_select(CmdData *cptr, char **results, L2CMD *c)
           uVar3 = BRICK_TASKNUM((uint)cfg->type,0,4);
           uVar3 = (uVar3 & 0x7f) << 5;
           if ((conaddr & 0x80000000) == 0) {
-            conaddr = conaddr & 0xfffff000 | uVar3 | detected_ & 0x1f;
+            conaddr = (conaddr & 0xfffff000) | uVar3 | (detected_ & 0x1f);
           }
           else {
-            conaddr = conaddr & 0xc0fff01f | uVar3 | (detected_ & 0x3f) << 0x18;
+            conaddr = (conaddr & 0xc0fff01f) | uVar3 | (detected_ & 0x3f) << 0x18;
           }
         }
         else {
@@ -3139,10 +3139,10 @@ static int l2cmd_select(CmdData *cptr, char **results, L2CMD *c)
             uVar3 = BRICK_TASKNUM((uint)cfg->type,0,4);
             uVar3 = (uVar3 & 0x7f) << 5;
             if ((conaddr & 0x80000000) == 0) {
-              conaddr = conaddr & 0xfffff000 | uVar3 | detected_ & 0x1f;
+              conaddr = (conaddr & 0xfffff000) | uVar3 | (detected_ & 0x1f);
             }
             else {
-              conaddr = conaddr & 0xc0fff01f | uVar3 | (detected_ & 0x3f) << 0x18;
+              conaddr = (conaddr & 0xc0fff01f) | uVar3 | (detected_ & 0x3f) << 0x18;
             }
           }
           else {
@@ -3174,10 +3174,10 @@ static int l2cmd_select(CmdData *cptr, char **results, L2CMD *c)
             uVar3 = BRICK_TASKNUM((uint)cfg->type,0,first);
             uVar3 = (uVar3 & 0x7f) << 5;
             if ((conaddr & 0x80000000) == 0) {
-              conaddr = conaddr & 0xfffff000 | uVar3 | detected & 0x1f;
+              conaddr = (conaddr & 0xfffff000) | uVar3 | (detected & 0x1f);
             }
             else {
-              conaddr = conaddr & 0xc0fff01f | uVar3 | (detected & 0x3f) << 0x18;
+              conaddr = (conaddr & 0xc0fff01f) | uVar3 | (detected & 0x3f) << 0x18;
             }
           }
           else {
@@ -3208,14 +3208,14 @@ static int l2cmd_select(CmdData *cptr, char **results, L2CMD *c)
         return -1;
       }
       uVar3 = (rack & 0x3ffU) << 6;
-      conaddr = (uVar3 | slot & 0x3fU) << 0xc;
+      conaddr = (uVar3 | (slot & 0x3fU)) << 0xc;
       if (((cfg->type != ',') && (cfg->type != '}')) && (cfg->type != '.')) {
         uVar7 = (cfg->console_subchannel & 0x7f) << 5;
         if (true) {
-          conaddr = conaddr | uVar7 | cfg->console_subchannel >> 8 & 0x1f;
+          conaddr = conaddr | uVar7 | (cfg->console_subchannel >> 8 & 0x1f);
         }
         else {
-          conaddr = (uVar3 & 0xc0fff | slot & 0x3fU) << 0xc | uVar7 |
+          conaddr = ((uVar3 & 0xc0fff) | (slot & 0x3fU)) << 0xc | uVar7 |
                     (cfg->console_subchannel >> 8 & 0x3f) << 0x18;
         }
       }
@@ -3268,7 +3268,7 @@ static int l2cmd_select(CmdData *cptr, char **results, L2CMD *c)
         strcpy(*results,"ERROR: not a valid system console address\n");
         return -1;
       }
-      conaddr = ((rack & 0x3ffU) << 6 | slot & 0x3fU) << 0xc;
+      conaddr = ((rack & 0x3ffU) << 6 | (slot & 0x3fU)) << 0xc;
       iVar2 = strncmp(cptr->str_stack[0],"console",7);
       if (iVar2 == 0) {
         detected = strtol(cptr->str_stack[0] + 7,NULL,0);
@@ -3276,10 +3276,10 @@ static int l2cmd_select(CmdData *cptr, char **results, L2CMD *c)
           uVar3 = BRICK_TASKNUM((uint)cfg->type,0,4);
           uVar3 = (uVar3 & 0x7f) << 5;
           if ((conaddr & 0x80000000) == 0) {
-            conaddr = conaddr & 0xfffff000 | uVar3 | detected & 0x1f;
+            conaddr = (conaddr & 0xfffff000) | uVar3 | (detected & 0x1f);
           }
           else {
-            conaddr = conaddr & 0xc0fff01f | uVar3 | (detected & 0x3f) << 0x18;
+            conaddr = (conaddr & 0xc0fff01f) | uVar3 | (detected & 0x3f) << 0x18;
           }
         }
         else {
@@ -3301,10 +3301,10 @@ static int l2cmd_select(CmdData *cptr, char **results, L2CMD *c)
             uVar3 = BRICK_TASKNUM((uint)cfg->type,0,4);
             uVar3 = (uVar3 & 0x7f) << 5;
             if ((conaddr & 0x80000000) == 0) {
-              conaddr = conaddr & 0xfffff000 | uVar3 | detected & 0x1f;
+              conaddr = (conaddr & 0xfffff000) | uVar3 | (detected & 0x1f);
             }
             else {
-              conaddr = conaddr & 0xc0fff01f | uVar3 | (detected & 0x3f) << 0x18;
+              conaddr = (conaddr & 0xc0fff01f) | uVar3 | (detected & 0x3f) << 0x18;
             }
           }
           else {
@@ -3336,10 +3336,10 @@ static int l2cmd_select(CmdData *cptr, char **results, L2CMD *c)
             uVar3 = BRICK_TASKNUM((uint)cfg->type,0,iVar2);
             uVar3 = (uVar3 & 0x7f) << 5;
             if ((conaddr & 0x80000000) == 0) {
-              conaddr = conaddr & 0xfffff000 | uVar3 | first & 0x1fU;
+              conaddr = (conaddr & 0xfffff000) | uVar3 | (first & 0x1fU);
             }
             else {
-              conaddr = conaddr & 0xc0fff01f | uVar3 | (first & 0x3fU) << 0x18;
+              conaddr = (conaddr & 0xc0fff01f) | uVar3 | (first & 0x3fU) << 0x18;
             }
           }
           else {

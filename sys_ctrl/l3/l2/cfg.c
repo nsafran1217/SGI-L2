@@ -295,13 +295,13 @@ void cfg_ping_l2(RouterClient *client)
   argv[3]._frame = '\0';
   sVar3 = strlen((char *)IR_VAL_PTR(argv[3]._val));
   argv[3]._size = (short)sVar3 + 1;
-  dst = dst & 0xffffff | 0x84000000;
+  dst = (dst & 0xffffff) | 0x84000000;
   if (IRByteOrder == 1) {
-    dst = client->addr & 0xffffff | 0x84000000;
+    dst = (client->addr & 0xffffff) | 0x84000000;
   }
   else {
     uVar4 = ntohl(client->addr);
-    dst = dst & 0xff000000 | uVar4 & 0xffffff;
+    dst = (dst & 0xff000000) | (uVar4 & 0xffffff);
   }
   p = IRouterMakePacket(&l2_cfg_id,&dst,0,0,0,2,4,argv);
   if (p == NULL) {

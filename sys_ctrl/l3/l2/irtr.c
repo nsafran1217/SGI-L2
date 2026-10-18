@@ -287,7 +287,7 @@ int IRouterSendTargetedPacket(IRIdent *id, IRPacket *pkt)
           return 0;
         }
       }
-      node = L2CfgMFindNode(&L2CfgLocal,0,task & 0x1fU | 0x1ffff000,NULL);
+      node = L2CfgMFindNode(&L2CfgLocal,0,(task & 0x1fU) | 0x1ffff000,NULL);
       if (node != NULL) {
         pkt->_use_count++;
         iVar2 = IRouterPacketToRouter(node->client,&l2_id,pkt);

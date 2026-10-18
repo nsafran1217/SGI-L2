@@ -85,7 +85,7 @@ int IRouterConnectL3(char *cname, char *host, int port, IRClient **client, int e
   else {
     partitions.count = 0x100;
     partitions.bits = malloc(0x20);
-    memset(partitions.bits,0,partitions.count + 7 >> 3);
+    memset(partitions.bits,0,(partitions.count + 7) >> 3);
     iVar1 = partition;
     if (false) {
       iVar1 = partition + 7;
@@ -95,7 +95,7 @@ int IRouterConnectL3(char *cname, char *host, int port, IRClient **client, int e
       if (false) {
         partition = partition + 7;
       }
-      bVar3 = bVar3 | (byte)(1 << ((char)((uint)events >> 0x10) + (char)(partition >> 3) * -8 &
+      bVar3 = bVar3 | (byte)(1 << (((char)((uint)events >> 0x10) + (char)(partition >> 3) * -8) &
                                   0x1fU));
     }
     partitions.bits[iVar1 >> 3] = bVar3;

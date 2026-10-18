@@ -357,10 +357,10 @@ IRAddress smp_set_l1addr(SMP *smp, IRAddress l1addr)
   IRAddress IVar1;
   
   if ((l1addr & 0x80000000) == 0) {
-    IVar1 = l1addr & 0xffffffe0 | 2;
+    IVar1 = (l1addr & 0xffffffe0) | 2;
   }
   else {
-    IVar1 = l1addr & 0xc0ffffff | 0x2000000;
+    IVar1 = (l1addr & 0xc0ffffff) | 0x2000000;
   }
   smp->grp->l1addr = IVar1;
   return IVar1;
@@ -776,10 +776,10 @@ void smp_input_console(SMP *smp, int c)
     slot = IVar1 >> 0x18 & 0x3f;
   }
   if ((IVar1 & 0x80000000) == 0) {
-    addr = IVar1 & 0xffffffe0 | 5;
+    addr = (IVar1 & 0xffffffe0) | 5;
   }
   else {
-    addr = IVar1 & 0xc0ffffff | 0x5000000;
+    addr = (IVar1 & 0xc0ffffff) | 0x5000000;
   }
   p = IRouterMakePacket(smp->id,&addr,slot,0,0,2,2,argv);
   if (p == NULL) {
@@ -1317,10 +1317,10 @@ void smp_process_event(IRPacket *p)
           uVar1 = p->_src;
           faddr = smp_get_conaddr(smp,NULL,NULL);
           if ((uVar1 & 0x80000000) == 0) {
-            IVar2 = uVar1 & 0xffffffe0 | (uint)(p->_pdata_auth >> 3);
+            IVar2 = (uVar1 & 0xffffffe0) | (uint)(p->_pdata_auth >> 3);
           }
           else {
-            IVar2 = uVar1 & 0xc0ffffff | (uint)(p->_pdata_auth >> 3) << 0x18;
+            IVar2 = (uVar1 & 0xc0ffffff) | (uint)(p->_pdata_auth >> 3) << 0x18;
           }
           if (IVar2 != faddr) goto LAB_080504e9;
         }
@@ -1817,7 +1817,7 @@ void smp_tty_config(int fd, int baud)
       sVar4 = cfgetispeed((struct termios *)&termios);
       smp_tty[fd].ispeed = sVar4;
       smp_tty[fd].configured = 1;
-      termios.c_iflag = termios.c_iflag & 0xffffe83f | 0x20;
+      termios.c_iflag = (termios.c_iflag & 0xffffe83f) | 0x20;
       termios.c_oflag = termios.c_oflag | 1;
       termios.c_lflag = termios.c_lflag & 0xfffffff5;
       if (l2_pc == 0) {

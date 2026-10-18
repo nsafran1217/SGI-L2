@@ -124,7 +124,7 @@ int L2CfgInitLocal(uint32 ip_addr, RouterClient *client)
     if (IRByteOrder != 1) {
       ir_addr = ntohl(ip_addr);
     }
-    L2CfgInitNode(&L2CfgLocal.net,1,ip_addr,ir_addr & 0xffffff | 0x80000000,client);
+    L2CfgInitNode(&L2CfgLocal.net,1,ip_addr,(ir_addr & 0xffffff) | 0x80000000,client);
     L2CfgLocal.rack = nvramGet(1);
     L2CfgLocal.net.msmode = nvramGet(0x1a);
     if ((L2CfgLocal.net.msmode != 0) && (L2CfgLocal.net.msmode < 3)) {
@@ -170,7 +170,7 @@ int L2CfgMInitL3(L2Cfg *head, RouterClient *client)
     else {
       ir_addr = ntohl(client->addr);
     }
-    L2CfgInitNode(&head->net,1,client->addr,ir_addr & 0xffffff | 0x80000000,client);
+    L2CfgInitNode(&head->net,1,client->addr,(ir_addr & 0xffffff) | 0x80000000,client);
     pLVar2 = malloc(0x400);
     head->syscon = pLVar2;
     memset(head->syscon,0,0x400);
@@ -197,14 +197,14 @@ int L2CfgMAddL2(L2Cfg *head, uint32 ip_addr, uint32 port, RouterClient *client, 
     ip_addr = client->addr;
   }
   if ((port == IR_PORT_BIAS + 0x232aU) || (port == IR_PORT_BIAS + 0x232cU)) {
-    ir_addr = (head->net).ir_addr & 0xc0ffffff | (client->process_id & 0x3fU) << 0x18;
+    ir_addr = ((head->net).ir_addr & 0xc0ffffff) | (client->process_id & 0x3fU) << 0x18;
   }
   else if (port == IR_PORT_BIAS + 0x2329U) {
     uVar1 = ip_addr;
     if (IRByteOrder != 1) {
       uVar1 = ntohl(ip_addr);
     }
-    ir_addr = uVar1 & 0xffffff | 0x80000000;
+    ir_addr = (uVar1 & 0xffffff) | 0x80000000;
   }
   newl2 = L2CfgInitNode(NULL,1,ip_addr,ir_addr,client);
   if ((port != IR_PORT_BIAS + 0x232aU) && (port != IR_PORT_BIAS + 0x232cU)) goto LAB_08068be0;
@@ -270,7 +270,7 @@ int L2CfgMAddL3(L2Cfg *head, uint32 ip_addr, RouterClient *client)
     ir_addr = ntohl((head->net).ip_addr);
   }
   newl3 = L2CfgInitNode(NULL,0,ip_addr,
-                        ir_addr & 0xffffff | 0xc0000000 | (client->socket & 0x3fU) << 0x18,client);
+                        (ir_addr & 0xffffff) | 0xc0000000 | (client->socket & 0x3fU) << 0x18,client);
   newl3->events = 0;
   for (bit = 0; (client->process_id != 0 && (bit < 0x10)); bit = bit + 1) {
     if (true) {
@@ -542,10 +542,10 @@ L2CfgNode *L2CfgMFindNode(L2Cfg *head, uint32 ip_addr, IRAddress ir_addr, Router
     }
     uVar1 = (head->net).ir_addr;
     if ((uVar1 & 0x80000000) == 0) {
-      ir_addr_00 = uVar1 & 0xffffffe0 | tsk & 0x1fU;
+      ir_addr_00 = (uVar1 & 0xffffffe0) | (tsk & 0x1fU);
     }
     else {
-      ir_addr_00 = uVar1 & 0xc0ffffff | tsk << 0x18;
+      ir_addr_00 = (uVar1 & 0xc0ffffff) | tsk << 0x18;
     }
     n = L2CfgMFindL2Node(head,0,ir_addr_00,client);
     if (n == NULL) {
@@ -2973,16 +2973,16 @@ IRAddress L2CfgMGetConsole(L2Cfg *head, int partition)
                   {
                     rack0[uVar1] = rack;
                     slot0[uVar1] = slot;
-                    addr0[uVar1] = (rack << 6 | slot & 0x3fU) << 0xc;
+                    addr0[uVar1] = (rack << 6 | (slot & 0x3fU)) << 0xc;
                     addr0[uVar1] = (l2port->l1cfg[l1].console_subchannel & 0x7f) << 5 |
-                                   addr0[uVar1] & 0xfffff01f;
+                                   (addr0[uVar1] & 0xfffff01f);
                     if ((addr0[uVar1] & 0x80000000) == 0) {
-                      IVar2 = addr0[uVar1] & 0xffffffe0 |
-                              l2port->l1cfg[l1].console_subchannel >> 8 & 0x1f;
+                      IVar2 = (addr0[uVar1] & 0xffffffe0) |
+                              (l2port->l1cfg[l1].console_subchannel >> 8 & 0x1f);
                       addr0[uVar1] = IVar2;
                     }
                     else {
-                      IVar2 = addr0[uVar1] & 0xc0ffffff |
+                      IVar2 = (addr0[uVar1] & 0xc0ffffff) |
                               (l2port->l1cfg[l1].console_subchannel >> 8 & 0x3f) << 0x18;
                       addr0[uVar1] = IVar2;
                     }
@@ -2991,16 +2991,16 @@ IRAddress L2CfgMGetConsole(L2Cfg *head, int partition)
                   if (((uint)rack <= rack1[uVar1]) && ((uint)slot <= slot1[uVar1])) {
                     rack1[uVar1] = rack;
                     slot1[uVar1] = slot;
-                    addr1[uVar1] = (rack << 6 | slot & 0x3fU) << 0xc;
+                    addr1[uVar1] = (rack << 6 | (slot & 0x3fU)) << 0xc;
                     addr1[uVar1] = (l2port->l1cfg[l1].console_subchannel & 0x7f) << 5 |
-                                   addr1[uVar1] & 0xfffff01f;
+                                   (addr1[uVar1] & 0xfffff01f);
                     if ((addr1[uVar1] & 0x80000000) == 0) {
-                      IVar2 = addr1[uVar1] & 0xffffffe0 |
-                              l2port->l1cfg[l1].console_subchannel >> 8 & 0x1f;
+                      IVar2 = (addr1[uVar1] & 0xffffffe0) |
+                              (l2port->l1cfg[l1].console_subchannel >> 8 & 0x1f);
                       addr1[uVar1] = IVar2;
                     }
                     else {
-                      IVar2 = addr1[uVar1] & 0xc0ffffff |
+                      IVar2 = (addr1[uVar1] & 0xc0ffffff) |
                               (l2port->l1cfg[l1].console_subchannel >> 8 & 0x3f) << 0x18;
                       addr1[uVar1] = IVar2;
                     }
