@@ -128,8 +128,8 @@ void cfg_init(void)
     if ((l2_discover != 0) && (L2CfgLocal.net.msmode != 1)) {
       uVar4 = nvramGet(5);
       if (uVar4 == 1) {
-        uVar4 = nvramGet(3);
-        sprintf(client_data,"%s,ssn:%s",cfg_client_id,uVar4);
+        /* 64-bit: the serial number string, not through a uint32 */
+        sprintf(client_data,"%s,ssn:%s",cfg_client_id,(char *)nvramGet(3));
       }
       else {
         strcpy(client_data,cfg_client_id);
@@ -1283,8 +1283,8 @@ void cfg_l2ping(int start_timer)
   }
   uVar2 = nvramGet(5);
   if (uVar2 == 1) {
-    uVar2 = nvramGet(3);
-    sprintf(client_data,"%s,ssn:%s",cfg_client_id,uVar2);
+    /* 64-bit: the serial number string, not through a uint32 */
+    sprintf(client_data,"%s,ssn:%s",cfg_client_id,(char *)nvramGet(3));
   }
   else {
     strcpy(client_data,cfg_client_id);

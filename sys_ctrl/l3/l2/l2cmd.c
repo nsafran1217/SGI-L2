@@ -3451,6 +3451,7 @@ static int ver_summary_rsp(IRPacket *rsp, L2CMD *c, IRAddress *dest, int pktslef
   char *verstr;
   char *pcVar4;
   uint uVar5;
+  char *errtext;
   char *pcVar6;
   undefined *puVar7;
   int iVar8;
@@ -3525,14 +3526,15 @@ static int ver_summary_rsp(IRPacket *rsp, L2CMD *c, IRAddress *dest, int pktslef
       }
     }
     else {
+      /* 64-bit: the error text as a pointer, not through a uint */
       if ((rsp->_argv[1]._clas & 7) == 0) {
-        uVar5 = (uint)rsp->_argv[1]._val;
+        errtext = (char *)IR_VAL_PTR(rsp->_argv[1]._val);
       }
       else {
-        uVar5 = IRArg(rsp,1);
+        errtext = (char *)IRArg(rsp,1);
       }
       pcVar6 = format_address(*dest);
-      sprintf(emsg,"    %s:  %s\n",pcVar6,uVar5);
+      sprintf(emsg,"    %s:  %s\n",pcVar6,errtext);
     }
   }
   else {
