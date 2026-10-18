@@ -20,9 +20,6 @@ CFLAGS  ?= -g -O0
 # s390x, ARM, PowerPC)
 CFLAGS  += $(ARCH) -std=gnu99 -fcommon -fno-strict-aliasing -fno-builtin -fsigned-char -Icompat -Wall \
            -Wno-unused-variable -Wno-unused-but-set-variable -Wno-unused-label -Wno-pointer-sign
-# gcc 14 made these errors; the bootstrapped code still trips them (fix, then delete this line)
-CFLAGS  += -Wno-error=int-conversion \
-           -Wno-error=incompatible-pointer-types -Wno-error=return-mismatch
 # Debian's libc6-dev-i386 puts the 32-bit glibc headers under the x86_64 multiarch dir
 ifeq ($(ARCH),-m32)
 ISYSTEM := $(if $(wildcard /usr/include/i386-linux-gnu/bits),,-isystem /usr/include/x86_64-linux-gnu)
