@@ -1939,7 +1939,7 @@ int pbay_rsp(IRPacket *rsp, L2CMD *c, IRAddress *dest, int pktsleft, cmd_respons
       }
       if (uVar3 != 0) {
         if (((uint)rsp[1]._next_frame & 7) == 0) {
-          pcVar4 = *(char **)&rsp[1].field_0x4;
+          pcVar4 = (char *)rsp->_argv[1]._val;
         }
         else {
           pcVar4 = (char *)IRArg(rsp,1);
@@ -1960,7 +1960,7 @@ int pbay_rsp(IRPacket *rsp, L2CMD *c, IRAddress *dest, int pktsleft, cmd_respons
     }
     else if (*(int *)((int)data + 0x14) == 0) {
       if (((uint)rsp[1]._next_frame & 7) == 0) {
-        pcVar4 = *(char **)&rsp[1].field_0x4;
+        pcVar4 = (char *)rsp->_argv[1]._val;
       }
       else {
         pcVar4 = (char *)IRArg(rsp,1);
@@ -3518,7 +3518,7 @@ static int ver_summary_rsp(IRPacket *rsp, L2CMD *c, IRAddress *dest, int pktslef
     }
     if (uVar5 == 0) {
       if (((uint)rsp[1]._next_frame & 7) == 0) {
-        pcVar6 = *(char **)&rsp[1].field_0x4;
+        pcVar6 = (char *)rsp->_argv[1]._val;
       }
       else {
         pcVar6 = (char *)IRArg(rsp,1);
@@ -3548,7 +3548,7 @@ static int ver_summary_rsp(IRPacket *rsp, L2CMD *c, IRAddress *dest, int pktslef
     }
     else {
       if (((uint)rsp[1]._next_frame & 7) == 0) {
-        uVar5 = *(uint *)&rsp[1].field_0x4;
+        uVar5 = (uint)rsp->_argv[1]._val;
       }
       else {
         uVar5 = IRArg(rsp,1);

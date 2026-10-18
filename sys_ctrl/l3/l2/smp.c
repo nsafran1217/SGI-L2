@@ -1401,7 +1401,7 @@ LAB_08050790:
       else {
         iVar1 = -1;
         if (((uint)pkt[1]._next_frame & 7) == 0) {
-          pcVar2 = *(char **)&pkt[1].field_0x4;
+          pcVar2 = (char *)pkt->_argv[1]._val;
         }
         else {
           pcVar2 = (char *)IRArg(pkt,1);

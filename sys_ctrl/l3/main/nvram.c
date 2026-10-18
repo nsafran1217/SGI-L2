@@ -201,8 +201,7 @@ void nvramSet(int32 location, uint32 value)
       nvramIUA->rack = (byte)value;
       break;
     case 2:
-      nvramIUA->auto_powerup = 0;
-      pnVar1->field_0x5 = pnVar1->field_0x5 | (byte)value & 1;
+      nvramIUA->auto_powerup = value;
       break;
     case 3:
       memset(nvramIUA->system_serial_number,0,0x10);
@@ -217,8 +216,7 @@ void nvramSet(int32 location, uint32 value)
       }
       break;
     case 5:
-      nvramIUA->multisys = 0;
-      pnVar1->field_0x5 = pnVar1->field_0x5 | ((byte)value & 1) * '\x02';
+      nvramIUA->multisys = value;
       break;
     case 6:
       nvramIUA->ip_addr = value;
@@ -230,8 +228,7 @@ void nvramSet(int32 location, uint32 value)
       nvramIUA->ip_broadcast = value;
       break;
     case 9:
-      nvramIUA->l2dsp_disabled = 0;
-      pnVar1->field_0x5 = pnVar1->field_0x5 | ((byte)value & 1) << 2;
+      nvramIUA->l2dsp_disabled = value;
       break;
     case 10:
       nvramIUA->l1usb_debug = value;
@@ -252,8 +249,7 @@ void nvramSet(int32 location, uint32 value)
       nvramIUA->ping_l1freq = value;
       break;
     case 0x10:
-      nvramIUA->dhcps_disabled = 0;
-      pnVar1->field_0x5 = pnVar1->field_0x5 | ((byte)value & 1) << 3;
+      nvramIUA->dhcps_disabled = value;
       break;
     case 0x11:
       memset(nvramIUA->timezone,0,0x50);
@@ -274,8 +270,7 @@ void nvramSet(int32 location, uint32 value)
       nvramIUA->autopower_delay = value;
       break;
     case 0x15:
-      nvramIUA->slow_pwrup = 0;
-      pnVar1->field_0x5 = pnVar1->field_0x5 | ((byte)value & 1) << 4;
+      nvramIUA->slow_pwrup = value;
       break;
     case 0x16:
       nvramIUA->slot = (byte)value;
@@ -290,8 +285,7 @@ void nvramSet(int32 location, uint32 value)
       nvramIUA->ip_gateway = value;
       break;
     case 0x1a:
-      nvramIUA->master_slave = 0;
-      pnVar1->field_0x5 = pnVar1->field_0x5 | (byte)value << 5;
+      nvramIUA->master_slave = value;
       break;
     default:
       goto switchD_08066c58_default;

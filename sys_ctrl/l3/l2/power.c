@@ -222,7 +222,7 @@ void power_process_response(IRPacket *p)
     }
     if ((1 < p->_argc) && (((uint)p[1]._next_frame & 7) == 2)) {
       if (((uint)p[1]._next_frame & 7) == 0) {
-        format = *(char **)&p[1].field_0x4;
+        format = (char *)p->_argv[1]._val;
       }
       else {
         format = (char *)IRArg(p,1);

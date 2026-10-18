@@ -642,7 +642,7 @@ void cfg_console_subchannel(IRPacket *p)
   int part;
   
   if (((uint)p[1]._next_frame & 7) == 0) {
-    rack = *(int *)&p[1].field_0x4;
+    rack = (int)p->_argv[1]._val;
   }
   else {
     rack = IRArg(p,1);
@@ -679,7 +679,7 @@ void cfg_console_enable(IRPacket *p)
   uint8 uStack_11;
   
   if (((uint)p[1]._next_frame & 7) == 0) {
-    rack_00 = *(uint *)&p[1].field_0x4;
+    rack_00 = (uint)p->_argv[1]._val;
   }
   else {
     rack_00 = IRArg(p,1);
@@ -713,7 +713,7 @@ void cfg_power_state(IRPacket *p)
   uint8 uStack_11;
   
   if (((uint)p[1]._next_frame & 7) == 0) {
-    rack_00 = *(uint *)&p[1].field_0x4;
+    rack_00 = (uint)p->_argv[1]._val;
   }
   else {
     rack_00 = IRArg(p,1);
@@ -747,7 +747,7 @@ void cfg_margin_state(IRPacket *p)
   uint8 uStack_11;
   
   if (((uint)p[1]._next_frame & 7) == 0) {
-    rack_00 = *(uint *)&p[1].field_0x4;
+    rack_00 = (uint)p->_argv[1]._val;
   }
   else {
     rack_00 = IRArg(p,1);
@@ -783,7 +783,7 @@ void cfg_partition(IRPacket *p)
   uint8 new_part;
   
   if (((uint)p[1]._next_frame & 7) == 0) {
-    rack = *(int *)&p[1].field_0x4;
+    rack = (int)p->_argv[1]._val;
   }
   else {
     rack = IRArg(p,1);
@@ -816,7 +816,7 @@ void cfg_system_sn(IRPacket *p)
   char *__src;
   
   if (((uint)p[1]._next_frame & 7) == 0) {
-    rack = *(int *)&p[1].field_0x4;
+    rack = (int)p->_argv[1]._val;
   }
   else {
     rack = IRArg(p,1);
@@ -849,7 +849,7 @@ void cfg_environmental(IRPacket *p)
   IRAddress addr;
   
   if (((uint)p[1]._next_frame & 7) == 0) {
-    rack = *(int *)&p[1].field_0x4;
+    rack = (int)p->_argv[1]._val;
   }
   else {
     rack = IRArg(p,1);

@@ -133,7 +133,7 @@ void cmd_process_request(IRPacket *req)
   
   rptr = NULL;
   if (((uint)req[1]._next_frame & 7) == 0) {
-    cmd = *(char **)&req[1].field_0x4;
+    cmd = (char *)req->_argv[1]._val;
   }
   else {
     cmd = (char *)IRArg(req,1);

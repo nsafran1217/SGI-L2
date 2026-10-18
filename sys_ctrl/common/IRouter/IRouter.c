@@ -141,9 +141,7 @@ static int IRouterCreatePacket(IRPacket **rpkt, int clas, int eframe, int pdata,
     }
     else {
       firstframe->_next_frame = NULL;
-      bVar2 = (byte)IRByteOrder & 3;
-      firstframe->_byte_order = 0;
-      firstframe->field_0x6 = firstframe->field_0x6 | bVar2;
+      firstframe->_byte_order = IRByteOrder;
       firstframe->_seqnum0 = (uint8)seqnum;
       firstframe->_seqnum1 = (uint8)((uint)seqnum >> 8);
       firstframe->_clas = (uint8)clas;
@@ -158,8 +156,7 @@ static int IRouterCreatePacket(IRPacket **rpkt, int clas, int eframe, int pdata,
       firstframe->_opcode = (uint16)opcode;
       firstframe->_err = (uint8)errcode;
       firstframe->_client_data = client_data;
-      firstframe->_qsuspend = 0;
-      *(ushort *)&firstframe->field_0x6 = *(ushort *)&firstframe->field_0x6 | (short)qsuspend << 2;
+      firstframe->_qsuspend = qsuspend;
       memcpy(firstframe->_argv,arglist,argcount * 8);
       curframesize = argcount * 8 + 0x14;
       pktsize = pktsize + -0x14 + argcount * -8;
@@ -240,8 +237,7 @@ static int IRouterCreatePacket(IRPacket **rpkt, int clas, int eframe, int pdata,
           currframe = currframe->_next_frame;
           framenum = framenum + -1;
         } while (framenum != 0);
-        firstframe->_use_count = 0;
-        firstframe->field_0x4 = firstframe->field_0x4 | 2;
+        firstframe->_use_count = 1;
         *rpkt = firstframe;
         if (IRouterDebugMallocFree != 0) {
           fprintf((FILE *)stderr,"CREATE %x\n",*rpkt);
@@ -319,10 +315,7 @@ int IRouterFreePacket(IRPacket *pkt)
     printf("packet free error, class: %d, src: %08x\n",(uint)pkt->_clas,pkt->_src);
   }
   else {
-    uVar2 = pkt->_use_count - 1;
-    pkt->_use_count = 0;
-    *(ushort *)&pkt->field_0x4 = *(ushort *)&pkt->field_0x4 | uVar2 * 2;
-    if ((uVar2 & 0x7fff) == 0) {
+    if (--pkt->_use_count == 0) {
       if (pkt->_arg_data != NULL) {
         for (arg = 0; arg < (int)(uint)pkt->_argc; arg = arg + 1) {
           if (pkt->_arg_data[arg] != NULL) {
@@ -494,8 +487,7 @@ int IRouterReadPacket(IRIdent *id, int (*rfcn)(), void *fd, IRPacket **pkt)
     currframe->_next_frame = NULL;
     next_expected_framenum = (currframe->_fnum & 0x7f) - 1;
     if (next_expected_framenum == 0) {
-      firstframe->_use_count = 0;
-      firstframe->field_0x4 = firstframe->field_0x4 | 2;
+      firstframe->_use_count = 1;
       *pkt = firstframe;
       return 0;
     }
@@ -598,8 +590,7 @@ void IRouterSetFrameByteOrder(IRFrame *frame, int byteorder)
         uVar2 = ntohl(frame->_argv[arg]._val);
         frame->_argv[arg]._val = uVar2;
       }
-      frame->_byte_order = 0;
-      frame->field_0x6 = frame->field_0x6 | 2;
+      frame->_byte_order = 2;
     }
     else {
       uVar1 = htons(frame->_size);
@@ -616,8 +607,7 @@ void IRouterSetFrameByteOrder(IRFrame *frame, int byteorder)
         uVar2 = htonl(frame->_argv[arg]._val);
         frame->_argv[arg]._val = uVar2;
       }
-      frame->_byte_order = 0;
-      frame->field_0x6 = frame->field_0x6 | 1;
+      frame->_byte_order = 1;
     }
   }
   return;

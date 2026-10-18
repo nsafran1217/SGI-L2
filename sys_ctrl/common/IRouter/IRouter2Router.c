@@ -124,8 +124,7 @@ IRPacket *IRouterPacketFromRouter(int argcount, RouterArgument *arglistin)
       frame = (IRFrame *)arglistin[i].val;
       IRouterSetFrameByteOrder(frame,IRByteOrder);
       frame->_next_frame = ppf;
-      frame->_use_count = 0;
-      frame->field_0x4 = frame->field_0x4 | 2;
+      frame->_use_count = 1;
       frame->_arg_data = NULL;
       arglistin[i].clas = 0;
       arglistin[i].val = 0;

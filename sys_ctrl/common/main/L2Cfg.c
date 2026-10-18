@@ -745,8 +745,7 @@ void L2CfgMEventDisplayDisable(L2Cfg *head)
   uint32 uVar1;
   
   uVar1 = nvramGet(9);
-  head->l2dsp_disabled = 0;
-  head->field_0x154 = head->field_0x154 | (byte)uVar1 & 1;
+  head->l2dsp_disabled = uVar1;
   return;
 }
 
@@ -1633,7 +1632,7 @@ void L2CfgMCfgL2(L2Cfg *head, IRPacket *p)
   l2 = NULL;
   bVar2 = p->_argc;
   if (((uint)p[1]._next_frame & 7) == 0) {
-    rev = *(int *)&p[1].field_0x4;
+    rev = (int)p->_argv[1]._val;
   }
   else {
     rev = IRArg(p,1);
@@ -1777,8 +1776,7 @@ void L2CfgMCfgL2(L2Cfg *head, IRPacket *p)
                     if (iVar6 == 0) {
                       if ((l2 != NULL) && (vptr != NULL)) {
                         iVar6 = atoi(vptr);
-                        l2->l2dsp_disabled = 0;
-                        l2->field_0x154 = l2->field_0x154 | (byte)iVar6 & 1;
+                        l2->l2dsp_disabled = iVar6;
                       }
                     }
                     else {

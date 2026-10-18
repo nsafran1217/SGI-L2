@@ -103,14 +103,12 @@ int IRouterSendTargetedPacket(IRIdent *id, IRPacket *pkt)
       }
     }
     if ((L2Cfg *)node != &L2CfgLocal) {
-      pkt->_use_count = 0;
-      *(ushort *)&pkt->field_0x4 = *(ushort *)&pkt->field_0x4 | (pkt->_use_count + 1) * 2;
+      pkt->_use_count++;
       iVar2 = IRouterPacketToRouter(node->client,&l2_id,pkt);
       return iVar2;
     }
     if (pkt->_clas == '\x01') {
-      pkt->_use_count = 0;
-      *(ushort *)&pkt->field_0x4 = *(ushort *)&pkt->field_0x4 | (pkt->_use_count + 1) * 2;
+      pkt->_use_count++;
       smp_process_response(pkt);
       return 0;
     }
@@ -154,8 +152,7 @@ int IRouterSendTargetedPacket(IRIdent *id, IRPacket *pkt)
       }
     }
     if ((node != NULL) && ((L2Cfg *)node != &L2CfgLocal)) {
-      pkt->_use_count = 0;
-      *(ushort *)&pkt->field_0x4 = *(ushort *)&pkt->field_0x4 | (pkt->_use_count + 1) * 2;
+      pkt->_use_count++;
       iVar2 = IRouterPacketToRouter(node->client,&l2_id,pkt);
       return iVar2;
     }
@@ -170,8 +167,7 @@ int IRouterSendTargetedPacket(IRIdent *id, IRPacket *pkt)
       ((type == 1 && (L2CfgLocal.net.msip != 0)))) &&
      (node = L2CfgMFindNode(&L2CfgLocal,L2CfgLocal.net.msip,0,NULL),
      node != NULL)) {
-    pkt->_use_count = 0;
-    *(ushort *)&pkt->field_0x4 = *(ushort *)&pkt->field_0x4 | (pkt->_use_count + 1) * 2;
+    pkt->_use_count++;
     iVar2 = IRouterPacketToRouter(node->client,&l2_id,pkt);
     return iVar2;
   }
@@ -186,8 +182,7 @@ int IRouterSendTargetedPacket(IRIdent *id, IRPacket *pkt)
     if (ip != L2CfgLocal.net.ip_addr) {
       node = L2CfgMFindNode(&L2CfgLocal,ip,0,NULL);
       if (node != NULL) {
-        pkt->_use_count = 0;
-        *(ushort *)&pkt->field_0x4 = *(ushort *)&pkt->field_0x4 | (pkt->_use_count + 1) * 2;
+        pkt->_use_count++;
         iVar2 = IRouterPacketToRouter(node->client,&l2_id,pkt);
         return iVar2;
       }
@@ -199,8 +194,7 @@ int IRouterSendTargetedPacket(IRIdent *id, IRPacket *pkt)
       return -0x260;
     }
     fd = l2_l1_ports[port].fd;
-    pkt->_use_count = 0;
-    *(ushort *)&pkt->field_0x4 = *(ushort *)&pkt->field_0x4 | (pkt->_use_count + 1) * 2;
+    pkt->_use_count++;
     l1_write_packet(fd,pkt);
     return 0;
   }
@@ -219,8 +213,7 @@ int IRouterSendTargetedPacket(IRIdent *id, IRPacket *pkt)
       if (fd == -1) {
         return -0x260;
       }
-      pkt->_use_count = 0;
-      *(ushort *)&pkt->field_0x4 = *(ushort *)&pkt->field_0x4 | (pkt->_use_count + 1) * 2;
+      pkt->_use_count++;
       l1_write_packet(fd,pkt);
       return 0;
     case 1:
@@ -241,31 +234,26 @@ int IRouterSendTargetedPacket(IRIdent *id, IRPacket *pkt)
           if (pkt->_clas == '\0') {
             return -0x260;
           }
-          pkt->_use_count = 0;
-          *(ushort *)&pkt->field_0x4 = *(ushort *)&pkt->field_0x4 | (pkt->_use_count + 1) * 2;
+          pkt->_use_count++;
           smp_process_response(pkt);
           return 0;
         case 3:
           if (pkt->_clas == '\0') {
-            pkt->_use_count = 0;
-            *(ushort *)&pkt->field_0x4 = *(ushort *)&pkt->field_0x4 | (pkt->_use_count + 1) * 2;
+            pkt->_use_count++;
             cmd_process_request(pkt);
           }
           else {
-            pkt->_use_count = 0;
-            *(ushort *)&pkt->field_0x4 = *(ushort *)&pkt->field_0x4 | (pkt->_use_count + 1) * 2;
+            pkt->_use_count++;
             cmd_process_response(pkt);
           }
           return 0;
         case 4:
           if (pkt->_clas == '\0') {
-            pkt->_use_count = 0;
-            *(ushort *)&pkt->field_0x4 = *(ushort *)&pkt->field_0x4 | (pkt->_use_count + 1) * 2;
+            pkt->_use_count++;
             cfg_process_request(pkt);
           }
           else {
-            pkt->_use_count = 0;
-            *(ushort *)&pkt->field_0x4 = *(ushort *)&pkt->field_0x4 | (pkt->_use_count + 1) * 2;
+            pkt->_use_count++;
             cfg_process_response(pkt);
           }
           return 0;
@@ -273,40 +261,35 @@ int IRouterSendTargetedPacket(IRIdent *id, IRPacket *pkt)
           if (pkt->_clas == '\0') {
             return -0x260;
           }
-          pkt->_use_count = 0;
-          *(ushort *)&pkt->field_0x4 = *(ushort *)&pkt->field_0x4 | (pkt->_use_count + 1) * 2;
+          pkt->_use_count++;
           lpbk_process_response(pkt);
           return 0;
         case 9:
           if (pkt->_clas == '\0') {
             return -0x260;
           }
-          pkt->_use_count = 0;
-          *(ushort *)&pkt->field_0x4 = *(ushort *)&pkt->field_0x4 | (pkt->_use_count + 1) * 2;
+          pkt->_use_count++;
           power_process_response(pkt);
           return 0;
         case 0xc:
           if (pkt->_clas == '\0') {
             return -0x260;
           }
-          pkt->_use_count = 0;
-          *(ushort *)&pkt->field_0x4 = *(ushort *)&pkt->field_0x4 | (pkt->_use_count + 1) * 2;
+          pkt->_use_count++;
           cmd_process_response_usr(pkt);
           return 0;
         case 0xd:
           if (pkt->_clas == '\0') {
             return -0x260;
           }
-          pkt->_use_count = 0;
-          *(ushort *)&pkt->field_0x4 = *(ushort *)&pkt->field_0x4 | (pkt->_use_count + 1) * 2;
+          pkt->_use_count++;
           route_process_response(pkt);
           return 0;
         }
       }
       node = L2CfgMFindNode(&L2CfgLocal,0,task & 0x1fU | 0x1ffff000,NULL);
       if (node != NULL) {
-        pkt->_use_count = 0;
-        *(ushort *)&pkt->field_0x4 = *(ushort *)&pkt->field_0x4 | (pkt->_use_count + 1) * 2;
+        pkt->_use_count++;
         iVar2 = IRouterPacketToRouter(node->client,&l2_id,pkt);
         return iVar2;
       }
@@ -348,8 +331,7 @@ int IRouterSendBroadcastPacket(IRIdent *id, IRPacket *pkt)
   IRAddress src;
   bool found;
   
-  pkt->_use_count = 0;
-  *(ushort *)&pkt->field_0x4 = *(ushort *)&pkt->field_0x4 | (pkt->_use_count + 1) * 2;
+  pkt->_use_count++;
   src = pkt->_src;
   if ((src & 0x80000000) == 0) {
     type = src >> 0x1c;
@@ -417,8 +399,7 @@ LAB_08063c00:
               IRFmtPkt("L2",pkt,x);
               fprintf(stderr,"%s\n",x);
             }
-            pkt->_use_count = 0;
-            *(ushort *)&pkt->field_0x4 = *(ushort *)&pkt->field_0x4 | (pkt->_use_count + 1) * 2;
+            pkt->_use_count++;
             IRouterPacketToRouter(node->client,&l2_id,pkt);
           }
         }
@@ -467,8 +448,7 @@ joined_r0x08063e85:
         }
 code_r0x08063e97:
         if (node->ir_addr != src) {
-          pkt->_use_count = 0;
-          *(ushort *)&pkt->field_0x4 = *(ushort *)&pkt->field_0x4 | (pkt->_use_count + 1) * 2;
+          pkt->_use_count++;
           IRouterPacketToRouter(node->client,&l2_id,pkt);
         }
       }
@@ -567,14 +547,12 @@ LAB_08063fc2:
           IRFmtPkt("L2 Write",pkt,x_);
           fprintf(stderr,"%s\n",x_);
         }
-        pkt->_use_count = 0;
-        *(ushort *)&pkt->field_0x4 = *(ushort *)&pkt->field_0x4 | (pkt->_use_count + 1) * 2;
+        pkt->_use_count++;
         l1_write_packet(fd,pkt);
       }
     }
   }
-  pkt->_use_count = 0;
-  *(ushort *)&pkt->field_0x4 = *(ushort *)&pkt->field_0x4 | (pkt->_use_count - 1) * 2;
+  pkt->_use_count--;
   return 0;
 }
 
@@ -590,8 +568,7 @@ int IRouterSendBroadcastPacketToClients(IRIdent *id, IRPacket *pkt)
   L2CfgNode *node;
   IRAddress src;
   
-  pkt->_use_count = 0;
-  *(ushort *)&pkt->field_0x4 = *(ushort *)&pkt->field_0x4 | (pkt->_use_count + 1) * 2;
+  pkt->_use_count++;
   src = pkt->_src;
   if ((src & 0x80000000) == 0) {
     type = src >> 0x1c;
@@ -611,8 +588,7 @@ int IRouterSendBroadcastPacketToClients(IRIdent *id, IRPacket *pkt)
   nl = 0;
   do {
     if (1 < nl) {
-      pkt->_use_count = 0;
-      *(ushort *)&pkt->field_0x4 = *(ushort *)&pkt->field_0x4 | (pkt->_use_count - 1) * 2;
+      pkt->_use_count--;
       return 0;
     }
     node = L2CfgLocal.l3_clients;
@@ -633,8 +609,7 @@ joined_r0x0806441b:
             IRFmtPkt("L2",pkt,x);
             fprintf(stderr,"%s\n",x);
           }
-          pkt->_use_count = 0;
-          *(ushort *)&pkt->field_0x4 = *(ushort *)&pkt->field_0x4 | (pkt->_use_count + 1) * 2;
+          pkt->_use_count++;
           IRouterPacketToRouter(node->client,&l2_id,pkt);
         }
       }

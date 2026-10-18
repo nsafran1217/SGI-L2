@@ -157,7 +157,7 @@ int SysCfgConnProcessEvent(sn1SCConn *conn, char *user, IRPacket *pkt)
     IRArg(pkt,0);
   }
   if (((uint)pkt[1]._next_frame & 7) == 0) {
-    rev = *(int *)&pkt[1].field_0x4;
+    rev = (int)pkt->_argv[1]._val;
   }
   else {
     rev = IRArg(pkt,1);

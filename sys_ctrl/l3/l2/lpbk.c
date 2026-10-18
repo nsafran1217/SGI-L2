@@ -152,7 +152,7 @@ void lpbk_process_response(IRPacket *p)
       session = IRArg(p,0);
     }
     if (((uint)p[1]._next_frame & 7) == 0) {
-      arg = *(uchar **)&p[1].field_0x4;
+      arg = (uchar *)p->_argv[1]._val;
     }
     else {
       arg = (uchar *)IRArg(p,1);
