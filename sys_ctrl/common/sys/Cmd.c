@@ -67,7 +67,7 @@ int CmdProcess(int mode, char *cmd, char **results, Cmd *cmds_in, int num_cmds_i
   int current_cmd;
   int clist;
   CmdData cd;
-  int num_cmds;
+  Cmd *cmdtab;   /* Ghidra reused 'int num_cmds' for this */
   bool match_state;
   
   cmdname = NULL;
@@ -76,7 +76,7 @@ int CmdProcess(int mode, char *cmd, char **results, Cmd *cmds_in, int num_cmds_i
   }
   memset(&cd,0,500);
   if (cmd != NULL) {
-    while ((*(ushort *)(__ctype_b + *cmd * 2) & 0x2000) != 0) {
+    while (isspace((unsigned char)*cmd)) {
       cmd = cmd + 1;
     }
     sVar1 = strlen(cmd);
@@ -102,9 +102,9 @@ LAB_080812f0:
           return -800;
         }
         iVar2 = num_cmds_in;
-        num_cmds = (int)cmds_in;
+        cmdtab = cmds_in;
         if (cmds_in == NULL) {
-          num_cmds = (int)cmdlist[clist];
+          cmdtab = cmdlist[clist];
           iVar2 = cmdlistnum[clist];
         }
         for (current_cmd = 0; current_cmd < iVar2; current_cmd = current_cmd + 1) {
@@ -117,17 +117,17 @@ LAB_080812f0:
           in_tok = 0;
           out_tok = 0;
           while (match_state) {
-            pcVar5 = *(char **)(num_cmds + current_cmd * 0x44 + in_tok * 4);
-            switch(pcVar5) {
-            case NULL:
+            pcVar5 = cmdtab[current_cmd].toks[in_tok];
+            switch((intptr_t)pcVar5) {
+            case 0:
               tok = strtok(cptr,"");
               if (tok == NULL) {
                 cd.toks[out_tok] = NULL;
-                cd.params = (uint *)(num_cmds + current_cmd * 0x44 + 0x2c);
+                cd.params = cmdtab[current_cmd].params;
                 if (mode != 1) {
                   return current_cmd;
                 }
-                rval = (**(code **)(num_cmds + current_cmd * 0x44 + 0x28))(&cd,results,data);
+                rval = (*cmdtab[current_cmd].func)(&cd,results,data);
                 if (rval == -2) {
                   if ((results != NULL) && (*results != NULL)) {
                     free(*results);
@@ -152,10 +152,10 @@ LAB_080812f0:
               }
               match_state = false;
               break;
-            case (char *)0x1:
-            case (char *)0x2:
-            case (char *)0x3:
-            case (char *)0x4:
+            case 0x1:
+            case 0x2:
+            case 0x3:
+            case 0x4:
               if (pcVar5 == (char *)0x2) {
                 base = 10;
               }
@@ -183,7 +183,7 @@ LAB_080812f0:
                 match_state = false;
               }
               break;
-            case (char *)0x5:
+            case 0x5:
               tok = strtok(cptr," ");
               if (tok == NULL) {
                 match_state = false;
@@ -202,7 +202,7 @@ LAB_08081272:
                 cptr = NULL;
               }
               break;
-            case (char *)0x6:
+            case 0x6:
               tok = strtok(cptr,"");
               if (tok != NULL) {
                 cd.str_stack[cd.str_max] = tok;
@@ -211,7 +211,7 @@ LAB_08081272:
               }
               match_state = false;
               break;
-            case (char *)0x7:
+            case 0x7:
               tok = strtok(cptr," ");
               if (tok == NULL) {
                 match_state = false;
@@ -230,7 +230,7 @@ LAB_08081272:
                 match_state = false;
               }
               break;
-            case (char *)0x8:
+            case 0x8:
               tok = strtok(cptr," ");
               if (tok == NULL) {
                 match_state = false;
@@ -248,7 +248,7 @@ LAB_08081272:
                 match_state = false;
               }
               break;
-            case (char *)0x9:
+            case 0x9:
               tok = strtok(cptr," ");
               if (tok == NULL) {
                 match_state = false;
@@ -268,7 +268,7 @@ LAB_08081272:
                 match_state = false;
               }
               break;
-            case (char *)0xa:
+            case 0xa:
               tok = strtok(cptr," ");
               if (tok == NULL) {
                 match_state = false;
@@ -352,7 +352,7 @@ LAB_08081210:
                 }
               }
               break;
-            case (char *)0xb:
+            case 0xb:
               tok = strtok(cptr," ");
               if (tok == NULL) {
                 match_state = false;
@@ -419,7 +419,7 @@ void CmdHelpAll(Cmd *cmds_in, int num_cmds_in, int showall, char *rptr)
   char *lptr;
   int clist;
   int current_cmd;
-  int num_cmds;
+  Cmd *cmdtab;   /* Ghidra reused 'int num_cmds' for this */
   
   lptr = rptr;
   strcpy(rptr,"Commands are:\n");
@@ -436,25 +436,25 @@ LAB_08081558:
       return;
     }
     iVar2 = num_cmds_in;
-    num_cmds = (int)cmds_in;
+    cmdtab = cmds_in;
     if (cmds_in == NULL) {
-      num_cmds = (int)cmdlist[clist];
+      cmdtab = cmdlist[clist];
       iVar2 = cmdlistnum[clist];
     }
     count = 0;
     for (current_cmd = 0; current_cmd < iVar2; current_cmd = current_cmd + 1) {
-      if ((*(int *)(num_cmds + 0x40 + current_cmd * 0x44) == 0) || (showall != 0)) {
-        cptr = *(char **)(num_cmds + current_cmd * 0x44);
+      if ((cmdtab[current_cmd].visibility == 0) || (showall != 0)) {
+        cptr = cmdtab[current_cmd].toks[0];
         if (cptr == (char *)0x6) {
           cptr = "<command>";
         }
         else if (((int)cptr < 6) || (0xb < (int)cptr)) {
           if (cptr < (char *)0x3e8) {
-            cptr = *(char **)(num_cmds + 4 + current_cmd * 0x44);
+            cptr = cmdtab[current_cmd].toks[1];
           }
         }
         else {
-          cptr = *(char **)(num_cmds + 4 + current_cmd * 0x44);
+          cptr = cmdtab[current_cmd].toks[1];
           if (cptr == (char *)0x6) goto LAB_08081546;
         }
         sVar1 = strlen(cptr);
@@ -476,24 +476,44 @@ LAB_08081546:
   } while( true );
 }
 
+/* Usage text for a command. Token "pointers" below 13 are token types (see the
+ * switch in CmdProcess); Ghidra could not recover this jump table, so the
+ * switch was rebuilt from the machine code and the table at 0x0808ff18. */
 char *CmdFormat(Cmd *cmds, int cmd)
 {
   static char fmt[40];
-  char *pcVar1;
+  static const char *const type_fmt[13] = {
+    NULL,                       /* 0: end of command */
+    "<exp> ",
+    "<decimal exp> ",
+    "<hex exp> ",
+    "<octal exp> ",
+    "<str> ",
+    "<command> ",
+    "<ip> ",
+    ":<port>:<l1> ",
+    "<ip>:<port>:<l1> ",
+    "rack|r <rng> [ slot|s <rng> ] ",
+    "<rack>.<slot> ",
+    "s|b<rng> ",
+  };
   int tok;
-  
+  uintptr_t t;
+
   fmt[0] = '\0';
-  tok = 0;
-  while( true ) {
-    if (cmds[cmd].toks[tok] < (char *)0xd) break;
-    strcat((char *)&fmt,cmds[cmd].toks[tok]);
-    strcat((char *)&fmt," ");
-    tok = tok + 1;
+  for (tok = 0; ; tok++) {
+    t = (uintptr_t)cmds[cmd].toks[tok];
+    if (t == 0) {
+      return fmt;
+    }
+    if (t < 13) {
+      strcat(fmt, type_fmt[t]);
+    }
+    else {
+      strcat(fmt, cmds[cmd].toks[tok]);
+      strcat(fmt, " ");
+    }
   }
-                    /* WARNING: Could not recover jumptable at 0x080815c2. Too many branches */
-                    /* WARNING: Treating indirect jump as call */
-  pcVar1 = (char *)(*(code *)(&PTR_LAB_0808ff18)[(int)cmds[cmd].toks[tok]])();
-  return pcVar1;
 }
 
 void CmdHelpCmd(Cmd *cmds_in, int num_cmds_in, char *which, int showall, char **rrptr)
@@ -512,7 +532,7 @@ void CmdHelpCmd(Cmd *cmds_in, int num_cmds_in, char *which, int showall, char **
   int count;
   int clist;
   int current_cmd;
-  int num_cmds;
+  Cmd *cmdtab;   /* Ghidra reused 'int num_cmds' for this */
   
   count = 0;
   *rrptr = NULL;
@@ -582,33 +602,33 @@ LAB_08081970:
       return;
     }
     iVar2 = num_cmds_in;
-    num_cmds = (int)cmds_in;
+    cmdtab = cmds_in;
     if (cmds_in == NULL) {
-      num_cmds = (int)cmdlist[clist];
+      cmdtab = cmdlist[clist];
       iVar2 = cmdlistnum[clist];
     }
     for (current_cmd = 0; current_cmd < iVar2; current_cmd = current_cmd + 1) {
-      if ((*(int *)(num_cmds + 0x40 + current_cmd * 0x44) == 0) || (showall != 0)) {
-        cptr = *(char **)(num_cmds + current_cmd * 0x44);
+      if ((cmdtab[current_cmd].visibility == 0) || (showall != 0)) {
+        cptr = cmdtab[current_cmd].toks[0];
         if (cptr == (char *)0x6) {
           cptr = "<command>";
         }
         else if (((int)cptr < 6) || (0xc < (int)cptr)) {
           if (cptr < (char *)0x3e8) {
-            cptr = *(char **)(num_cmds + 4 + current_cmd * 0x44);
+            cptr = cmdtab[current_cmd].toks[1];
           }
         }
         else {
-          cptr = *(char **)(num_cmds + 4 + current_cmd * 0x44);
+          cptr = cmdtab[current_cmd].toks[1];
           if (cptr == (char *)0x6) {
             cptr = "<command>";
           }
         }
         if ((which == NULL) || (iVar3 = match_text(cptr,which), iVar3 == 0)) {
-          pcVar4 = CmdFormat((Cmd *)num_cmds,current_cmd);
+          pcVar4 = CmdFormat(cmdtab,current_cmd);
           strcpy(s1,pcVar4);
-          pcVar4 = *(char **)(num_cmds + 0x3c + current_cmd * 0x44);
-          if (*(int *)(num_cmds + 0x3c + current_cmd * 0x44) == 0) {
+          pcVar4 = cmdtab[current_cmd].desc;
+          if (cmdtab[current_cmd].desc == 0) {
             pcVar4 = "-";
           }
           sVar5 = strlen(s1);
