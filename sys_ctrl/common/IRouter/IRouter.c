@@ -810,7 +810,7 @@ char *IRFmtPkt(char *who, IRPacket *p, char *bptr)
   uVar3 = (unsigned int)p->_err;
   uVar4 = (unsigned int)p->_argc;
   pcVar1 = IRFmtClas((unsigned int)p->_clas);
-  sprintf(bptr,"%-12.12s %5d %s(%d,%d,%d) D: %s S: %s",who,(unsigned int)CONCAT11(p->_seqnum1,p->_seqnum0),
+  sprintf(bptr,"%-12.12s %5d %s(%d,%d,%d) D: %s S: %s",who,(unsigned int)IR_SEQNUM(p),
           pcVar1,uVar4,uVar3,uVar2,temp_7bfe26d060f,temp_7bf64f974a1);
   return bptr;
 }

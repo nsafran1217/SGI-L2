@@ -237,7 +237,6 @@ int IRouterGetPacketL3(IRIdent *id, IRPacket **pkt, IRClient **client, int wait,
   int __d1;
   int __d0;
   EventData old_input_data;
-  code *old_input_func;
   fd_set evt_subset;
   int rval;
   EventTimer pkt_timer;

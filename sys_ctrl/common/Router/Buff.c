@@ -221,7 +221,7 @@ int BuffUncompress(unsigned char *ibuf, unsigned int ilen, unsigned char **obuf,
         }
       }
       else if (c == 0xfd) {
-        uVar3 = (unsigned int)CONCAT11(*pbVar5,pbVar6[2]);
+        uVar3 = (uint16_t)(*pbVar5 << 8 | pbVar6[2]);   /* big-endian 16-bit count */
         bVar1 = pbVar6[3];
         pbVar6 = pbVar6 + 4;
         out_count = out_count + uVar3;

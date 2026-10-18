@@ -85,7 +85,7 @@ int broadcast(REQRSPQ *q, IRIdent *id)
               fprintf(stderr,"%d.%d ",pkt->_dest >> 0x12 & 0x3ff,pkt->_dest >> 0xc & 0x3f);
             }
             if (response != 0) {
-              rspq_put(q,(unsigned int)CONCAT11(pkt->_seqnum1,pkt->_seqnum0),pkt->_dest);
+              rspq_put(q,(unsigned int)IR_SEQNUM(pkt),pkt->_dest);
               rspq_timeout_set(q,broadcast_response_timeout);
             }
             pcount = pcount + 1;

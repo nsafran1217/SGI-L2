@@ -266,7 +266,7 @@ int rspq_update(REQRSPQ *q, IRPacket *pkt)
       else {
         uVar1 = qe->seqn & 0xffff;
       }
-      if (uVar1 == CONCAT11(pkt->_seqnum1,pkt->_seqnum0)) {
+      if (uVar1 == IR_SEQNUM(pkt)) {
         qe->pkt = pkt;
         q->rspq_pending = q->rspq_pending + -1;
         return q->rspq_pending;

@@ -195,8 +195,8 @@ static void l2cmd_etimeout(char *msg, void *data)
 L2CMD *l2cmd_init(IRIdent *id, l2cmd_timeout_cb *tofunc, l2cmd_etimeout_cb *etofunc, l2cmd_response_cb *rspfunc, void *data)
 {
   L2CMD *c;
-  code *etofunc_00;
-  code *tofunc_00;
+  void (*etofunc_00)();
+  void (*tofunc_00)();
   REQRSPQ *pRVar1;
   DEST *pDVar2;
   
@@ -265,7 +265,7 @@ int l2cmd_process_response(L2CMD *c, char *rsp, int rval)
         c->busy = c->busy & 0xfffffffe;
       }
     }
-    (*(code *)c->rspfunc)(c,c->data,rsp,rval);
+    c->rspfunc(c,c->data,rsp,rval);
     iVar1 = 0;
   }
   return iVar1;

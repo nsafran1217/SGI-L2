@@ -133,6 +133,9 @@ typedef enum {
 } IRErrorCodes;
 #include "../sys/Logger.h"
 
+/* (added by the reconstruction) a frame's 16-bit sequence number */
+#define IR_SEQNUM(f)  ((uint16)((f)->_seqnum1 << 8 | (f)->_seqnum0))
+
 /* --- added by the reconstruction: architecture-independent frame access --- */
 #include <stddef.h>
 #include <stdint.h>

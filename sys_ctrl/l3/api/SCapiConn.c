@@ -295,7 +295,7 @@ int sn1SCConnRsp(sn1SCConn *conn, IRPacket **pkt, uint32 *id, int wait)
           fprintf(stderr,"%s\n",pcVar2);
         }
         if (id != NULL) {
-          *id = (unsigned int)CONCAT11((*pkt)->_seqnum1,(*pkt)->_seqnum0);
+          *id = (unsigned int)IR_SEQNUM(*pkt);
         }
         rval = 0;
       }

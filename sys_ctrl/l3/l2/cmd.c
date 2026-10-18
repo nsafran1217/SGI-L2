@@ -141,7 +141,7 @@ void cmd_process_request(IRPacket *req)
   }
   if (cmd_l2cmd->busy == 0) {
     dest_reset(cmd_l2cmd->dest);
-    cmd_src_seqn = (int)CONCAT11(req->_seqnum1,req->_seqnum0);
+    cmd_src_seqn = (int)IR_SEQNUM(req);
     cmd_src_addr = req->_src;
     cmd_src_prev = (int)req->_rev;
     cmd_src_pdata = (int)(req->_pdata_auth >> 3);
