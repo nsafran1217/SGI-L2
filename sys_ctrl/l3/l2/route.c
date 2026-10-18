@@ -403,11 +403,8 @@ void route_process_response(IRPacket *p)
       else {
         val1 = IRArg(p,arg);
       }
-      if ((p[1]._argv[arg + -5]._val & 7) == 0) {
-        pIVar1 = p[1]._argv + arg + -4;
-        val2._0_1_ = pIVar1->_clas;
-        val2._1_1_ = pIVar1->_frame;
-        val2._2_2_ = pIVar1->_size;
+      if ((p->_argv[arg + 1]._clas & 7) == 0) {
+        val2 = p->_argv[arg + 1]._val;
       }
       else {
         val2 = IRArg(p,arg + 1);
@@ -498,10 +495,7 @@ void route_process(IRPacket *p)
       uVar3 = time(NULL);
       p->_argv[arg]._val = (uint)(uVar2 == '\x01') << 0x1e | uVar4;
       val2 = uVar3 & 0xffff;
-      pIVar1 = p[1]._argv + arg + -4;
-      pIVar1->_clas = (undefined1)val2;
-      pIVar1->_frame = val2._1_1_;
-      pIVar1->_size = val2._2_2_;
+      p->_argv[arg + 1]._val = val2;
       found = true;
     }
   }

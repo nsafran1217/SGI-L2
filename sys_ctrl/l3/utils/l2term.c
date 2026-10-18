@@ -94,7 +94,7 @@ void read_n_write(int *wfd, int rfd)
       else {
         piVar1 = __errno_location();
         fprintf(stderr,"WARNING: can\'t read from tty, %s\n",
-                *(undefined4 *)(sys_errlist + *piVar1 * 4));
+                strerror(*piVar1));
       }
                     /* WARNING: Subroutine does not return */
       exit(0);
@@ -104,7 +104,7 @@ void read_n_write(int *wfd, int rfd)
     }
     else {
       piVar1 = __errno_location();
-      fprintf(stderr,"WARNING: can\'t read from L2, %s\n",*(undefined4 *)(sys_errlist + *piVar1 * 4)
+      fprintf(stderr,"WARNING: can\'t read from L2, %s\n",strerror(*piVar1)
              );
     }
     SocketClose(l2);
@@ -139,7 +139,7 @@ void read_n_write(int *wfd, int rfd)
       }
       if (((escaped == 0) || (n != 1)) || (buff[0] != 'q')) {
         if (escaped != 0) {
-          write(l2,&DAT_08068a4b,1);
+          write(l2,"\035",1);   /* pass the escape (CTRL-]) through */
           escaped = 0;
         }
       }
@@ -152,12 +152,12 @@ void read_n_write(int *wfd, int rfd)
       if (wfd == &tty) {
         piVar1 = __errno_location();
         fprintf(stderr,"WARNING: can\'t write to tty, %s\n",
-                *(undefined4 *)(sys_errlist + *piVar1 * 4));
+                strerror(*piVar1));
       }
       else {
         piVar1 = __errno_location();
         fprintf(stderr,"WARNING: can\'t write to L2, %s\n",
-                *(undefined4 *)(sys_errlist + *piVar1 * 4));
+                strerror(*piVar1));
       }
     }
   }

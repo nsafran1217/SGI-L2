@@ -8,7 +8,6 @@
 #include "cmd.h"   /* needed by the reconstruction */
 #include "discover.h"   /* needed by the reconstruction */
 #include "../sys/syslogLib.h"   /* needed by the reconstruction */
-#include "../utils/l2term.h"   /* needed by the reconstruction */
 #include <stdlib.h>
 #include <mcheck.h>
 #include <signal.h>
@@ -189,21 +188,21 @@ int main(int argc, char **argv, char **envp)
       cmd_init();
       discover_init();
       power_init();
-      sigaction(2,NULL,(struct sigaction *)&sa);
-      sa.__sigaction_handler = (__anon_union_19)0x1;
-      sigaction(2,(struct sigaction *)&sa,NULL);
-      sigaction(3,NULL,(struct sigaction *)&sa);
-      sa.__sigaction_handler = (__anon_union_19)0x1;
-      sigaction(3,(struct sigaction *)&sa,NULL);
-      sigaction(0x11,NULL,(struct sigaction *)&sa);
-      sa.__sigaction_handler = (__anon_union_19)0x1;
-      sigaction(0x11,(struct sigaction *)&sa,NULL);
+      sigaction(SIGINT,NULL,(struct sigaction *)&sa);
+      sa.sa_handler = SIG_IGN;
+      sigaction(SIGINT,(struct sigaction *)&sa,NULL);
+      sigaction(SIGQUIT,NULL,(struct sigaction *)&sa);
+      sa.sa_handler = SIG_IGN;
+      sigaction(SIGQUIT,(struct sigaction *)&sa,NULL);
+      sigaction(SIGCHLD,NULL,(struct sigaction *)&sa);
+      sa.sa_handler = SIG_IGN;
+      sigaction(SIGCHLD,(struct sigaction *)&sa,NULL);
       sigemptyset((sigset_t *)&sa.sa_mask);
       sa.sa_handler = oops_handler;
-      sa.sa_flags = 4;
-      sigaction(0xb,(struct sigaction *)&sa,NULL);
-      sigaction(7,(struct sigaction *)&sa,NULL);
-      sigaction(6,(struct sigaction *)&sa,NULL);
+      sa.sa_flags = SA_SIGINFO;
+      sigaction(SIGSEGV,(struct sigaction *)&sa,NULL);
+      sigaction(SIGBUS,(struct sigaction *)&sa,NULL);
+      sigaction(SIGABRT,(struct sigaction *)&sa,NULL);
       serial_init();
       EventStart();
       iVar2 = fprintf(stderr,"ERROR: L2 event loop exited!\n");
