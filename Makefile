@@ -107,7 +107,8 @@ L2GUI_SRCS := \
 	sys_ctrl/l3/gui/cmdwin.cc \
 	sys_ctrl/l3/gui/l2gui.cc \
 	sys_ctrl/l3/gui/config.cc \
-	sys_ctrl/l3/gui/l2comm.cc
+	sys_ctrl/l3/gui/l2comm.cc \
+	sys_ctrl/l3/gui/flboxtype.cc
 L2GUI_CSRCS := \
 	sys_ctrl/l3/main/SysCfg.c \
 	sys_ctrl/l3/api/SCapiConn.c \

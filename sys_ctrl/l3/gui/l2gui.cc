@@ -51,6 +51,7 @@ int main(int argc, char **argv)
    * L2 never had, so it drew everything in Nano-X's 13-pixel System font.
    * FLTK's size 12 is the nearest match (the layouts assume it). */
   FL_NORMAL_SIZE = 12;
+  fl10_boxtypes();
   gui_init();
   config_init("r * s *");
   l2comm_init();

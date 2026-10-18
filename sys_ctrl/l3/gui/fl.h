@@ -30,4 +30,7 @@ inline void fl_sleep(double wtime)
     Fl::wait();
 }
 
+/* flboxtype.cc (added by the reconstruction): FLTK 1.0's inactive boxes */
+void fl10_boxtypes(void);
+
 #endif /* SYS_CTRL_L3_GUI_FL_H */
