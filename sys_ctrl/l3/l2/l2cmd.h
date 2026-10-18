@@ -28,7 +28,7 @@ struct L2CMD_s {
 /* prototypes (not recorded in STABS; reconstructed from definitions) */
 #include "cmd.h"   /* for the prototypes */
 /* l2cmd.c */
-extern Cmd l2cmd_cmds[0];
+extern Cmd l2cmd_cmds[];
 L2CMD *l2cmd_init(IRIdent *id, l2cmd_timeout_cb *tofunc, l2cmd_etimeout_cb *etofunc, l2cmd_response_cb *rspfunc, void *data);
 void l2cmd_free(L2CMD *c);
 int l2cmd_process(L2CMD *c, char *command, char **rptr, void *data);

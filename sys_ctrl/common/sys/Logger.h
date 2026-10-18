@@ -28,14 +28,14 @@ typedef struct {
 
 /* prototypes (not recorded in STABS; reconstructed from definitions) */
 /* Logger.c */
-extern char *RouterErrorList[0];
-extern char *SocketErrorList[0];
-extern char *EventErrorList[0];
-extern char *IRouterErrorList[0];
-extern char *PPPErrorList[0];
-extern char *cmdErrorList[0];
-extern char *flashdrvErrorList[0];
-extern LoggerMessageRange LoggerErrorRange[0];
+extern char *RouterErrorList[];
+extern char *SocketErrorList[];
+extern char *EventErrorList[];
+extern char *IRouterErrorList[];
+extern char *PPPErrorList[];
+extern char *cmdErrorList[];
+extern char *flashdrvErrorList[];
+extern LoggerMessageRange LoggerErrorRange[];
 void LoggerInit(char *process_name);
 void LoggerHandler(void (*logger_handler)());
 int LoggerEnable(void);

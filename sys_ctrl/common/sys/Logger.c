@@ -18,14 +18,14 @@
 
 static void LoggerDefaultHandler(LoggerEntry *entry);
 
-char *RouterErrorList[0];
-char *SocketErrorList[0];
-char *EventErrorList[0];
-char *IRouterErrorList[0];
-char *PPPErrorList[0];
-char *cmdErrorList[0];
-char *flashdrvErrorList[0];
-LoggerMessageRange LoggerErrorRange[0];
+char *RouterErrorList[25] = { "Connection attempt failed", "Connection attempt timed out", "Connection attempt error", "Connection lost", "Connection timed out", "Connection error", "Connection was disconnected by the local side", "Connection was disconnected by the remote side", "Connection disconnect error", "Server process is already running", "Can not do output on this connection", "Memory allocation failed", "Unexpected packet class received", "Invalid packet class received", "Packet sequence error", "Cannot determine the Internet address of a host name", "Cannot determine the host name of a connected host", "Protocol error", "Incorrect number of arguments received", "Received arguments are of the wrong class", "Received arguments are of the wrong size", "Cannot get password file entry of this process", "Received an incorrect process ID from the server", "Connection was denied by the server" };
+char *SocketErrorList[11] = { "Cannot export Internet domain service", "Cannot export Unix domain service", "Cannot accept Internet domain connection request", "Cannot accept Unix domain connection request", "Cannot make Internet domain connection", "Cannot make Unix domain connection", "Cannot determine the Internet address of a host name", "Cannot determine host of connected process", "Cannot get the local host name", "Cannot set the send/receive buffer size" };
+char *EventErrorList[8] = { "File descriptor is out of range", "Input event processing is being overlayed", "Output event processing is being overlayed", "Memory allocation failed", "Event processing error", "Missing input event processing function", "Missing output event processing function" };
+char *IRouterErrorList[29] = { "NO_ROUTER_ERROR", "bad packet type", "bad task ID", "duplicate target ID", "malloc failed", "duplicate task ID", "bad event entry", "bad argument list argument count", "no receiver for packet", "no device to read/write", "attempt to send to full queue", "queue is full", "read failed - read error", "read failed - not first frame", "read failed - unexpected frame", "read failed - select() error", "read timeout on multiframe packet", "write failed", "sequence ID mismatch", "wait further for response", "timeout waiting for packet", "read failed - end of file", "write failed - end of file (zero bytes written) ", "framing error, frame incomplete", "framing error, frame overflow", "framing error, frame underflow", "framing error, frame control", "response packet is too large" };
+char *PPPErrorList[8] = { "bad FCS (checksum)", "read buffer overflow", "short read/frame", "escape sequence in read stream", "control sequence in read stream", "read stream not in frame", "read buffer reallocation failed" };
+char *cmdErrorList[3] = { "CMD_ERROR", "CMD_EMPTY" };
+char *flashdrvErrorList[10] = { "FLASHDRV_INVALID_ADDRESS", "FLASHDRV_PROGRAM_FAILED", "FLASHDRV_PROGRAM_MISCOMPARE", "FLASHDRV_ERASE_FAILED", "FLASHDRV_ERASE_MISCOMPARE", "FLASHDRV_ID_MISCOMPARE", "Error checking flash file status", "No flash space available to write this file", "Error writing to flash file" };
+LoggerMessageRange LoggerErrorRange[8] = { { .name = "Router", .count = 25, .message = RouterErrorList }, { .name = "Socket", .count = 11, .message = SocketErrorList }, { .name = "Event", .count = 8, .message = EventErrorList }, { .name = "IRouter", .count = 29, .message = IRouterErrorList }, { .name = "PPP", .count = 8, .message = PPPErrorList }, { .name = "Cmd", .count = 3, .message = cmdErrorList }, { .name = "FlashDrv", .count = 10, .message = flashdrvErrorList } };
 static char *ProcessName = "";
 static char *Seperator = ", ";
 static void (*LogHandler)() = LoggerDefaultHandler;
