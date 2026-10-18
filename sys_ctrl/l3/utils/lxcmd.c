@@ -25,7 +25,6 @@ int main(int argc, char **argv)
   status = sn1SCParseCmdline(&argc,argv,&serial);
   if (status < 0) {
     fprintf(stderr,"%s: error while parsing library command arguments\n",myname);
-                    /* WARNING: Subroutine does not return */
     exit(-1);
   }
   if (argc < 2) {
@@ -59,6 +58,5 @@ int main(int argc, char **argv)
     } while ((clptr != NULL) && (*clptr != '\0'));
     return iVar1;
   }
-                    /* WARNING: Subroutine does not return */
   exit(-1);
 }

@@ -26,6 +26,5 @@ void usage(void)
   pcVar1 = sn1SCUsage();
   fprintf(stderr,"System Controller command options\n%s",pcVar1);
   fprintf(stderr,"\n");
-                    /* WARNING: Subroutine does not return */
   exit(-1);
 }

@@ -50,7 +50,7 @@ void SysCfgConnInit(sn1SCConn *conn, char *user)
   
   if (((conn == NULL) && (pIVar1 = sn1SCClient(), pIVar1 == NULL)) ||
      ((conn != NULL && (pIVar1 = sn1SCConnClient(conn), pIVar1 == NULL)))) {
-    syslog(3,"SysCfg.c",0x26,0,"%s: SysCfgConnInit: no connection to system controller network!\n",
+    syslog(3,"SysCfg.c",38,0,"%s: SysCfgConnInit: no connection to system controller network!\n",
            user);
   }
   else {
@@ -76,13 +76,13 @@ void SysCfgConnInit(sn1SCConn *conn, char *user)
     if (rval == 0) {
       iVar3 = SysCfgConnProcessEvent(conn,user,pkt);
       if (iVar3 < 0) {
-        syslog(3,"SysCfg.c",0x59,0,"%s: SysCfgConnInit: error updating System Configuration!\n",user
+        syslog(3,"SysCfg.c",89,0,"%s: SysCfgConnInit: error updating System Configuration!\n",user
               );
       }
     }
     else {
       pcVar2 = LoggerDefaultMessage(rval);
-      syslog(3,"SysCfg.c",0x3a,0,"%s: config command failed: %s\n",user,pcVar2);
+      syslog(3,"SysCfg.c",58,0,"%s: config command failed: %s\n",user,pcVar2);
     }
   }
   return;
@@ -103,13 +103,13 @@ void SysCfgConnRequest(sn1SCConn *conn, char *user)
   av[0]._size = 0;
   if ((conn == NULL) && (rval = sn1SCReq(&addr,0,1,av,NULL), rval != 0)) {
     pcVar1 = LoggerDefaultMessage(rval);
-    syslog(3,"SysCfg.c",0x68,0,"%s: config request failed: %s\n",user,pcVar1);
+    syslog(3,"SysCfg.c",104,0,"%s: config request failed: %s\n",user,pcVar1);
     return;
   }
   if ((conn != NULL) &&
      (msgnbr = sn1SCConnReq(conn,&addr,0,1,av,NULL), msgnbr != 0)) {
     pcVar1 = LoggerDefaultMessage(msgnbr);
-    syslog(3,"SysCfg.c",0x6b,0,"%s: config request failed: %s\n",user,pcVar1);
+    syslog(3,"SysCfg.c",107,0,"%s: config request failed: %s\n",user,pcVar1);
   }
   return;
 }
@@ -152,7 +152,7 @@ int SysCfgConnProcessEvent(sn1SCConn *conn, char *user, IRPacket *pkt)
   }
   if (pkt->_err != 0) {
     pcVar1 = IRFmtError((unsigned int)pkt->_err);
-    syslog(3,"SysCfg.c",0x84,0,"%s: SysCfgConnProcessEvent: packet error - %s\n",user,pcVar1);
+    syslog(3,"SysCfg.c",132,0,"%s: SysCfgConnProcessEvent: packet error - %s\n",user,pcVar1);
     return -1;
   }
   if ((pkt->_argv[0]._clas & 7) != 0) {
@@ -172,7 +172,7 @@ int SysCfgConnProcessEvent(sn1SCConn *conn, char *user, IRPacket *pkt)
   }
   if (1 < rev) {
     if (2 < rev) {
-      syslog(3,"SysCfg.c",0xa0,0,
+      syslog(3,"SysCfg.c",160,0,
              "%s: SysCfgConnProcessEvent: revision mismatch, L3 client is older that L2 server\n",
              user);
       return -1;

@@ -82,13 +82,13 @@ int discover_init(void)
     strcpy((char *)&ifr,name);
     discover_sd = socket(2,2,0x11);
     if (discover_sd < 0) {
-      syslog(3,"discover.c",0x90,0,"discover_init: socket: %m\n");
+      syslog(3,"discover.c",144,0,"discover_init: socket: %m\n");
       iVar3 = -1;
     }
     else {
       iVar3 = setsockopt(discover_sd,1,6,&o,4);
       if (iVar3 < 0) {
-        syslog(3,"discover.c",0x96,0,"discover_init: setsockopt: %m\n");
+        syslog(3,"discover.c",150,0,"discover_init: setsockopt: %m\n");
         close(discover_sd);
         iVar3 = -1;
       }
@@ -99,7 +99,7 @@ int discover_init(void)
         memset(myaddr.sin_zero,0,8);
         iVar3 = bind(discover_sd,(struct sockaddr *)&myaddr,0x10);
         if (iVar3 < 0) {
-          syslog(3,"discover.c",0xb0,0,"discover_init: server bind: %m\n");
+          syslog(3,"discover.c",176,0,"discover_init: server bind: %m\n");
           close(discover_sd);
           iVar3 = -1;
         }
@@ -116,7 +116,7 @@ int discover_init(void)
     }
   }
   else {
-    syslog(2,"discover.c",0x7f,0,"discover_init: couldn\'t get IP address for local host\n");
+    syslog(2,"discover.c",127,0,"discover_init: couldn\'t get IP address for local host\n");
     iVar3 = -1;
   }
   return iVar3;
@@ -182,13 +182,13 @@ void discover_response(void *cd, int sd)
     if (*piVar1 == 0xb) {
       return;
     }
-    syslog(3,"discover.c",0x10c,0,"discover_response: recvfrom: %m\n");
+    syslog(3,"discover.c",268,0,"discover_response: recvfrom: %m\n");
     iVar9 = errcnt;
     errcnt = errcnt + 1;
     if (iVar9 < 0xb) {
       return;
     }
-    syslog(3,"discover.c",0x10e,0,"discover_response: too many RECV errors. Disabling");
+    syslog(3,"discover.c",270,0,"discover_response: too many RECV errors. Disabling");
     EventRemoveInput(sd);
     return;
   }
@@ -410,7 +410,7 @@ void discover_response(void *cd, int sd)
     retry = iVar9;
   } while (from_l2);
   if (sVar7 < 0) {
-    syslog(3,"discover.c",0x24c,0,"discover_response: sendto: %m\n");
+    syslog(3,"discover.c",588,0,"discover_response: sendto: %m\n");
     iVar9 = retry;
     piVar1 = __errno_location();
     fprintf(stderr,"errno=%d retry=%d status=%d\n",*piVar1,iVar9,sVar7);

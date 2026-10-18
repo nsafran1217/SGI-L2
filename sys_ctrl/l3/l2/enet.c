@@ -64,7 +64,6 @@ void enet_export(int port)
   fd = SocketExportInetConnection(port);
   if (fd < 0) {
     printf("FATAL: can\'t export connection for SMP port %d\n",port);
-                    /* WARNING: Subroutine does not return */
     exit(1);
   }
   fprintf(stderr,"INFO: SMP listening on port: %d\n",port);

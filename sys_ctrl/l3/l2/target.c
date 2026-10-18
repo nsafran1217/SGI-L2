@@ -88,7 +88,7 @@ int target_l2(L2CMD *c, char **results, int ip, char *cptr, int response, int de
     argv[0]._frame = '\0';
     argv[0]._val = 0;
     argv[0]._size = 0;
-    argv[1]._clas = '\x02';
+    argv[1]._clas = 2;
     argv[1]._frame = '\0';
     argv[1]._val = IR_PTR_VAL(cptr);
     sVar4 = strlen(cptr);
@@ -135,7 +135,7 @@ int target_l1(L2CMD *c, int ip, int port, int l1, char *cptr, int response, int 
       memset(cmd_ + 1,0,0xff);
       strcpy(cmd_,cptr);
       addr = 0xffff003;
-      argv[1]._clas = '\x02';
+      argv[1]._clas = 2;
       argv[1]._frame = '\0';
       argv[1]._val = IR_PTR_VAL(cmd_);
       sVar2 = strlen(cmd_);

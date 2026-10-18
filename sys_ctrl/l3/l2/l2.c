@@ -106,8 +106,7 @@ void oops_handler(int sig, siginfo_t *info, void *raw_uc)
     sVar1 = strlen(rptr);
     rptr = rptr + sVar1;
   }
-  syslog(9,"l2.c",0x99,0,rbuf);
-                    /* WARNING: Subroutine does not return */
+  syslog(9,"l2.c",153,0,rbuf);
   exit(1);
 }
 
@@ -380,7 +379,6 @@ int main(int argc, char **argv, char **envp)
                                          )) {
                                         nvramSet(3,(uintptr_t)pcVar4);
                                       }
-                    /* WARNING: Subroutine does not return */
                                       exit(0);
                                     }
                                     syntax();
@@ -427,7 +425,7 @@ void l2_flow_setup(int hwater, int lwater)
 
 static void l2_flow_control(void *data, RouterClient *client, int overflow)
 {
-  syslog(6,"l2.c",0x2f8,0,"RouterClient 0x%08x   flow %d\n",client,overflow);
+  syslog(6,"l2.c",760,0,"RouterClient 0x%08x   flow %d\n",client,overflow);
   l1_throttle_input(overflow);
   return;
 }
@@ -437,6 +435,5 @@ static void syntax(void)
   fprintf(stdout,
           "usage: %s -enet | -usb | -serial [ <device> | <ipaddr> <port>]  [ -noconn -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]\n"
           ,l2_myname);
-                    /* WARNING: Subroutine does not return */
   exit(0);
 }

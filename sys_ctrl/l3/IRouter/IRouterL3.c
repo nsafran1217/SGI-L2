@@ -61,13 +61,12 @@ int IRouterConnectL3(char *cname, char *host, int port, IRClient **client, int e
   }
   iVar1 = RouterInit(0x100,1,cname,events,NULL);
   if (iVar1 < 0) {
-    syslog(6,"IRouterL3.c",0x53,0,"Could not initialize Router");
-                    /* WARNING: Subroutine does not return */
+    syslog(6,"IRouterL3.c",83,0,"Could not initialize Router");
     exit(-1);
   }
   if (((port != IR_PORT_BIAS + 0x1f42) && (port != IR_PORT_BIAS + 0x1f43)) &&
      (port != IR_PORT_BIAS + 0x232c)) {
-    syslog(6,"IRouterL3.c",0x58,0,"attempting connection to %s:%d",host,port);
+    syslog(6,"IRouterL3.c",88,0,"attempting connection to %s:%d",host,port);
   }
   get_password = pw_cb;
   partition = events >> 0x10 & 0xff;
@@ -77,8 +76,7 @@ int IRouterConnectL3(char *cname, char *host, int port, IRClient **client, int e
                         rtr_connect_failure);
     *client = pRVar2;
     if (pRVar2 == NULL) {
-      syslog(6,"IRouterL3.c",0x81,0,"could not establish connection");
-                    /* WARNING: Subroutine does not return */
+      syslog(6,"IRouterL3.c",129,0,"could not establish connection");
       exit(-1);
     }
   }
@@ -104,8 +102,7 @@ int IRouterConnectL3(char *cname, char *host, int port, IRClient **client, int e
                         NULL,rtr_event,rtr_connect_failure);
     *client = pRVar2;
     if (pRVar2 == NULL) {
-      syslog(6,"IRouterL3.c",0x74,0,"could not establish connection");
-                    /* WARNING: Subroutine does not return */
+      syslog(6,"IRouterL3.c",116,0,"could not establish connection");
       exit(-1);
     }
   }
@@ -334,7 +331,7 @@ LAB_0807e270:
     if (client != NULL) {
       *client = rtr_server;
     }
-    if ((response == 0) || ((*pkt)->_clas == '\x01')) goto LAB_0807e270;
+    if ((response == 0) || ((*pkt)->_clas == 1)) goto LAB_0807e270;
   } while( true );
 }
 
@@ -382,7 +379,7 @@ int rtr_connected(RouterClient *client, int opcode, RouterArgument **arglistout)
     rtr_error = 0;
     if (((client->port != IR_PORT_BIAS + 0x1f42) && (client->port != IR_PORT_BIAS + 0x1f43)) &&
        (client->port != IR_PORT_BIAS + 0x232c)) {
-      syslog(6,"IRouterL3.c",0x1f0,0,"connection to %s:%d established.",&client->id,client->port);
+      syslog(6,"IRouterL3.c",496,0,"connection to %s:%d established.",&client->id,client->port);
     }
     if ((IRouterEventLoop == 0) && (rtr_waiting_for == 1)) {
       RouterFlushOutput(client,5);
@@ -398,7 +395,7 @@ void rtr_connect_failure(RouterClient *client, int msgnbr, char *host, int port,
   char *pcVar1;
   
   pcVar1 = LoggerDefaultMessage(msgnbr);
-  syslog(6,"IRouterL3.c",0x213,0,"connection to %s:%d failed: %s",host,port,pcVar1);
+  syslog(6,"IRouterL3.c",531,0,"connection to %s:%d failed: %s",host,port,pcVar1);
   rtr_server = NULL;
   rtr_error = msgnbr;
   if ((IRouterEventLoop == 0) && (rtr_waiting_for == 1)) {
@@ -418,7 +415,7 @@ void rtr_event(RouterClient *client, int opcode, int argcount, RouterArgument *a
   rtr_error = 0;
   rtr_pkt = IRouterPacketFromRouter(argcount,arglistin);
   if (rtr_pkt == NULL) {
-    syslog(6,"IRouterL3.c",0x237,0,"invalid IRouter packet received!");
+    syslog(6,"IRouterL3.c",567,0,"invalid IRouter packet received!");
     rtr_error = -0x259;
   }
   else {
@@ -426,13 +423,13 @@ void rtr_event(RouterClient *client, int opcode, int argcount, RouterArgument *a
       RouterFlushOutput(client,5);
       EventStop();
     }
-    if ((rtr_waiting_for != 2) && (rtr_pkt->_clas == '\x01')) {
+    if ((rtr_waiting_for != 2) && (rtr_pkt->_clas == 1)) {
       if (rtr_rsp_queue_wr < 100) {
         rtr_rsp_queue[rtr_rsp_queue_wr] = rtr_pkt;
         rtr_rsp_queue_wr = rtr_rsp_queue_wr + 1;
       }
       else {
-        syslog(4,"IRouterL3.c",0x254,0,"Lost an early response (queue full)!");
+        syslog(4,"IRouterL3.c",596,0,"Lost an early response (queue full)!");
       }
       rtr_pkt = NULL;
     }

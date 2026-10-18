@@ -97,7 +97,6 @@ void read_n_write(int *wfd, int rfd)
         fprintf(stderr,"WARNING: can\'t read from tty, %s\n",
                 strerror(*piVar1));
       }
-                    /* WARNING: Subroutine does not return */
       exit(0);
     }
     if (n == 0) {
@@ -121,7 +120,6 @@ void read_n_write(int *wfd, int rfd)
     } while ((l2 < 0) && (bVar3 = (unsigned int)count < retries, count = count + 1, bVar3));
     if (l2 < 0) {
       fprintf(stderr,"ERROR: can\'t reconnect to L2 %s:%d, giving up!\n",host,port);
-                    /* WARNING: Subroutine does not return */
       exit(-1);
     }
     tty_config();
@@ -134,7 +132,7 @@ void read_n_write(int *wfd, int rfd)
   }
   else {
     if (rfd == 0) {
-      if (((n == 1) && (buff[0] == '\x1d')) && (escaped == 0)) {
+      if (((n == 1) && (buff[0] == 29)) && (escaped == 0)) {
         escaped = 1;
         return;
       }
@@ -177,7 +175,6 @@ void syntax(char *opt)
           ,myname);
   pcVar1 = sn1SCUsage();
   fprintf(stderr,"System Controller command options\n%s\n",pcVar1);
-                    /* WARNING: Subroutine does not return */
   exit(-1);
 }
 
@@ -229,7 +226,7 @@ int tty_config(void)
     termios.c_lflag = termios.c_lflag & 0xfffffff5;
     termios.c_cc[0] = '\0';
     termios.c_cc[10] = '\0';
-    termios.c_cc[6] = '\x01';
+    termios.c_cc[6] = 1;
     iVar1 = tcsetattr(0,0,(struct termios *)&termios);
     if (iVar1 == -1) {
       piVar2 = __errno_location();
@@ -275,7 +272,6 @@ void tty_reconfig(void)
 void cleanup(void)
 {
   tty_reconfig();
-                    /* WARNING: Subroutine does not return */
   exit(-1);
 }
 
@@ -298,12 +294,10 @@ int main(int argc, char **argv, char **envp)
   iVar1 = sn1SCParseCmdline(&argc,argv,&serial);
   if (iVar1 < 0) {
     fprintf(stderr,"ERROR: command line parse problems\n");
-                    /* WARNING: Subroutine does not return */
     exit(-1);
   }
   if (serial != 0) {
     fprintf(stderr,"ERROR: direct serial connection not supported\n");
-                    /* WARNING: Subroutine does not return */
     exit(-1);
   }
   iVar1 = sn1SCIsQuiet();
@@ -345,7 +339,6 @@ int main(int argc, char **argv, char **envp)
   }
   iVar1 = sn1SCFindL2(host);
   if (iVar1 < 0) {
-                    /* WARNING: Subroutine does not return */
     exit(-1);
   }
   if (syscon != 0xffffffff) {
@@ -369,7 +362,6 @@ int main(int argc, char **argv, char **envp)
       l2node = L2CfgMFindBrickL2(&L2CfgLocal,rack,slot);
       if (l2node == NULL) {
         fprintf(stderr,"ERROR: no L2 for console at %03d.%02d\n",rack,slot);
-                    /* WARNING: Subroutine does not return */
         exit(-1);
       }
       iVar1 = SocketGetAddr(host,&addr);
@@ -412,6 +404,5 @@ int main(int argc, char **argv, char **envp)
     return 0;
   }
   fprintf(stderr,"ERROR: can\'t connection to %s:%d\n",host,port);
-                    /* WARNING: Subroutine does not return */
   exit(-1);
 }

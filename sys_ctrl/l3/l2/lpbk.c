@@ -115,7 +115,7 @@ static void lpbk_process_request(int session)
   argv[0]._frame = '\0';
   argv[0]._val = session;
   argv[0]._size = 0;
-  argv[1]._clas = '\x01';
+  argv[1]._clas = 1;
   argv[1]._frame = '\0';
   argv[1]._val = IR_PTR_VAL(Lpbk[session].bptr);
   argv[1]._size = (uint16)Lpbk[session].blen;
@@ -144,7 +144,7 @@ void lpbk_process_response(IRPacket *p)
     IRArg(p,1);
   }
   buff[0] = '\0';
-  if (p->_argc == '\x02') {
+  if (p->_argc == 2) {
     if ((p->_argv[0]._clas & 7) == 0) {
       session = p->_argv[0]._val;
     }

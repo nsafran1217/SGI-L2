@@ -161,7 +161,7 @@ void cfg_init(void)
     }
   }
   else {
-    syslog(2,"cfg.c",0x6c,0,"cfg_init: couldn\'t get IP address for local host\n");
+    syslog(2,"cfg.c",108,0,"cfg_init: couldn\'t get IP address for local host\n");
   }
   return;
 }
@@ -430,7 +430,7 @@ void cfg_process_request(IRPacket *req_p)
     uVar4 = uVar4 >> 0x18 & 0x3f;
   }
   if (uVar4 == 4) {
-    req_p->_clas = '\x02';
+    req_p->_clas = 2;
     IRouterSendBroadcastPacketToClients(&l2_cfg_id,req_p);
   }
 LAB_080532b0:
@@ -509,7 +509,7 @@ void cfg_process_response(IRPacket *p)
     uVar1 = uVar1 >> 0x18 & 0x3f;
   }
   if (uVar1 == 4) {
-    p->_clas = '\x02';
+    p->_clas = 2;
     IRouterSendBroadcastPacketToClients(&l2_cfg_id,p);
   }
 LAB_08053588:
@@ -1163,7 +1163,7 @@ void cfg_disconnect(RouterClient *client)
     rarg[1]._frame = '\0';
     rarg[1]._val = 2;
     rarg[1]._size = 0;
-    rarg[2]._clas = '\x02';
+    rarg[2]._clas = 2;
     rarg[2]._frame = '\0';
     rarg[2]._val = IR_PTR_VAL(qbuf);
     sVar2 = strlen(qbuf);

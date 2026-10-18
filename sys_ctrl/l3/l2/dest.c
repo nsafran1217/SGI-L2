@@ -138,7 +138,7 @@ LAB_08060f80:
             type = l2port->l1cfg[l1].type;
             if (((rack != 0) && (slot != 0)) && (((unsigned int)rack < 0x100 && ((unsigned int)slot < 0x40)))) {
               if (d->type == 2) {
-                if (*plist != '\x05') {
+                if (*plist != 5) {
                   if (((type != 'R') && (type != 'D')) && (type != '-')) {
                     cVar1 = plist[l2port->l1cfg[l1].partition];
                     goto joined_r0x080610aa;
@@ -302,8 +302,8 @@ int dest_pcheck(DEST *d, CmdData *cptr, char *rptr)
   iVar1 = pop(cptr->rlist,0x100);
   if (((iVar1 != 0) || (iVar1 = pop(cptr->slist,0x40), iVar1 != 0)) ||
      (iVar1 = pop(cptr->plist,0x40), iVar1 != 0)) {
-    if (((cptr->rlist[0] != '\x05') && (cptr->rlist[0] != '\x06')) ||
-       ((cptr->slist[0] != '\x05' && (cptr->slist[0] != '\x06')))) {
+    if (((cptr->rlist[0] != 5) && (cptr->rlist[0] != 6)) ||
+       ((cptr->slist[0] != 5 && (cptr->slist[0] != 6)))) {
       return 0;
     }
     all_current = true;

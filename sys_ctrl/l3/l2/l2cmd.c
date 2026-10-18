@@ -597,7 +597,7 @@ static int l2cmd_demo(CmdData *cptr, char **results, L2CMD *c)
       rarg[0]._frame = '\0';
       rarg[0]._val = cptr->exp_stack[0];
       rarg[0]._size = 0;
-      rarg[1]._clas = '\x02';
+      rarg[1]._clas = 2;
       rarg[1]._frame = '\0';
       rarg[1]._val = IR_PTR_VAL(cptr->str_stack[0]);
       sVar3 = strlen(cptr->str_stack[0]);
@@ -1704,19 +1704,19 @@ int l2cmd_power(CmdData *cptr, char **results, L2CMD *c)
               case '\0':
                 m_default = m_default + 1;
                 break;
-              case '\x01':
+              case 1:
                 m_low = m_low + 1;
                 break;
-              case '\x02':
+              case 2:
                 m_normal = m_normal + 1;
                 break;
-              case '\x03':
+              case 3:
                 m_high = m_high + 1;
                 break;
-              case '\x04':
+              case 4:
                 m_custom = m_custom + 1;
                 break;
-              case '\x05':
+              case 5:
                 m_other = m_other + 1;
               }
             }
@@ -2234,7 +2234,6 @@ static int l2cmd_pbay(CmdData *cptr, char **results, L2CMD *c)
 void quit(void)
 {
   smp_reset();
-                    /* WARNING: Subroutine does not return */
   exit(0);
 }
 
@@ -2246,7 +2245,6 @@ static int l2cmd_quit(CmdData *cptr, char **results, L2CMD *c)
     return 0;
   }
   smp_reset();
-                    /* WARNING: Subroutine does not return */
   exit(2);
 }
 
@@ -3236,7 +3234,7 @@ static int l2cmd_select(CmdData *cptr, char **results, L2CMD *c)
           return -1;
         }
         if (partition != 0) {
-          cptr->plist[partition] = '\x01';
+          cptr->plist[partition] = 1;
           dest_default(c->dest,cptr);
         }
         break;
@@ -3962,7 +3960,7 @@ static int l2cmd_cmd(CmdData *cptr, char **results, L2CMD *c)
     iVar1 = -1;
   }
   else {
-    if (cptr->slist[0] != '\x06') {
+    if (cptr->slist[0] != 6) {
       for (i = 0; i < 0x40; i = i + 1) {
         if (cptr->slist[i] != '\0') {
           iVar1 = l2cmd_l1cmd(cptr,results,c);

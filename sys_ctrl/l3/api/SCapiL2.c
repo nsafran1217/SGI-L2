@@ -163,7 +163,7 @@ int sn1SCDiscoverL2Start(int sd, char *dev, char *client_info)
       iVar5 = *piVar3;
       piVar3 = __errno_location();
       pcVar4 = strerror(*piVar3);
-      syslog(3,"SCapiL2.c",0xd2,0,"sn1SCDiscoverL2Start: socket: %s [%d]\n",pcVar4,iVar5);
+      syslog(3,"SCapiL2.c",210,0,"sn1SCDiscoverL2Start: socket: %s [%d]\n",pcVar4,iVar5);
       close(sd);
       return -1;
     }
@@ -173,7 +173,7 @@ int sn1SCDiscoverL2Start(int sd, char *dev, char *client_info)
       iVar5 = *piVar3;
       piVar3 = __errno_location();
       pcVar4 = strerror(*piVar3);
-      syslog(3,"SCapiL2.c",0xd9,0,"sn1SCDiscoverL2Start: setsockopt: %s [%d]\n",pcVar4,iVar5);
+      syslog(3,"SCapiL2.c",217,0,"sn1SCDiscoverL2Start: setsockopt: %s [%d]\n",pcVar4,iVar5);
       close(sd);
       return -1;
     }
@@ -187,7 +187,7 @@ int sn1SCDiscoverL2Start(int sd, char *dev, char *client_info)
       iVar5 = *piVar3;
       piVar3 = __errno_location();
       pcVar4 = strerror(*piVar3);
-      syslog(3,"SCapiL2.c",0xe8,0,"sn1SCDiscoverL2Start: server bind: %s [%d]\n",pcVar4,iVar5);
+      syslog(3,"SCapiL2.c",232,0,"sn1SCDiscoverL2Start: server bind: %s [%d]\n",pcVar4,iVar5);
       close(sd);
       return -1;
     }
@@ -200,7 +200,6 @@ int sn1SCDiscoverL2Start(int sd, char *dev, char *client_info)
     memset(&ifr,0,sizeof(struct ifreq));
     strcpy((char *)&ifr,*nlptr);
     strcpy((char *)&ifr,*nlptr);
-                    /* WARNING: Ignoring partial resolution of indirect */
     ifr.ifr_ifru.ifru_addr.sa_family = 2;
     ioctl(sd,0x8915,&ifr);
     iVar5 = ioctl(sd,0x8915,&ifr);
@@ -209,13 +208,12 @@ int sn1SCDiscoverL2Start(int sd, char *dev, char *client_info)
       iVar5 = *piVar3;
       piVar3 = __errno_location();
       pcVar4 = strerror(*piVar3);
-      syslog(3,"SCapiL2.c",0x106,0,"sn1SCDiscoverL2Start: ioctl %s SIOCGIFADDR: %s [%d]\n",*nlptr,
+      syslog(3,"SCapiL2.c",262,0,"sn1SCDiscoverL2Start: ioctl %s SIOCGIFADDR: %s [%d]\n",*nlptr,
              pcVar4,iVar5);
       close(sd);
       return -1;
     }
     strcpy((char *)&ifr,*nlptr);
-                    /* WARNING: Ignoring partial resolution of indirect */
     ifr.ifr_ifru.ifru_addr.sa_family = 2;
     iVar5 = ioctl(sd,0x8913,&ifr);
     if (iVar5 < 0) {
@@ -223,7 +221,7 @@ int sn1SCDiscoverL2Start(int sd, char *dev, char *client_info)
       iVar5 = *piVar3;
       piVar3 = __errno_location();
       pcVar4 = strerror(*piVar3);
-      syslog(3,"SCapiL2.c",0x110,0,"l2find find_if: ioctl %s SIOCGIFFLAGS: %s [%d]\n",*nlptr,pcVar4,
+      syslog(3,"SCapiL2.c",272,0,"l2find find_if: ioctl %s SIOCGIFFLAGS: %s [%d]\n",*nlptr,pcVar4,
              iVar5);
       close(sd);
       return -1;
@@ -237,7 +235,6 @@ int sn1SCDiscoverL2Start(int sd, char *dev, char *client_info)
       istr = "SIOCGIFDSTADDR";
     }
     strcpy((char *)&ifr,*nlptr);
-                    /* WARNING: Ignoring partial resolution of indirect */
     ifr.ifr_ifru.ifru_addr.sa_family = 2;
     iVar5 = ioctl(sd,icmd,&ifr);
     temp_3f98bd2185 = ((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr.s_addr;
@@ -246,7 +243,7 @@ int sn1SCDiscoverL2Start(int sd, char *dev, char *client_info)
       iVar5 = *piVar3;
       piVar3 = __errno_location();
       pcVar4 = strerror(*piVar3);
-      syslog(3,"SCapiL2.c",0x122,0,"sn1SCDiscoverL2Start: ioctl %s %s: %s [%d]\n",*nlptr,istr,pcVar4
+      syslog(3,"SCapiL2.c",290,0,"sn1SCDiscoverL2Start: ioctl %s %s: %s [%d]\n",*nlptr,istr,pcVar4
              ,iVar5);
     }
     else {
@@ -278,7 +275,7 @@ int sn1SCDiscoverL2Start(int sd, char *dev, char *client_info)
         iVar5 = *piVar3;
         piVar3 = __errno_location();
         pcVar4 = strerror(*piVar3);
-        syslog(4,"SCapiL2.c",0x14b,0,"sn1SCDiscoverL2Start: sendto %s: %s [%d]\n",*nlptr,pcVar4,
+        syslog(4,"SCapiL2.c",331,0,"sn1SCDiscoverL2Start: sendto %s: %s [%d]\n",*nlptr,pcVar4,
                iVar5);
       }
     }
@@ -330,7 +327,7 @@ int sn1SCDiscoverL2Response(int sd, sn1SC_L2 *l2, int wait)
       iVar2 = *piVar3;
       piVar3 = __errno_location();
       ccptr = strerror(*piVar3);
-      syslog(3,"SCapiL2.c",0x180,0,"sn1SCDiscoverL2Response: select: %s [%d]\n",ccptr,iVar2);
+      syslog(3,"SCapiL2.c",384,0,"sn1SCDiscoverL2Response: select: %s [%d]\n",ccptr,iVar2);
       return -1;
     }
     cliaddr.sin_family = 2;
@@ -413,7 +410,7 @@ int sn1SCDiscoverL2Response(int sd, sn1SC_L2 *l2, int wait)
   iVar2 = *piVar3;
   piVar3 = __errno_location();
   pcVar5 = strerror(*piVar3);
-  syslog(3,"SCapiL2.c",0x194,0,"l2find: recvfrom: %s [%d]\n",pcVar5,iVar2);
+  syslog(3,"SCapiL2.c",404,0,"l2find: recvfrom: %s [%d]\n",pcVar5,iVar2);
   return -1;
 }
 
@@ -496,7 +493,7 @@ static char **find_interfaces(uint32 **addrlist_ptr)
     iVar4 = *piVar1;
     piVar1 = __errno_location();
     pcVar2 = strerror(*piVar1);
-    syslog(3,"SCapiL2.c",0x226,0,"l2find find_if: socket: %s [%d]\n",pcVar2,iVar4);
+    syslog(3,"SCapiL2.c",550,0,"l2find find_if: socket: %s [%d]\n",pcVar2,iVar4);
     ppcVar3 = NULL;
   }
   else {
@@ -508,7 +505,7 @@ static char **find_interfaces(uint32 **addrlist_ptr)
       iVar4 = *piVar1;
       piVar1 = __errno_location();
       pcVar2 = strerror(*piVar1);
-      syslog(3,"SCapiL2.c",0x22e,0,"l2find find_if: ioctl SIOCGIFCONF: %s [%d]\n",pcVar2,iVar4);
+      syslog(3,"SCapiL2.c",558,0,"l2find find_if: ioctl SIOCGIFCONF: %s [%d]\n",pcVar2,iVar4);
       ppcVar3 = NULL;
     }
     else {
@@ -536,7 +533,7 @@ static char **find_interfaces(uint32 **addrlist_ptr)
               iVar4 = *piVar1;
               piVar1 = __errno_location();
               pcVar2 = strerror(*piVar1);
-              syslog(3,"SCapiL2.c",0x259,0,"l2find find_if: ioctl SIOCGIFFLAGS: %s [%d]\n",pcVar2,
+              syslog(3,"SCapiL2.c",601,0,"l2find find_if: ioctl SIOCGIFFLAGS: %s [%d]\n",pcVar2,
                      iVar4);
               return NULL;
             }
@@ -549,7 +546,7 @@ static char **find_interfaces(uint32 **addrlist_ptr)
                   iVar4 = *piVar1;
                   piVar1 = __errno_location();
                   pcVar2 = strerror(*piVar1);
-                  syslog(3,"SCapiL2.c",0x26e,0,"l2find find_if: ioctl SIOCGIFDSTADDR: %s [%d]\n",
+                  syslog(3,"SCapiL2.c",622,0,"l2find find_if: ioctl SIOCGIFDSTADDR: %s [%d]\n",
                          pcVar2,iVar4);
                   return NULL;
                 }

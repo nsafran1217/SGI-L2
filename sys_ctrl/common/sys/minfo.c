@@ -187,7 +187,6 @@ static void list_insert(char *addr, size_t usize, size_t size, void *caller, cha
             nvramLogFinsert("%s: curr %x addr %x size %x usize %x, new %x addr %x size %x usize %x",
                             who,curr,curr->addr,curr->size,curr->usize,new,addr,size,usize);
             muntrace();
-                    /* WARNING: Subroutine does not return */
             abort();
           }
           new->next = curr;

@@ -34,7 +34,7 @@ int cmdlistnum[10];
 int CmdAddCmds(Cmd *cmds, int num_cmds)
 {
   if (cmdlistcnt == 10) {
-    syslog(9,"../../common/sys/Cmd.c",0x2f,0,"CmdAddCmds: command list full!");
+    syslog(9,"../../common/sys/Cmd.c",47,0,"CmdAddCmds: command list full!");
   }
   cmdlist[cmdlistcnt] = cmds;
   cmdlistnum[cmdlistcnt] = num_cmds;
@@ -710,24 +710,24 @@ static int match_range(char *X, int xmax, char *s)
                   }
                   else {
                     if (n2 == n1) {
-                      X[n2] = '\x01';
+                      X[n2] = 1;
                       n2 = n2 + 1;
                     }
                     else {
-                      X[n2] = '\x02';
+                      X[n2] = 2;
                       iVar1 = n2;
                       while (n2 = iVar1 + 1, n2 < n1) {
-                        X[n2] = '\x03';
+                        X[n2] = 3;
                         iVar1 = n2;
                       }
-                      X[n2] = '\x04';
+                      X[n2] = 4;
                       n2 = iVar1 + 2;
                     }
                     range = false;
                   }
                 }
                 else {
-                  X[n1] = '\x01';
+                  X[n1] = 1;
                 }
                 s = s + sVar2 + 1;
                 if (*s == '\0') {
@@ -750,24 +750,24 @@ static int match_range(char *X, int xmax, char *s)
                   }
                   else {
                     if (n2 == n1) {
-                      X[n2] = '\x01';
+                      X[n2] = 1;
                       n2 = n2 + 1;
                     }
                     else {
-                      X[n2] = '\x02';
+                      X[n2] = 2;
                       iVar1 = n2;
                       while (n2 = iVar1 + 1, n2 < n1) {
-                        X[n2] = '\x03';
+                        X[n2] = 3;
                         iVar1 = n2;
                       }
-                      X[n2] = '\x04';
+                      X[n2] = 4;
                       n2 = iVar1 + 2;
                     }
                     range = false;
                   }
                 }
                 else {
-                  X[n1] = '\x01';
+                  X[n1] = 1;
                 }
                 s = s + sVar2;
                 sVar2 = strlen(s);

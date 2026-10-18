@@ -327,7 +327,7 @@ int smp_console_count(unsigned char *pselect)
     if ((iVar1 < 3) && (0 < iVar1)) {
       if ((pselect != NULL) && ((smp->grp->partition != 0 && (smp->grp->partition < 0x100)))
          ) {
-        pselect[smp->grp->partition] = '\x01';
+        pselect[smp->grp->partition] = 1;
       }
       count = count + 1;
     }
@@ -822,7 +822,7 @@ void smp_input(SMP *smp, char *rbuf, int rlen)
   }
   if (smp->password == 0) {
     cVar2 = *rbuf;
-    if (cVar2 == '\x04') {
+    if (cVar2 == 4) {
       if (smp->grp->mode == 0) {
         conaddr = smp_chkcon_present(smp);
         if (conaddr == 0) {
@@ -840,12 +840,12 @@ void smp_input(SMP *smp, char *rbuf, int rlen)
         return;
       }
     }
-    else if (cVar2 < '\x05') {
+    else if (cVar2 < 5) {
       if (cVar2 == '\0') {
         return;
       }
     }
-    else if (cVar2 == '\x14') {
+    else if (cVar2 == 20) {
       switch(smp->grp->mode) {
       case 0:
         return;
@@ -938,7 +938,7 @@ LAB_0804f6b7:
     }
     else {
       if (cVar2 < '\v') {
-        if (cVar2 == '\x03') {
+        if (cVar2 == 3) {
           if (smp->password != 0) {
             smp->grp->cptr = smp->grp->cbuf;
             *smp->grp->cptr = '\0';
@@ -970,7 +970,7 @@ LAB_0804f905:
             smp_output(smp,rbuf,1);
             return;
           }
-          if (('\0' < *rbuf) && (*rbuf < '\x1b')) {
+          if (('\0' < *rbuf) && (*rbuf < 27)) {
             sprintf(tmp,"^%c",(int)(char)(*rbuf | 0x40));
             smp_output(smp,tmp,-1);
             return;
@@ -982,7 +982,7 @@ LAB_0804f905:
       }
       else {
         if (cVar2 == '\r') goto LAB_0804f6b7;
-        if (cVar2 != '\x7f') goto LAB_0804f905;
+        if (cVar2 != 127) goto LAB_0804f905;
       }
       if (smp->grp->cbuf < smp->grp->cptr) {
         ppcVar1 = &smp->grp->cptr;
@@ -990,7 +990,7 @@ LAB_0804f905:
         if (smp->password == 0) {
           iVar6 = isprint((int)*smp->grp->cptr);
           if (iVar6 == 0) {
-            if ((*smp->grp->cptr < '\x01') || ('\x1a' < *smp->grp->cptr)) {
+            if ((*smp->grp->cptr < 1) || (26 < *smp->grp->cptr)) {
               smp_output(smp,"\b\b\b\b    \b\b\b\b",-1);
             }
             else {
@@ -1180,7 +1180,6 @@ int smp_shell(SMP *smp, char *cmd)
       slave_fd = pty_slave(master_fd);
       if (slave_fd < 0) {
         fprintf(stderr,"ERROR: can\'t open pty slave\n");
-                    /* WARNING: Subroutine does not return */
         exit(0);
       }
       close(master_fd);
@@ -1199,7 +1198,6 @@ int smp_shell(SMP *smp, char *cmd)
         argv[3] = NULL;
       }
       execv("/bin/sh",argv);
-                    /* WARNING: Subroutine does not return */
       exit(0x7f);
     }
     EventAddInput(master_fd,smp_echo,(EventData)smp,"smp_shell");
@@ -1589,7 +1587,7 @@ void smp_read(SMP *smp)
     if (((smp->grp->ilen < 1) &&
         (((smp->grp->mode == 0 || (smp->grp->mode == 2)) || (smp->grp->mode == 4)))) &&
        (rbytes = read(smp->rfd,smp->grp->ibuf + smp->grp->ilen,1), 0 < rbytes)) {
-      if (smp->grp->ibuf[smp->grp->ilen] == '\x03') {
+      if (smp->grp->ibuf[smp->grp->ilen] == 3) {
         reqrspq_reset(smp->grp->l2cmd->q);
         EventEnableInput(smp->rfd,1);
         smp->grp->ilen = 0;
@@ -1825,7 +1823,7 @@ void smp_tty_config(int fd, int baud)
       }
       termios.c_cc[0] = '\0';
       termios.c_cc[10] = '\0';
-      termios.c_cc[6] = '\x01';
+      termios.c_cc[6] = 1;
       termios.c_cc[2] = '\b';
       termios.c_cc[3] = '\v';
       cfsetospeed((struct termios *)&termios,baud);

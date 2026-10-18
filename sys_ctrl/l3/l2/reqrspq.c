@@ -237,7 +237,7 @@ int rspq_update(REQRSPQ *q, IRPacket *pkt)
   int rev;
   
   qe = q->rspq_head;
-  if (pkt->_err == '\x13') {
+  if (pkt->_err == 19) {
     uVar1 = IRArg(pkt,0);
     uVar1 = uVar1 / 100;
     if (q->rspq_etimeout < (int)uVar1) {
@@ -246,7 +246,7 @@ int rspq_update(REQRSPQ *q, IRPacket *pkt)
       rspq_timeout_set(q,uVar1);
       if (q->rspq_etofunc != NULL) {
         pvVar3 = q->rspq_todata;
-        if (pkt->_argc == '\x01') {
+        if (pkt->_argc == 1) {
           uStack_14 = 0;
         }
         else {

@@ -1375,7 +1375,7 @@ static void RouterReloadOutput(RouterClient *client)
     RouterLoadOutput(client,entry);
     if (0xf9 < (client->in_queue).total) {
       RouterRemoveOutput(client);
-      client->out_stopped = '\x01';
+      client->out_stopped = 1;
     }
   }
   RouterCheckOutputMonitor(client);
@@ -1400,7 +1400,7 @@ static void RouterCheckOutputMonitor(RouterClient *client)
     if (client->out_highwater == '\0') {
       if (((MonitorHighWaterEntries != 0) && (MonitorHighWaterEntries < (client->out_queue).total))
          || ((MonitorHighWaterBytes != 0 && (MonitorHighWaterBytes < (client->out_queue).bytes)))) {
-        client->out_highwater = '\x01';
+        client->out_highwater = 1;
         (*MonitorCB)(MonitorCBData,client,1);
       }
     }
@@ -2195,7 +2195,6 @@ void RouterMemError(void)
   if (FatalCB != NULL) {
     (*FatalCB)(0xfffffec9);
   }
-                    /* WARNING: Subroutine does not return */
   abort();
 }
 

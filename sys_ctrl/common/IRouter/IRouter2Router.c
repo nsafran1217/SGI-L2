@@ -101,7 +101,7 @@ int IRouterForwardPacket(IRClient *client, IRIdent *id, IRPacket *pkt)
   
   rval = 0;
   data = 0;
-  if (pkt->_clas == '\x02') {
+  if (pkt->_clas == 2) {
     uVar2 = pkt->_src;
     if (((uVar2 & 0x80000000) == 0) && (uVar2 >> 0x1c == 0)) {
       if ((uVar2 & 0x80000000) == 0) {
@@ -119,7 +119,7 @@ int IRouterForwardPacket(IRClient *client, IRIdent *id, IRPacket *pkt)
     priority = '\v';
   }
   else {
-    priority = '\x14';
+    priority = 20;
   }
 LAB_0807d4aa:
   arglist = malloc(((pkt->_fnum & 0x7f) + 1) * sizeof(RouterArgument));

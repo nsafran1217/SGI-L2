@@ -582,7 +582,6 @@ void l1_open(void)
   }
   if (status != 0) {
     fprintf(stderr,"FATAL: can\'t open connection to L1\n");
-                    /* WARNING: Subroutine does not return */
     exit(1);
   }
   if ((l2_l1_conn_mode < 5) && (2 < l2_l1_conn_mode)) {
@@ -596,7 +595,6 @@ void l1_open(void)
     if (status != 1) {
       piVar1 = __errno_location();
       fprintf(stderr,"FATAL: can\'t initiate L1 protocol, errno: %d\n",*piVar1);
-                    /* WARNING: Subroutine does not return */
       exit(1);
     }
     sleep(2);
@@ -609,7 +607,6 @@ void l1_open(void)
     if (status != 1) {
       piVar1 = __errno_location();
       fprintf(stderr,"FATAL: can\'t initiate L1 protocol, errno: %d\n",*piVar1);
-                    /* WARNING: Subroutine does not return */
       exit(1);
     }
     while (!initialized) {
@@ -627,20 +624,18 @@ void l1_open(void)
       if (status < 1) {
         piVar1 = __errno_location();
         fprintf(stderr,"FATAL: can\'t confirm L1 protocol, errno: %d\n",*piVar1);
-                    /* WARNING: Subroutine does not return */
         exit(1);
       }
       if (l2_debug != 0) {
         piVar1 = __errno_location();
         fprintf(stderr,"l1_open() read %02x, status %d, errno %d\n",(int)echo[0],status,*piVar1);
       }
-      if (echo[0] == '\x18') {
+      if (echo[0] == 24) {
         iVar2 = SocketNodelayMode(l2_l1_ports[0].fd,1);
         if (iVar2 != 0) {
           piVar1 = __errno_location();
           fprintf(stderr,"FATAL: can\'t set delay mode on L1 connection, status: %d, errno: %d\n",
                   iVar2,*piVar1);
-                    /* WARNING: Subroutine does not return */
           exit(1);
         }
         iVar2 = L2CfgMAddPort(&L2CfgLocal,0,l2_l1_serial_device,NULL,1,l2_l1_ports[0].fd);
@@ -698,7 +693,6 @@ void l1_close(int fd)
     return;
   }
   fprintf(stderr,"FATAL: can\'t close connection to L1\n");
-                    /* WARNING: Subroutine does not return */
   exit(1);
 }
 
@@ -755,7 +749,7 @@ int l1_tty_open(char *device)
       termios.c_lflag = 0;
       termios.c_ospeed = 0xf;
       termios.c_ispeed = 0xf;
-      termios.c_cc[6] = '\x01';
+      termios.c_cc[6] = 1;
       termios.c_cc[5] = '\0';
       iVar2 = tcsetattr(td,0,(struct termios *)&termios);
       if (iVar2 == -1) {

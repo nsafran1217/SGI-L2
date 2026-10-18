@@ -107,7 +107,6 @@ void syslog(int level, char *fl, int ln, int msgno, char *fmt, ...)
       (*syslog_cb)(local_level,slog_fullmsg);
     }
     fprintf(stderr,"%s\n",slog_fullmsg,0,0,0,0,0);
-                    /* WARNING: Subroutine does not return */
     va_end(ap);
     exit(-1);
   default:

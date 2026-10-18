@@ -107,7 +107,7 @@ int IRouterSendTargetedPacket(IRIdent *id, IRPacket *pkt)
       iVar2 = IRouterPacketToRouter(node->client,&l2_id,pkt);
       return iVar2;
     }
-    if (pkt->_clas == '\x01') {
+    if (pkt->_clas == 1) {
       pkt->_use_count++;
       smp_process_response(pkt);
       return 0;

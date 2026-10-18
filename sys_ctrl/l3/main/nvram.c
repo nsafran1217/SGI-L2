@@ -100,7 +100,7 @@ int nvramInit(int mode)
   }
   else {
     if (nvramCount != 0) {
-      syslog(4,"nvram.c",0x53,0,"nvram already initialized!");
+      syslog(4,"nvram.c",83,0,"nvram already initialized!");
       return 0;
     }
     nvramCount = 1;
@@ -650,7 +650,7 @@ static int nvramLoad(uint8 *buf, int size)
     if (fd < 0) {
       piVar1 = __errno_location();
       if (*piVar1 == 2) {
-        syslog(6,"nvram.c",0x405,0,"NVRAM file \'%s\' doesn\'t exist.....initializing",nvram_file);
+        syslog(6,"nvram.c",1029,0,"NVRAM file \'%s\' doesn\'t exist.....initializing",nvram_file);
         memset(buf,0,size);
         close(fd);
         nvramSave(buf,size);
@@ -659,7 +659,7 @@ static int nvramLoad(uint8 *buf, int size)
       else {
         piVar1 = __errno_location();
         pcVar2 = LoggerDefaultMessage(*piVar1);
-        syslog(1,"nvram.c",0x40c,0,"can\'t open the NVRAM file \'%s\' for reading: %s",nvram_file,
+        syslog(1,"nvram.c",1036,0,"can\'t open the NVRAM file \'%s\' for reading: %s",nvram_file,
                pcVar2);
         close(fd);
         rval = -1;
@@ -670,7 +670,7 @@ static int nvramLoad(uint8 *buf, int size)
       if (rval < 0) {
         piVar1 = __errno_location();
         pcVar2 = LoggerDefaultMessage(*piVar1);
-        syslog(1,"nvram.c",0x415,0,"can\'t read the NVRAM file \'%s\': %s",nvram_file,pcVar2);
+        syslog(1,"nvram.c",1045,0,"can\'t read the NVRAM file \'%s\': %s",nvram_file,pcVar2);
         close(fd);
         rval = -1;
       }
@@ -700,7 +700,7 @@ static int nvramSave(uint8 *buf, int size)
       if (fd < 0) {
         piVar1 = __errno_location();
         pcVar2 = LoggerDefaultMessage(*piVar1);
-        syslog(4,"nvram.c",0x434,0,"can\'t open the NVRAM file \'%s\' for writing: %s",nvram_file,
+        syslog(4,"nvram.c",1076,0,"can\'t open the NVRAM file \'%s\' for writing: %s",nvram_file,
                pcVar2);
         close(fd);
         rval = -1;
@@ -711,7 +711,7 @@ static int nvramSave(uint8 *buf, int size)
         if (rval < 0) {
           piVar1 = __errno_location();
           pcVar2 = LoggerDefaultMessage(*piVar1);
-          syslog(4,"nvram.c",0x43f,0,"can\'t write the NVRAM file \'%s\': %s",nvram_file,pcVar2);
+          syslog(4,"nvram.c",1087,0,"can\'t write the NVRAM file \'%s\': %s",nvram_file,pcVar2);
         }
         nvramNormalizePointers((ipmiCommonHeader *)buf,0,0);
         close(fd);

@@ -69,7 +69,7 @@ int sn1SCConnInit(char *cname)
     strncpy(l2_cname,cname,0x7f);
   }
   else {
-    syslog(4,"SCapiConn.c",0x42,0,"sn1SCConnLib already initialized!!");
+    syslog(4,"SCapiConn.c",66,0,"sn1SCConnLib already initialized!!");
   }
   return 0;
 }
@@ -80,9 +80,8 @@ int sn1SCConnInitConn(sn1SCConn *conn, int id, char *host, char *iface, char *sy
   int iVar1;
   
   if (sn1SCCount == 0) {
-    syslog(3,"SCapiConn.c",0x62,0,"sn1SCConnInitConn: system controller library not initialized!\n")
+    syslog(3,"SCapiConn.c",98,0,"sn1SCConnInitConn: system controller library not initialized!\n")
     ;
-                    /* WARNING: Subroutine does not return */
     exit(1);
   }
   memset(conn,0,sizeof(sn1SCConn));
@@ -97,7 +96,7 @@ int sn1SCConnInitConn(sn1SCConn *conn, int id, char *host, char *iface, char *sy
     strcpy(conn->host,host);
   }
   if ((passwd == NULL) || (*passwd == '\0')) {
-    conn->passwd_prompt = '\x01';
+    conn->passwd_prompt = 1;
   }
   else {
     strcpy(conn->passwd,passwd);
@@ -126,7 +125,7 @@ int sn1SCConnReconnect(sn1SCConn *conn)
   }
   else {
     pcVar1 = LoggerDefaultMessage(rval);
-    syslog(3,"SCapiConn.c",0xad,0,"IRouterConnect to %s failed: %s",conn,pcVar1);
+    syslog(3,"SCapiConn.c",173,0,"IRouterConnect to %s failed: %s",conn,pcVar1);
   }
   return rval;
 }
@@ -144,11 +143,11 @@ int sn1SCConnFindL2(char *host, char *iface, char *sysname, char *ssn)
   l2_cnt = 0;
   iVar1 = sn1SCDiscoverL2(iface,NULL,&l2_list,&l2_cnt,1);
   if (iVar1 < 0) {
-    syslog(3,"SCapiConn.c",0xdc,0,"error discovering L2 controllers!");
+    syslog(3,"SCapiConn.c",220,0,"error discovering L2 controllers!");
     iVar1 = -1;
   }
   else if (l2_cnt == 0) {
-    syslog(3,"SCapiConn.c",0xe2,0,"could not find an L2 controller to connect to!");
+    syslog(3,"SCapiConn.c",226,0,"could not find an L2 controller to connect to!");
     iVar1 = -1;
   }
   else {
@@ -171,12 +170,12 @@ int sn1SCConnFindL2(char *host, char *iface, char *sysname, char *ssn)
     if (i == l2_cnt) {
       if ((ssn == NULL) || (*ssn == '\0')) {
         if ((sysname != NULL) && (*sysname != '\0')) {
-          syslog(3,"SCapiConn.c",0x101,0,"no L2 controllers found with system name \'%s\'!",sysname)
+          syslog(3,"SCapiConn.c",257,0,"no L2 controllers found with system name \'%s\'!",sysname)
           ;
         }
       }
       else {
-        syslog(3,"SCapiConn.c",0xff,0,"no L2 controllers found with serial number \'%s\'!",ssn);
+        syslog(3,"SCapiConn.c",255,0,"no L2 controllers found with serial number \'%s\'!",ssn);
       }
       iVar1 = -2;
     }
@@ -240,8 +239,7 @@ int sn1SCConnReq(sn1SCConn *conn, IRAddress *toaddr, int opcode, int argc, IRArg
   int seqnum;
   
   if (sn1SCCount == 0) {
-    syslog(3,"SCapiConn.c",0x13f,0,"sn1SCConnReq: system controller library not initialized!\n");
-                    /* WARNING: Subroutine does not return */
+    syslog(3,"SCapiConn.c",319,0,"sn1SCConnReq: system controller library not initialized!\n");
     exit(1);
   }
   pIVar2 = sn1SCConnClient(conn);
@@ -260,7 +258,7 @@ int sn1SCConnReq(sn1SCConn *conn, IRAddress *toaddr, int opcode, int argc, IRArg
     }
     else {
       pcVar3 = LoggerDefaultMessage(rval);
-      syslog(3,"SCapiConn.c",0x14f,0,"IRouterRequest failed: %s",pcVar3);
+      syslog(3,"SCapiConn.c",335,0,"IRouterRequest failed: %s",pcVar3);
     }
   }
   return rval;
@@ -303,7 +301,7 @@ int sn1SCConnRsp(sn1SCConn *conn, IRPacket **pkt, uint32 *id, int wait)
       }
       else {
         pcVar2 = LoggerDefaultMessage(rval);
-        syslog(3,"SCapiConn.c",0x186,0,"IRouterGetPacket failed: %s",pcVar2);
+        syslog(3,"SCapiConn.c",390,0,"IRouterGetPacket failed: %s",pcVar2);
         if (conn != NULL) {
           sn1SCConnClient(conn);
         }
@@ -345,7 +343,7 @@ int sn1SCConnPkt(sn1SCConn *conn, IRPacket **pkt, sn1SCConn **pktconn, int wait)
     else {
       if (rval != -0x26c) {
         pcVar2 = LoggerDefaultMessage(rval);
-        syslog(3,"SCapiConn.c",0x1d2,0,"IRouterGetPacket failed: %s",pcVar2);
+        syslog(3,"SCapiConn.c",466,0,"IRouterGetPacket failed: %s",pcVar2);
       }
       if (conn != NULL) {
         sn1SCConnClient(conn);
@@ -368,9 +366,8 @@ int sn1SCConnSendRsp(sn1SCConn *conn, int errcode, IRPacket *reqpkt, int argc, I
   int seqnum;
   
   if (sn1SCCount == 0) {
-    syslog(3,"SCapiConn.c",0x200,0,"sn1SCConnSendRsp: system controller library not initialized!\n")
+    syslog(3,"SCapiConn.c",512,0,"sn1SCConnSendRsp: system controller library not initialized!\n")
     ;
-                    /* WARNING: Subroutine does not return */
     exit(1);
   }
   pIVar2 = sn1SCConnClient(conn);
@@ -389,7 +386,7 @@ int sn1SCConnSendRsp(sn1SCConn *conn, int errcode, IRPacket *reqpkt, int argc, I
     }
     else {
       pcVar3 = LoggerDefaultMessage(rval);
-      syslog(3,"SCapiConn.c",0x210,0,"IRouterResponse failed: %s",pcVar3);
+      syslog(3,"SCapiConn.c",528,0,"IRouterResponse failed: %s",pcVar3);
     }
   }
   return rval;
@@ -415,15 +412,15 @@ int sn1SCConnCmd(sn1SCConn *conn, IRAddress *toaddr, int opcode, int argc, IRArg
       if (uVar2 == rspid) {
         return 0;
       }
-      syslog(4,"SCapiConn.c",0x23f,0,
+      syslog(4,"SCapiConn.c",575,0,
              "sn1SCConnCmd: unexpected response (request ID did not match response ID!!)\n");
     }
     pcVar1 = LoggerDefaultMessage(rval);
-    syslog(3,"SCapiConn.c",0x237,0,"sn1SCConnCmd: sn1SCConnRsp: %s\n",pcVar1);
+    syslog(3,"SCapiConn.c",567,0,"sn1SCConnCmd: sn1SCConnRsp: %s\n",pcVar1);
   }
   else {
     pcVar1 = LoggerDefaultMessage(rval);
-    syslog(3,"SCapiConn.c",0x22f,0,"sn1SCConnCmd: sn1SCConnReq: %s\n",pcVar1);
+    syslog(3,"SCapiConn.c",559,0,"sn1SCConnCmd: sn1SCConnReq: %s\n",pcVar1);
   }
   return rval;
 }
@@ -523,7 +520,7 @@ static char *get_password(IRClient *client)
   }
   else {
     uVar1 = conn->passwd_retrys;
-    conn->passwd_retrys = conn->passwd_retrys + '\x01';
+    conn->passwd_retrys = conn->passwd_retrys + 1;
     if (uVar1 != '\0') {
       conn->passwd[0] = '\0';
       printf("incorrect password\n");

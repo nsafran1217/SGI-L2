@@ -75,7 +75,7 @@ static IRFrame *IRouterCreateFrame(int size, int min, int max, int *act, IRFrame
   }
   else {
     memset(__s,0,size + IR_FRAME_PREFIX);
-    __s->_rev = '\x02';
+    __s->_rev = 2;
     if (firstframe != NULL) {
       memcpy(&__s->_size,&firstframe->_size,0x14);
     }

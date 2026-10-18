@@ -141,7 +141,7 @@ int L2CfgInitLocal(uint32 ip_addr, RouterClient *client)
     iVar1 = 0;
   }
   else {
-    syslog(3,"../../common/main/L2Cfg.c",0x67,0,"L2CfgInitLocal:  L2Cfg already initialized!!");
+    syslog(3,"../../common/main/L2Cfg.c",103,0,"L2CfgInitLocal:  L2Cfg already initialized!!");
     iVar1 = -1;
   }
   return iVar1;
@@ -157,7 +157,7 @@ int L2CfgMInitL3(L2Cfg *head, RouterClient *client)
     fprintf(stderr,"InitL3(cfg %08x, c %08x)\n",head,client);
   }
   if (L2CfgMode == 1) {
-    syslog(3,"../../common/main/L2Cfg.c",0xa5,0,
+    syslog(3,"../../common/main/L2Cfg.c",165,0,
            "L2CfgInitL3:  L2Cfg already initialized in L2 mode!!");
     iVar1 = -1;
   }
@@ -798,7 +798,7 @@ static void format_l1(char *rptr, L2CfgNode *l2node, int port, int l1, int mode)
     rptr = rptr + sVar4;
   }
   if ((L2CFG_OF(l2node)->port_list[port].l1cfg[l1].configured == '\0') &&
-     (L2CFG_OF(l2node)->port_list[port].l1cfg[l1].conn_state == '\x01')) {
+     (L2CFG_OF(l2node)->port_list[port].l1cfg[l1].conn_state == 1)) {
     if (l1 == 0) {
       strcat(rptr,"C/R/G brick (USB connection)");
     }
@@ -1738,7 +1738,7 @@ void L2CfgMCfgL2(L2Cfg *head, IRPacket *p)
                   while (c != NULL) {
                     uVar7 = strtoul(c,NULL,10);
                     if ((int)uVar7 < 0x100) {
-                      l2node->pselect[uVar7] = '\x01';
+                      l2node->pselect[uVar7] = 1;
                     }
                     c = strtok(NULL,".");
                   }
@@ -1928,8 +1928,8 @@ void L2CfgMCfgL2(L2Cfg *head, IRPacket *p)
                                         l1 = l2->port_list[port].l1count;
                                         piVar1 = &l2->port_list[port].l1count;
                                         *piVar1 = *piVar1 + 1;
-                                        l2->port_list[port].l1cfg[l1].configured = '\x01';
-                                        l2->port_list[port].l1cfg[l1].conn_state = '\x02';
+                                        l2->port_list[port].l1cfg[l1].configured = 1;
+                                        l2->port_list[port].l1cfg[l1].conn_state = 2;
                                       }
                                     }
                                     else {
@@ -2036,7 +2036,7 @@ void L2CfgMCfgL2(L2Cfg *head, IRPacket *p)
                                                                 l2->port_list[port].l1cfg[l1].
                                                                 conn_state = (uint8)iVar6;
                                                                 if (l2->port_list[port].l1cfg[l1].
-                                                                    conn_state == '\x01') {
+                                                                    conn_state == 1) {
                                                                   l2->port_list[port].l1cfg[l1].
                                                                   configured = '\0';
                                                                 }
@@ -2172,7 +2172,7 @@ static int l1l2(L2CfgPort *l2port, int l1, int index, char *cfgp, int size)
   strcpy(l2_l1cfg.brick_sn,l1_l1cfg.brick_sn);
   strcpy(l2_l1cfg.system_sn,l1_l1cfg.system_sn);
   if ((l2_l1cfg.conn_state == '\0') && (l2_l1cfg.configured != '\0')) {
-    l2_l1cfg.conn_state = '\x02';
+    l2_l1cfg.conn_state = 2;
   }
   if (l2port->l1count == 0) {
     pLVar2 = malloc(sizeof(L2CfgL1));

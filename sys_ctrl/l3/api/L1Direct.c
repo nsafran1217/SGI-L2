@@ -304,7 +304,7 @@ int L1DirectGetPacket(IRPacket **pkt, int wait, int response)
     }
     *pkt = l1d_pkt;
     l1d_pkt = NULL;
-    if ((response == 0) || ((*pkt)->_clas == '\x01')) goto LAB_080598c4;
+    if ((response == 0) || ((*pkt)->_clas == 1)) goto LAB_080598c4;
   }
   *pkt = NULL;
   rval = -1;
@@ -451,7 +451,7 @@ int l1d_open(int connect)
               fprintf(stderr,"l1d_open() read %02x, status %d, errno %d\n",(int)echo[0],status,
                       *piVar2);
             }
-            if (echo[0] == '\x18') {
+            if (echo[0] == 24) {
               iVar3 = SocketNodelayMode(l1d_fd,1);
               if (iVar3 != 0) {
                 piVar2 = __errno_location();
@@ -576,7 +576,7 @@ int l1d_tty_open(char *device)
       termios.c_oflag = 0;
       termios.c_cflag = 0x800008bf;
       termios.c_lflag = 0;
-      termios.c_cc[6] = '\x01';
+      termios.c_cc[6] = 1;
       termios.c_cc[5] = '\0';
       iVar2 = tcsetattr(td,0,(struct termios *)&termios);
       if (iVar2 == -1) {

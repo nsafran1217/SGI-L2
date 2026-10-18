@@ -525,14 +525,14 @@ int sn1SCInitPortAddr(char *cname, char *host, int task, int port, IRAddress add
         if (iVar2 < 0) {
           if (iVar2 != -1) {
             if (iVar2 == -2) {
-              syslog(3,"SCapi.c",0x242,0,"could not find the specified host!");
+              syslog(3,"SCapi.c",578,0,"could not find the specified host!");
               sn1SCCount = 0;
               return -300;
             }
             sn1SCCount = 0;
             return -300;
           }
-          syslog(6,"SCapi.c",0x23f,0,"trying to connect to L2 @ localhost as a last resort");
+          syslog(6,"SCapi.c",575,0,"trying to connect to L2 @ localhost as a last resort");
           strcpy(l2_host,"localhost");
         }
       }
@@ -605,7 +605,7 @@ int sn1SCReconnect(void)
   }
   else {
     pcVar1 = LoggerDefaultMessage(rval);
-    syslog(3,"SCapi.c",0x27c,0,"IRouterConnect to %s failed: %s",l2_host,pcVar1);
+    syslog(3,"SCapi.c",636,0,"IRouterConnect to %s failed: %s",l2_host,pcVar1);
   }
   return rval;
 }
@@ -633,10 +633,10 @@ int sn1SCFindL2(char *host)
     if (l2_host[0] == '\0') {
       iVar1 = sn1SCDiscoverL2(l2_iface,NULL,&l2_list,&l2_cnt,1);
       if (iVar1 < 0) {
-        syslog(3,"SCapi.c",0x2be,0,"error discovering L2 controllers!");
+        syslog(3,"SCapi.c",702,0,"error discovering L2 controllers!");
       }
       if (l2_cnt == 0) {
-        syslog(3,"SCapi.c",0x2c3,0,"could not find an L2 controller to connect to!");
+        syslog(3,"SCapi.c",707,0,"could not find an L2 controller to connect to!");
         iVar1 = -1;
       }
       else {
@@ -675,12 +675,12 @@ int sn1SCFindL2(char *host)
           if (l2 == NULL) {
             if (l2_ssn[0] == '\0') {
               if (l2_sysname[0] != '\0') {
-                syslog(3,"SCapi.c",0x317,0,"no L2 controllers found with system name \'%s\'!",
+                syslog(3,"SCapi.c",791,0,"no L2 controllers found with system name \'%s\'!",
                        l2_sysname);
               }
             }
             else {
-              syslog(3,"SCapi.c",0x315,0,"no L2 controllers found with serial number \'%s\'!",l2_ssn
+              syslog(3,"SCapi.c",789,0,"no L2 controllers found with serial number \'%s\'!",l2_ssn
                     );
             }
             iVar1 = -2;
@@ -694,15 +694,15 @@ int sn1SCFindL2(char *host)
         else {
           if (l2_ssn[0] == '\0') {
             if (l2_sysname[0] == '\0') {
-              syslog(3,"SCapi.c",0x30b,0,"could not find rack %03d!",l2_rack);
+              syslog(3,"SCapi.c",779,0,"could not find rack %03d!",l2_rack);
             }
             else {
-              syslog(3,"SCapi.c",0x308,0,"could not find rack %03d on system name \'%s\'!",l2_rack,
+              syslog(3,"SCapi.c",776,0,"could not find rack %03d on system name \'%s\'!",l2_rack,
                      l2_sysname);
             }
           }
           else {
-            syslog(3,"SCapi.c",0x305,0,"could not find rack %03d on serial number \'%s\'!",l2_rack,
+            syslog(3,"SCapi.c",773,0,"could not find rack %03d on serial number \'%s\'!",l2_rack,
                    l2_ssn);
           }
           iVar1 = -2;
@@ -785,8 +785,7 @@ int sn1SCReq(IRAddress *toaddr, int opcode, int argc, IRArgument *argv, uint32 *
   char x [80];
   
   if (sn1SCCount == 0) {
-    syslog(3,"SCapi.c",0x35f,0,"sn1SCReq: system controller library not initialized!\n");
-                    /* WARNING: Subroutine does not return */
+    syslog(3,"SCapi.c",863,0,"sn1SCReq: system controller library not initialized!\n");
     exit(1);
   }
   if (((serial_direct == 0) && (os_direct == 0)) &&
@@ -799,7 +798,7 @@ int sn1SCReq(IRAddress *toaddr, int opcode, int argc, IRArgument *argv, uint32 *
       iVar2 = (*IRouterRequest)(ir_client,&ir_id,toaddr,opcode,argc,argv,id);
       if (iVar2 != 0) {
         pcVar3 = LoggerDefaultMessage(iVar2);
-        syslog(3,"SCapi.c",0x37c,0,"IRouterRequest failed: %s",pcVar3);
+        syslog(3,"SCapi.c",892,0,"IRouterRequest failed: %s",pcVar3);
         return iVar2;
       }
     }
@@ -807,7 +806,7 @@ int sn1SCReq(IRAddress *toaddr, int opcode, int argc, IRArgument *argv, uint32 *
       iVar2 = L1DirectRequest(&ir_id,toaddr,opcode,argc,argv,(int *)id);
       if (iVar2 != 0) {
         pcVar3 = LoggerDefaultMessage(iVar2);
-        syslog(3,"SCapi.c",0x375,0,"IRouterRequest failed: %s",pcVar3);
+        syslog(3,"SCapi.c",885,0,"IRouterRequest failed: %s",pcVar3);
         return iVar2;
       }
     }
@@ -841,7 +840,7 @@ int sn1SCRsp(IRPacket **pkt, uint32 *id, int wait)
       iVar2 = (*IRouterGetPacket)(&ir_id,pkt,0,wait,1);
       if (iVar2 != 0) {
         pcVar3 = LoggerDefaultMessage(iVar2);
-        syslog(3,"SCapi.c",0x3ab,0,"IRouterGetPacket failed: %s",pcVar3);
+        syslog(3,"SCapi.c",939,0,"IRouterGetPacket failed: %s",pcVar3);
         if (ir_client == NULL) {
           return iVar2;
         }
@@ -857,7 +856,7 @@ int sn1SCRsp(IRPacket **pkt, uint32 *id, int wait)
       iVar2 = L1DirectGetPacket(pkt,wait,1);
       if (iVar2 != 0) {
         pcVar3 = LoggerDefaultMessage(iVar2);
-        syslog(3,"SCapi.c",0x3a5,0,"L1DirectGetPacket failed: %s",pcVar3);
+        syslog(3,"SCapi.c",933,0,"L1DirectGetPacket failed: %s",pcVar3);
         return iVar2;
       }
     }
@@ -883,8 +882,7 @@ int sn1SCEvent(int opcode, int argc, IRArgument *argv)
   int rval;
   
   if (sn1SCCount == 0) {
-    syslog(3,"SCapi.c",0x3dc,0,"sn1SCEvent: system controller library not initialized!\n");
-                    /* WARNING: Subroutine does not return */
+    syslog(3,"SCapi.c",988,0,"sn1SCEvent: system controller library not initialized!\n");
     exit(1);
   }
   if (((serial_direct == 0) && (os_direct == 0)) &&
@@ -896,7 +894,7 @@ int sn1SCEvent(int opcode, int argc, IRArgument *argv)
     rval = (*IRouterEvent)(ir_client,&ir_id,opcode,argc,argv);
     if (rval != 0) {
       pcVar2 = LoggerDefaultMessage(rval);
-      syslog(3,"SCapi.c",0x3f8,0,"IRouterEvent failed: %s",pcVar2);
+      syslog(3,"SCapi.c",1016,0,"IRouterEvent failed: %s",pcVar2);
       return rval;
     }
   }
@@ -904,7 +902,7 @@ int sn1SCEvent(int opcode, int argc, IRArgument *argv)
     rval = L1DirectEvent(&ir_id,opcode,argc,argv);
     if (rval != 0) {
       pcVar2 = LoggerDefaultMessage(rval);
-      syslog(3,"SCapi.c",0x3f1,0,"IRouterRequest failed: %s",pcVar2);
+      syslog(3,"SCapi.c",1009,0,"IRouterRequest failed: %s",pcVar2);
       return rval;
     }
     rval = 0;
@@ -939,7 +937,7 @@ int sn1SCPkt(IRPacket **pkt, int wait)
       if (iVar2 != 0) {
         if (iVar2 != -0x26c) {
           pcVar3 = LoggerDefaultMessage(iVar2);
-          syslog(3,"SCapi.c",0x42d,0,"IRouterGetPacket failed: %s",pcVar3);
+          syslog(3,"SCapi.c",1069,0,"IRouterGetPacket failed: %s",pcVar3);
         }
         if (ir_client == NULL) {
           return iVar2;
@@ -959,7 +957,7 @@ int sn1SCPkt(IRPacket **pkt, int wait)
           return -0x26c;
         }
         pcVar3 = LoggerDefaultMessage(iVar2);
-        syslog(3,"SCapi.c",0x424,0,"L1DirectGetPacket failed: %s",pcVar3);
+        syslog(3,"SCapi.c",1060,0,"L1DirectGetPacket failed: %s",pcVar3);
         return iVar2;
       }
     }
@@ -982,8 +980,7 @@ int sn1SCSendRsp(int errcode, IRPacket *reqpkt, int argc, IRArgument *argv)
   char x [80];
   
   if (sn1SCCount == 0) {
-    syslog(3,"SCapi.c",0x452,0,"sn1SCReq: system controller library not initialized!\n");
-                    /* WARNING: Subroutine does not return */
+    syslog(3,"SCapi.c",1106,0,"sn1SCReq: system controller library not initialized!\n");
     exit(1);
   }
   if (((serial_direct == 0) && (os_direct == 0)) &&
@@ -996,7 +993,7 @@ int sn1SCSendRsp(int errcode, IRPacket *reqpkt, int argc, IRArgument *argv)
       iVar2 = (*IRouterResponse)(ir_client,&ir_id,errcode,reqpkt,argc,argv);
       if (iVar2 != 0) {
         pcVar3 = LoggerDefaultMessage(iVar2);
-        syslog(3,"SCapi.c",0x470,0,"IRouterResponse failed: %s",pcVar3);
+        syslog(3,"SCapi.c",1136,0,"IRouterResponse failed: %s",pcVar3);
         return iVar2;
       }
     }
@@ -1004,7 +1001,7 @@ int sn1SCSendRsp(int errcode, IRPacket *reqpkt, int argc, IRArgument *argv)
       iVar2 = L1DirectResponse(&ir_id,errcode,reqpkt,argc,argv);
       if (iVar2 != 0) {
         pcVar3 = LoggerDefaultMessage(iVar2);
-        syslog(3,"SCapi.c",0x469,0,"IRouterResponse failed: %s",pcVar3);
+        syslog(3,"SCapi.c",1129,0,"IRouterResponse failed: %s",pcVar3);
         return iVar2;
       }
     }
@@ -1037,15 +1034,15 @@ int sn1SCCmd(IRAddress *toaddr, int opcode, int argc, IRArgument *argv, IRPacket
       if (uVar2 == rspid) {
         return 0;
       }
-      syslog(4,"SCapi.c",0x49f,0,
+      syslog(4,"SCapi.c",1183,0,
              "sn1SCCmd: unexpected response (request ID did not match response ID!!)\n");
     }
     pcVar1 = LoggerDefaultMessage(rval);
-    syslog(3,"SCapi.c",0x498,0,"sn1SCCmd: sn1SCRsp: %s\n",pcVar1);
+    syslog(3,"SCapi.c",1176,0,"sn1SCCmd: sn1SCRsp: %s\n",pcVar1);
   }
   else {
     pcVar1 = LoggerDefaultMessage(rval);
-    syslog(3,"SCapi.c",0x490,0,"sn1SCCmd: sn1SCReq: %s\n",pcVar1);
+    syslog(3,"SCapi.c",1168,0,"sn1SCCmd: sn1SCReq: %s\n",pcVar1);
   }
   return rval;
 }
@@ -1242,7 +1239,6 @@ static int multi_system_check(sn1SC_L2 *list, int cnt)
     fprintf(stderr,
             "ERROR: Multiple systems detected!\nYou must use the --l2 <host/IP>, --sysname <name>, or --ssn <serial number>\ncommand-line option to specify which system you wish to connect to.\nUse the \'l2find\' utility (/stand/sysco/bin/l2find) to see the list of\nL2s available to connect to.\n"
            );
-                    /* WARNING: Subroutine does not return */
     exit(-1);
   }
   return 0;
@@ -1258,7 +1254,7 @@ char *sn1SCGetPassword(IRClient *client)
     pw = l2_passwd;
   }
   else {
-    l2_passwd_retrys = l2_passwd_retrys + '\x01';
+    l2_passwd_retrys = l2_passwd_retrys + 1;
     if ('\0' < cVar1) {
       l2_passwd[0] = '\0';
       printf("incorrect password\n");

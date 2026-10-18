@@ -493,7 +493,7 @@ void route_process(IRPacket *p)
     if (uVar3 == 0) {
       uVar4 = L2CfgLocal.rack | 0x80000000;
       uVar3 = time(NULL);
-      p->_argv[arg]._val = (unsigned int)(uVar2 == '\x01') << 0x1e | uVar4;
+      p->_argv[arg]._val = (unsigned int)(uVar2 == 1) << 0x1e | uVar4;
       val2 = uVar3 & 0xffff;
       p->_argv[arg + 1]._val = val2;
       found = true;

@@ -47,8 +47,7 @@ int IRouterConnectOS(char *cname, char *device, int port, IRClient **client, int
   sd = open(device,2);
   if (sd == -1) {
     piVar1 = __errno_location();
-    syslog(3,"IRouterOS.c",0x59,0,"can\'t open %s, errno %d.\n",device,*piVar1);
-                    /* WARNING: Subroutine does not return */
+    syslog(3,"IRouterOS.c",89,0,"can\'t open %s, errno %d.\n",device,*piVar1);
     exit(-1);
   }
   *client = &rtr_conn_server;
@@ -172,7 +171,7 @@ int IRouterGetPacketOS(IRIdent *id, IRPacket **pkt, IRClient **client, int wait,
       if (iVar2 != 0) {
         return iVar2;
       }
-      if ((response == 0) || ((*pkt)->_clas == '\x01')) break;
+      if ((response == 0) || ((*pkt)->_clas == 1)) break;
       IRouterFreePacket(*pkt);
     }
     iVar2 = 0;
@@ -207,11 +206,11 @@ static int pipe_out(int fd, unsigned char *pptr, int plen)
     buff[3] = '\0';
     buff[4] = '\0';
     if ((pptr[5] & 0x80) != 0) {
-      buff[6] = '\x01';
+      buff[6] = 1;
       buff[7] = pptr[5] & 0x7f;
     }
     else {
-      buff[6] = '\x02';
+      buff[6] = 2;
       buff[7] = '\0';
     }
     buff[8] = (unsigned char)((unsigned int)plen >> 8);
@@ -229,7 +228,7 @@ static int pipe_out(int fd, unsigned char *pptr, int plen)
         plen = plen + -0x76;
       }
       wr(fd,buff + 1,blen + 9);
-      buff[6] = '\x03';
+      buff[6] = 3;
       buff[7] = '\0';
       buff[8] = '\0';
       buff[9] = '\0';
@@ -284,24 +283,24 @@ static int pipe_in(int fd, unsigned char **pptr, int plen)
       ilen = (ilen + -9) - ioff;
       if ((unsigned int)chunk_type < 0x3001) {
 LAB_0805c072:
-        syslog(6,"IRouterOS.c",0x1e6,0,"bad chunk type %d\n",chunk_type);
+        syslog(6,"IRouterOS.c",486,0,"bad chunk type %d\n",chunk_type);
         return -0x272;
       }
       if ((unsigned int)chunk_type < 0x3003) {
         if (blen != 0) {
-          syslog(6,"IRouterOS.c",0x1b4,0,"frame data underflow");
+          syslog(6,"IRouterOS.c",436,0,"frame data underflow");
           return -0x271;
         }
         rlen = frame_size;
         blen = frame_size;
         if (plen < frame_size) {
-          syslog(6,"IRouterOS.c",0x1bf,0,"frame data overflow");
+          syslog(6,"IRouterOS.c",447,0,"frame data overflow");
           return -0x270;
         }
       }
       else if (chunk_type != 0x3003) goto LAB_0805c072;
       if (blen < ilen) {
-        syslog(6,"IRouterOS.c",0x1cf,0,"frame data overflow");
+        syslog(6,"IRouterOS.c",463,0,"frame data overflow");
         return -0x270;
       }
       memcpy(bptr,iptr,ilen);
