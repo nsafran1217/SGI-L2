@@ -54,7 +54,7 @@ int l1_write_socket(int fd, unsigned char *bptr, int blen);
 int l1_write_ppp(int fd, unsigned char *bptr, int blen);
 int l1_write_l1net(int fd, unsigned char *bptr, int blen);
 void l1_write_packet(int fd, IRPacket *p);
-void l1_ppperr(void *arg, int err, char *bptr, int blen);
+void l1_ppperr(void *arg, PPPError *err);   /* original: (void *, int err, char *, int) */
 int l1_parse_usbpath(char *usbpath);
 
 #endif /* SYS_CTRL_L3_L2_L1_H */

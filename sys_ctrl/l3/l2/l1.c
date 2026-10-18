@@ -1225,11 +1225,13 @@ void l1_write_packet(int fd, IRPacket *p)
   return;
 }
 
-void l1_ppperr(void *arg, int err, char *bptr, int blen)
+/* ORIGINAL BUG (fixed, ORIGINAL_BUGS.md): the original took PPP's PPPError
+ * pointer as an int error number */
+void l1_ppperr(void *arg, PPPError *err)
 {
   char *pcVar1;
   
-  pcVar1 = LoggerDefaultMessage(err);
+  pcVar1 = LoggerDefaultMessage(err->status);
   fprintf(stderr,"WARNING: PPP error %s\n",pcVar1);
   return;
 }

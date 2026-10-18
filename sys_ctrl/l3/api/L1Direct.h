@@ -51,6 +51,6 @@ void l1d_read_packet(int port, int fd);
 int l1d_write_data(int fd, unsigned char *bptr, int blen);
 int l1d_write_ppp(int fd, uint8 *bptr, int blen);
 void l1d_write_packet(int fd, IRPacket *p);
-void l1d_ppperr(void *arg, int err, char *bptr, int blen);
+void l1d_ppperr(void *arg, PPPError *err);   /* original: (void *, int err, char *, int) */
 
 #endif /* SYS_CTRL_L3_API_L1DIRECT_H */

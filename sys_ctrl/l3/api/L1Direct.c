@@ -3,62 +3,52 @@
  *
  * Reconstructed from the STABS debug info and Ghidra decompilation of l2term.
  * Original: /data/cf/sysco/scs123.patch/sys_ctrl/l3/api/L1Direct.c
+ *
+ * A connection straight to one L1's serial port, without an L2: a local
+ * serial device (--dev) or a terminal server port (--serial host:port,
+ * an Annex "raw" 7xxx port). The line is opened with a CR and, two seconds
+ * later, a CAN, which the L1 echoes; from then on IRouter frames go in PPP
+ * framing (PPP.c). SCapi.c uses this when a tool allows it (l2cmd).
  */
 
+#include <errno.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "../../common/Router/SocketIO.h"   /* needed by the reconstruction */
-#include "../IRouter/IRouterL3.h"   /* needed by the reconstruction */
-#include "../l2/dmp.h"   /* needed by the reconstruction */
-#include "../l2/format.h"   /* needed by the reconstruction */
-#include "../l2/l1.h"   /* needed by the reconstruction */
-#include "../l2/l2cmd.h"   /* needed by the reconstruction */
-#include "../l2/smp.h"   /* needed by the reconstruction */
-#include "L1Direct.h"
-#include <stdio.h>
-#include <stddef.h>
-#include <stdarg.h>
-#include <fcntl.h>
-#include <sys/types.h>
-#include <time.h>
-#include <errno.h>
-#include <signal.h>
 #include <termios.h>
+#include <fcntl.h>
 #include <unistd.h>
-#include <getopt.h>
-#include "../../common/Router/Socket.h"
-#include "../../common/Router/Event.h"
+#include "L1Direct.h"
 #include "../../common/IRouter/IRouter.h"
-#include "../../common/sys/sysctl_types.h"
-#include <netinet/in.h>
-#include <limits.h>
-#include <syslimits.h>
-#include <linux/limits.h>
-#include <stdint.h>
-#include "../../common/sys/sysutils.h"
-#include <pthread.h>
-#include <sched.h>
+#include "../../common/Router/Event.h"
+#include "../../common/Router/Socket.h"
+#include "../../common/Router/SocketIO.h"
 #include "../../common/sys/Logger.h"
-#include "../sys/LoggerMsg.h"
-#include "../../common/IRouter/IRouter2Router.h"
 #include "../../common/sys/PPP.h"
-#include "decomp.h"     /* Ghidra types/macros; remove once the file is cleaned up */
+
+#define L1_OPEN_CHAR    '\r'    /* wakes the L1 */
+#define L1_PROTO_CHAR   0x18    /* CAN: asks for the protocol; echoed */
+#define L1_OPEN_DELAY   2       /* seconds between them */
+#define TELNET_IAC      0xff
+#define TELNET_WILL     0xfb
+#define ANNEX_RAW_OFFSET 2000   /* Annex telnet ports 5xxx, raw 7xxx */
+#define MALLOC_ERR      IR_ERRNO(IRERR_MALLOC_FAILED)
 
 static void pkt_timeout(EventData client_data);
 static char *format_address(IRAddress addr);
 static void dmp(char *s, unsigned char *bptr, int blen, int newline);
 
-unsigned char l1d_pkt_in[1] = { 24 };
-unsigned char l1d_pkt_out[1] = "\r";
+unsigned char l1d_pkt_in[1] = { L1_PROTO_CHAR };   /* (unused) */
+unsigned char l1d_pkt_out[1] = "\r";                /* (unused) */
 static char *myname;
-static int l1d_conn_serial;
-static int l1d_conn_direct;
+static int l1d_conn_serial;     /* a direct connection was asked for */
+static int l1d_conn_direct;     /* ... to a local device (else a terminal server) */
 static int l1d_debug;
 static int l1d_debug_irtr;
 static int l1d_fd;
 static int l1d_fd_connected;
 static int l1d_serial_hostport;
-static IRPacket *l1d_pkt;
+static IRPacket *l1d_pkt;       /* the packet l1d_read_packet() got */
 static EventID pkt_timeout_id;
 PPPInstance ppp;
 unsigned char ppp_ibuf[8];
@@ -76,203 +66,149 @@ static ssize_t l1d_socket_write(int fd, unsigned char *buffer, int len)
 
 char *L1DirectUsage(void)
 {
-  char *msg;
-  
-  return 
-  "    --serial <host>:<port>        ethernet (i.e. Annex) hostname and port\n    --dev <device name>           local serial port device name"
-  ;
+  return "    --serial <host>:<port>        ethernet (i.e. Annex) hostname and port\n"
+         "    --dev <device name>           local serial port device name";
 }
 
+/*
+ * Take --serial, --dev and --debug out of argv (*argc adjusted).
+ * *use_direct, in: whether the tool allows a direct connection; out:
+ * whether one was asked for. 0, or -1 after a message.
+ */
 int L1DirectParseCmdline(int *argc, char **argv, int *use_direct)
 {
-  int iVar1;
-  char *__s;
-  int iVar2;
-  char *pcVar3;
+  char **args = argv + 1;
+  int remaining = *argc - 1;    /* arguments from args[0] on */
+  int new_argc = *argc;
+  int use_direct_in = *use_direct;
+  int status = 0;
+  int used;
   char *sep;
-  char *hostport;
-  int argsused;
-  int tmp_argc;
-  int orig_argc;
-  int status;
-  int use_direct_in;
-  
-  status = 0;
-  orig_argc = *argc;
-  tmp_argc = *argc;
-  use_direct_in = *use_direct;
-  myname = *argv;
+
+  myname = argv[0];
   *use_direct = 0;
-  argv = argv + 1;
-  do {
-    iVar1 = tmp_argc + -1;
-    if (iVar1 == 0) {
-LAB_080594c1:
-      *argc = orig_argc;
-      if ((use_direct_in == 0) && (*use_direct != 0)) {
-        fprintf(stderr,"%s: --serial/--dev options (direct serial connection) not supported!\n",
-                myname);
-        status = -1;
-      }
-      return status;
-    }
-    argsused = 0;
-    iVar2 = strcmp(*argv,"--serial");
-    if (iVar2 == 0) {
-      if ((tmp_argc + -2 == 0) || (*argv[1] == '-')) {
+  while (remaining > 0) {
+    used = 0;
+    if (strcmp(args[0],"--serial") == 0) {
+      if (remaining < 2 || *args[1] == '-' || (sep = strchr(args[1],':')) == NULL) {
         fprintf(stderr,"%s: --serial option missing <hostname:port>\n",myname);
         status = -1;
-        goto LAB_080594c1;
+        break;
       }
-      __s = argv[1];
-      pcVar3 = strchr(__s,0x3a);
-      if (pcVar3 == NULL) {
-        fprintf(stderr,"%s: --serial option missing <hostname:port>\n",myname);
-        status = -1;
-        goto LAB_080594c1;
-      }
-      if (pcVar3[1] == '\0') {
+      if (sep[1] == '\0') {
         fprintf(stderr,"%s: --serial option <hostname:port> bad format\n",myname);
         status = -1;
-        goto LAB_080594c1;
+        break;
       }
       *use_direct = 1;
       l1d_conn_serial = 1;
       l1d_conn_direct = 0;
-      strncpy(l1d_serial_host,__s,(int)(pcVar3 - __s));
-      l1d_serial_hostport = atoi(pcVar3 + 1);
+      /* (the original copied up to the ':' without a bound) */
+      snprintf(l1d_serial_host,sizeof(l1d_serial_host),"%.*s",(int)(sep - args[1]),args[1]);
+      l1d_serial_hostport = atoi(sep + 1);
       wfcn = write;
-      argsused = 2;
-      tmp_argc = tmp_argc + -2;
+      used = 2;
     }
-    else {
-      iVar2 = strcmp(*argv,"--dev");
-      if (iVar2 == 0) {
-        if ((tmp_argc + -2 == 0) || (*argv[1] == '-')) {
-          fprintf(stderr,"%s: --dev option missing <device name>\n",myname);
-          status = -1;
-          goto LAB_080594c1;
-        }
-        *use_direct = 1;
-        l1d_conn_serial = 1;
-        l1d_conn_direct = 1;
-        strcpy(l1d_serial_device,argv[1]);
-        wfcn = l1d_socket_write;
-        argsused = 2;
-        tmp_argc = tmp_argc + -2;
+    else if (strcmp(args[0],"--dev") == 0) {
+      if (remaining < 2 || *args[1] == '-') {
+        fprintf(stderr,"%s: --dev option missing <device name>\n",myname);
+        status = -1;
+        break;
       }
-      else {
-        iVar2 = strcmp(*argv,"--debug");
-        tmp_argc = iVar1;
-        if (iVar2 == 0) {
-          l1d_debug = 1;
-          argsused = 1;
-        }
-      }
+      *use_direct = 1;
+      l1d_conn_serial = 1;
+      l1d_conn_direct = 1;
+      snprintf(l1d_serial_device,sizeof(l1d_serial_device),"%s",args[1]);
+      wfcn = l1d_socket_write;
+      used = 2;
     }
-    if (argsused == 0) {
-      argv = argv + 1;
+    else if (strcmp(args[0],"--debug") == 0) {
+      l1d_debug = 1;
+      used = 1;
     }
-    else {
-      for (sep = NULL; (int)(intptr_t)sep < tmp_argc; sep = sep + 1) {   /* Ghidra: a char * reused as an int */
-        argv[(int)(intptr_t)sep] = argv[(int)(intptr_t)(sep + argsused)];
-      }
-      orig_argc = orig_argc - argsused;
+    if (used == 0) {
+      args++;
+      remaining--;
+      continue;
     }
-  } while( true );
+    remaining -= used;
+    memmove(args,args + used,(remaining + 1) * sizeof(char *));
+    new_argc -= used;
+  }
+  *argc = new_argc;
+  if (!use_direct_in && *use_direct) {
+    fprintf(stderr,"%s: --serial/--dev options (direct serial connection) not supported!\n",myname);
+    status = -1;
+  }
+  return status;
 }
 
+/* open the line and start the L1 protocol */
 int L1DirectConnect(void)
 {
-  int iVar1;
-  
-  iVar1 = l1d_open(1);
-  return iVar1;
+  return l1d_open(1);
 }
 
+/* just open the line */
 int L1DirectOpen(void)
 {
-  int iVar1;
-  
-  iVar1 = l1d_open(0);
-  return iVar1;
+  return l1d_open(0);
 }
 
 int L1DirectClose(void)
 {
-  int iVar1;
-  
-  iVar1 = l1d_close();
-  return iVar1;
+  return l1d_close();
 }
 
+/* send a request; *seqnum (if not NULL) is its sequence number */
 int L1DirectRequest(IRIdent *id, IRAddress *toaddr, int opcode, int argcount, IRArgument *arglist, int *seqnum)
 {
   IRPacket *pkt;
-  int iVar1;
-  int rval;
-  
-  if (seqnum != NULL) {
-    *seqnum = (unsigned int)id->seqnum;
-  }
-  pkt = IRouterMakePacket(id,toaddr,0,opcode,0,2,argcount,arglist);
-  if (pkt == NULL) {
-    iVar1 = -0x25c;
-  }
-  else {
-    iVar1 = L1DirectSendPacket(pkt,l1d_fd);
-  }
-  return iVar1;
+
+  if (seqnum != NULL)
+    *seqnum = id->seqnum;
+  pkt = IRouterMakePacket(id,toaddr,0,opcode,IR_REQ,2,argcount,arglist);
+  if (pkt == NULL)
+    return MALLOC_ERR;
+  return L1DirectSendPacket(pkt,l1d_fd);
 }
 
+/*
+ * Answer reqpkt; errcode is an IRouter error number (IR_ERRNO()) or 0.
+ * (As in the original, the response is addressed to our own address, or
+ * with id NULL to the request's destination, which is us too: on a
+ * point-to-point line it does not matter. IRouterMakePacket() would not
+ * take a NULL id anyway.)
+ */
 int L1DirectResponse(IRIdent *id, int errcode, IRPacket *reqpkt, int argcount, IRArgument *arglist)
 {
+  IRAddress *toaddr = id != NULL ? &id->addr : &reqpkt->_dest;
   IRPacket *pkt;
-  int iVar1;
-  uint8 uStack_14;
-  IRIdent *pIStack_10;
-  int rval;
-  
-  pIStack_10 = id;
-  if (id == NULL) {
-    pIStack_10 = (IRIdent *)&reqpkt->_dest;
-  }
-  pkt = IRouterMakePacket(id,&pIStack_10->addr,0,(unsigned int)reqpkt->_opcode,1,(unsigned int)reqpkt->_rev,argcount
-                          ,arglist);
-  if (pkt == NULL) {
-    iVar1 = -0x25c;
-  }
-  else {
-    uStack_14 = (char)-errcode + (char)(-errcode / 100) * -100;
-    pkt->_err = uStack_14;
-    pkt->_seqnum0 = reqpkt->_seqnum0;
-    pkt->_seqnum1 = reqpkt->_seqnum1;
-    iVar1 = L1DirectSendPacket(pkt,l1d_fd);
-  }
-  return iVar1;
+
+  pkt = IRouterMakePacket(id,toaddr,0,reqpkt->_opcode,IR_RSP,reqpkt->_rev,argcount,arglist);
+  if (pkt == NULL)
+    return MALLOC_ERR;
+  pkt->_err = (-errcode) % 100;
+  pkt->_seqnum0 = reqpkt->_seqnum0;
+  pkt->_seqnum1 = reqpkt->_seqnum1;
+  return L1DirectSendPacket(pkt,l1d_fd);
 }
 
 int L1DirectEvent(IRIdent *id, int opcode, int argcount, IRArgument *arglist)
 {
   IRPacket *pkt;
-  int iVar1;
-  int rval;
-  
-  pkt = IRouterMakePacket(id,NULL,0,opcode,2,2,argcount,arglist);
-  if (pkt == NULL) {
-    iVar1 = -0x25c;
-  }
-  else {
-    iVar1 = L1DirectSendPacket(pkt,l1d_fd);
-  }
-  return iVar1;
+
+  pkt = IRouterMakePacket(id,NULL,0,opcode,IR_EVT,2,argcount,arglist);
+  if (pkt == NULL)
+    return MALLOC_ERR;
+  return L1DirectSendPacket(pkt,l1d_fd);
 }
 
 int L1DirectSendPacket(IRPacket *pkt, int fd)
 {
-  char x [80];
-  
-  if (l1d_debug_irtr != 0) {
+  char x[80];
+
+  if (l1d_debug_irtr) {
     IRFmtPkt("L2 Write",pkt,x);
     fprintf(stderr,"%s\n",x);
   }
@@ -280,35 +216,37 @@ int L1DirectSendPacket(IRPacket *pkt, int fd)
   return 0;
 }
 
+/*
+ * The next packet (a response, if response is set: other packets are
+ * dropped), waiting wait seconds (0: a millisecond, -1: forever). 0, or -1
+ * if none came.
+ */
 int L1DirectGetPacket(IRPacket **pkt, int wait, int response)
 {
-  int rval;
-  bool waiting;
-  
-  waiting = false;
-  rval = 0;
+  int waiting = 0;
+  int rval = -1;
+
   if (wait == 0) {
-    waiting = true;
-    pkt_timeout_id = EventAddTimeOut(0,1000,pkt_timeout,(EventData)0x0,"L1DirectGetPacket");
+    waiting = 1;
+    pkt_timeout_id = EventAddTimeOut(0,1000,pkt_timeout,(EventData)0,"L1DirectGetPacket");
   }
   else if (wait != -1) {
-    waiting = true;
-    pkt_timeout_id = EventAddTimeOut(wait,0,pkt_timeout,(EventData)0x0,"L1DirectGetPacket");
-  }
-  while ((!waiting || (pkt_timeout_id != 0))) {
-    EventStart();
-    if (l1d_pkt == NULL) {
-      *pkt = NULL;
-      rval = -1;
-      goto LAB_080598c4;
-    }
-    *pkt = l1d_pkt;
-    l1d_pkt = NULL;
-    if ((response == 0) || ((*pkt)->_clas == 1)) goto LAB_080598c4;
+    waiting = 1;
+    pkt_timeout_id = EventAddTimeOut(wait,0,pkt_timeout,(EventData)0,"L1DirectGetPacket");
   }
   *pkt = NULL;
-  rval = -1;
-LAB_080598c4:
+  while (!waiting || pkt_timeout_id != 0) {
+    EventStart();               /* until l1d_read_packet() or the timeout stops it */
+    if (l1d_pkt == NULL)
+      break;
+    *pkt = l1d_pkt;
+    l1d_pkt = NULL;
+    if (!response || (*pkt)->_clas == IR_RSP) {
+      rval = 0;
+      break;
+    }
+    *pkt = NULL;                /* (not freed: as the original) */
+  }
   if (pkt_timeout_id != 0) {
     EventRemoveTimeOut(pkt_timeout_id);
     pkt_timeout_id = 0;
@@ -318,354 +256,251 @@ LAB_080598c4:
 
 int l1d_open_serial_direct(void)
 {
-  int *piVar1;
-  int iVar2;
-  
-  if (l1d_debug != 0) {
+  if (l1d_debug)
     fprintf(stderr,"l1d_open_serial_direct() in\n");
-  }
   l1d_fd = l1d_tty_open(l1d_serial_device);
   if (l1d_fd < 0) {
-    piVar1 = __errno_location();
-    fprintf(stderr,"ERROR: can\'t open device %s, errno: %d\n",l1d_serial_device,*piVar1);
-    iVar2 = -1;
+    fprintf(stderr,"ERROR: can\'t open device %s, errno: %d\n",l1d_serial_device,errno);
+    return -1;
   }
-  else {
-    if (l1d_debug != 0) {
-      fprintf(stderr,"l1d_open_serial_direct() out\n");
-    }
-    iVar2 = 0;
-  }
-  return iVar2;
+  if (l1d_debug)
+    fprintf(stderr,"l1d_open_serial_direct() out\n");
+  return 0;
 }
 
 int l1d_close_serial_direct(void)
 {
-  int iVar1;
-  int *piVar2;
-  
-  iVar1 = l1d_tty_close(l1d_fd);
-  if (iVar1 == 0) {
-    iVar1 = 0;
+  if (l1d_tty_close(l1d_fd) != 0) {
+    fprintf(stderr,"ERROR: can\'t close device %s, errno: %d\n",l1d_serial_device,errno);
+    return -1;
   }
-  else {
-    piVar2 = __errno_location();
-    fprintf(stderr,"ERROR: can\'t close device %s, errno: %d\n",l1d_serial_device,*piVar2);
-    iVar1 = -1;
-  }
-  return iVar1;
+  return 0;
 }
 
 int l1d_open_serial_enet(void)
 {
-  int *piVar1;
-  int iVar2;
-  
-  if (l1d_debug != 0) {
+  if (l1d_debug)
     fprintf(stderr,"l1d_open_serial_enet() in\n");
-  }
   l1d_fd = SocketMakeInetConnection(l1d_serial_host,l1d_serial_hostport,0);
   if (l1d_fd < 0) {
-    piVar1 = __errno_location();
     fprintf(stderr," ERROR: can\'t open connection %s:%d, errno: %d\n",l1d_serial_host,
-            l1d_serial_hostport,*piVar1);
-    iVar2 = -1;
+            l1d_serial_hostport,errno);
+    return -1;
   }
-  else {
-    if (l1d_debug != 0) {
-      fprintf(stderr,"l1d_open_serial_enet() out\n");
-    }
-    iVar2 = 0;
-  }
-  return iVar2;
+  if (l1d_debug)
+    fprintf(stderr,"l1d_open_serial_enet() out\n");
+  return 0;
 }
 
 int l1d_close_serial_enet(void)
 {
-  int iVar1;
-  int *piVar2;
-  
-  iVar1 = SocketClose(l1d_fd);
-  if (iVar1 == 0) {
-    iVar1 = 0;
-  }
-  else {
-    piVar2 = __errno_location();
+  if (SocketClose(l1d_fd) != 0) {
     fprintf(stderr," ERROR: can\'t close connection %s:%d, errno: %d\n",l1d_serial_host,
-            l1d_serial_hostport,*piVar2);
-    iVar1 = -1;
+            l1d_serial_hostport,errno);
+    return -1;
   }
-  return iVar1;
+  return 0;
 }
 
+/* read one byte of the line */
+static int read_byte(char *c)
+{
+  return l1d_conn_direct ? read(l1d_fd,c,1) : SocketRead(l1d_fd,(unsigned char *)c,1);
+}
+
+/*
+ * Open the line; with connect, start the L1 protocol: CR, CAN, and wait
+ * for the CAN's echo (a telnet port answers IAC WILL instead: the wrong
+ * Annex port).
+ */
 int l1d_open(int connect)
 {
-  ssize_t sVar1;
-  int *piVar2;
-  int iVar3;
-  char echo [1];
-  unsigned char prevchar;
-  int initialized;
+  unsigned char prevchar = 0;
+  char echo[1];
   int status;
-  
-  prevchar = '\0';
+
   l1d_fd_connected = 0;
-  if (l1d_debug != 0) {
+  if (l1d_debug)
     fprintf(stderr,"l1d_open() in\n");
-  }
-  if (l1d_conn_direct == 0) {
-    status = l1d_open_serial_enet();
-  }
-  else {
-    status = l1d_open_serial_direct();
-  }
-  if (status == 0) {
-    iVar3 = l1d_fd;
-    if (connect != 0) {
-      l1d_fd_connected = 1;
-      PPPInit(&ppp,ppp_ibuf,8,ppp_obuf,0x100,0,1,IR_FRAME_PREFIX,0,l1d_ppperr,NULL);
-      sVar1 = (*wfcn)(l1d_fd,"\r",1);
-      if (sVar1 == 1) {
-        sleep(2);
-        sVar1 = (*wfcn)(l1d_fd,"\x18",1);
-        if (sVar1 == 1) {
-          while( true ) {
-            piVar2 = __errno_location();
-            *piVar2 = 0;
-            if (l1d_debug != 0) {
-              fprintf(stderr,"l1d_open() waiting\n");
-            }
-            if (l1d_conn_direct == 0) {
-              status = SocketRead(l1d_fd,(unsigned char *)echo,1);
-            }
-            else {
-              status = read(l1d_fd,echo,1);
-            }
-            if (status < 1) {
-              piVar2 = __errno_location();
-              fprintf(stderr,"FATAL: can\'t confirm L1 protocol, errno: %d\n",*piVar2);
-              return -1;
-            }
-            if (l1d_debug != 0) {
-              piVar2 = __errno_location();
-              fprintf(stderr,"l1d_open() read %02x, status %d, errno %d\n",(int)echo[0],status,
-                      *piVar2);
-            }
-            if (echo[0] == 24) {
-              iVar3 = SocketNodelayMode(l1d_fd,1);
-              if (iVar3 != 0) {
-                piVar2 = __errno_location();
-                fprintf(stderr,
-                        "FATAL: can\'t set delay mode on L1 connection, status: %d, errno: %d\n",
-                        iVar3,*piVar2);
-                return -1;
-              }
-              EventAddInput(l1d_fd,l1d_read_packet,(EventData)0x0,"l1d_open");
-              if (l1d_debug != 0) {
-                fprintf(stderr,"l1d_open() out\n");
-              }
-              return 0;
-            }
-            if ((prevchar == 0xff) && (echo[0] == -5)) break;
-            prevchar = echo[0];
-          }
-          if ((l1d_conn_direct == 0) &&
-             ((4999 < l1d_serial_hostport && (l1d_serial_hostport < 5999)))) {
-            fprintf(stderr,
-                    "ERROR: can\'t establish a connection to the L1!\nThis connection appears to be using the telnet protocol.\nYou specified port %d when you probably need to use port %d instead.\n"
-                    ,l1d_serial_hostport,l1d_serial_hostport + 2000);
-          }
-          else {
-            fprintf(stderr,
-                    "ERROR: can\'t establish a connection to the L1!\nThis connection appears to be using the telnet protocol (usually this\nhappens when specifying a 5xxx Annex port instead of a 7xxx port).\n"
-                   );
-          }
-          iVar3 = -1;
-        }
-        else {
-          piVar2 = __errno_location();
-          fprintf(stderr,"FATAL: can\'t initiate L1 protocol, errno: %d\n",*piVar2);
-          iVar3 = -1;
-        }
-      }
-      else {
-        piVar2 = __errno_location();
-        fprintf(stderr,"FATAL: can\'t initiate L1 protocol, errno: %d\n",*piVar2);
-        iVar3 = -1;
-      }
-    }
-  }
-  else {
+  status = l1d_conn_direct ? l1d_open_serial_direct() : l1d_open_serial_enet();
+  if (status != 0) {
     fprintf(stderr,"FATAL: can\'t open connection to L1\n");
-    iVar3 = -1;
+    return -1;
   }
-  return iVar3;
+  if (!connect)
+    return l1d_fd;
+
+  l1d_fd_connected = 1;
+  PPPInit(&ppp,ppp_ibuf,sizeof(ppp_ibuf),ppp_obuf,sizeof(ppp_obuf),0,1,IR_FRAME_PREFIX,0,
+          l1d_ppperr,NULL);
+  if (wfcn(l1d_fd,"\r",1) != 1) {
+    fprintf(stderr,"FATAL: can\'t initiate L1 protocol, errno: %d\n",errno);
+    return -1;
+  }
+  sleep(L1_OPEN_DELAY);
+  if (wfcn(l1d_fd,"\x18",1) != 1) {
+    fprintf(stderr,"FATAL: can\'t initiate L1 protocol, errno: %d\n",errno);
+    return -1;
+  }
+  for (;;) {
+    errno = 0;
+    if (l1d_debug)
+      fprintf(stderr,"l1d_open() waiting\n");
+    status = read_byte(echo);
+    if (status < 1) {
+      fprintf(stderr,"FATAL: can\'t confirm L1 protocol, errno: %d\n",errno);
+      return -1;
+    }
+    if (l1d_debug)
+      fprintf(stderr,"l1d_open() read %02x, status %d, errno %d\n",(int)echo[0],status,errno);
+    if (echo[0] == L1_PROTO_CHAR)
+      break;
+    if (prevchar == TELNET_IAC && (unsigned char)echo[0] == TELNET_WILL) {
+      if (!l1d_conn_direct && l1d_serial_hostport > 4999 && l1d_serial_hostport < 5999)
+        fprintf(stderr,
+                "ERROR: can\'t establish a connection to the L1!\n"
+                "This connection appears to be using the telnet protocol.\n"
+                "You specified port %d when you probably need to use port %d instead.\n",
+                l1d_serial_hostport,l1d_serial_hostport + ANNEX_RAW_OFFSET);
+      else
+        fprintf(stderr,
+                "ERROR: can\'t establish a connection to the L1!\n"
+                "This connection appears to be using the telnet protocol (usually this\n"
+                "happens when specifying a 5xxx Annex port instead of a 7xxx port).\n");
+      return -1;
+    }
+    prevchar = echo[0];
+  }
+  status = SocketNodelayMode(l1d_fd,1);
+  if (status != 0) {
+    fprintf(stderr,"FATAL: can\'t set delay mode on L1 connection, status: %d, errno: %d\n",
+            status,errno);
+    return -1;
+  }
+  EventAddInput(l1d_fd,l1d_read_packet,(EventData)0,"l1d_open");
+  if (l1d_debug)
+    fprintf(stderr,"l1d_open() out\n");
+  return 0;
 }
 
 int l1d_close(void)
 {
   int status;
-  
-  if (l1d_fd_connected != 0) {
+
+  if (l1d_fd_connected) {
     EventRemoveInput(l1d_fd);
-    (*wfcn)(l1d_fd,"\r",1);
+    wfcn(l1d_fd,"\r",1);
   }
-  if (l1d_conn_direct == 0) {
-    status = l1d_close_serial_enet();
-  }
-  else {
-    status = l1d_close_serial_direct();
-  }
-  if (status == 0) {
-    status = 0;
-  }
-  else {
+  status = l1d_conn_direct ? l1d_close_serial_direct() : l1d_close_serial_enet();
+  if (status != 0)
     fprintf(stderr,"FATAL: can\'t close connection to L1\n");
-  }
   return status;
 }
 
 void l1d_tty_debug(int td)
 {
-  int iVar1;
-  int *piVar2;
   struct termios termios;
   int i;
-  
-  iVar1 = tcgetattr(td,(struct termios *)&termios);
-  if (iVar1 == -1) {
-    piVar2 = __errno_location();
-    fprintf(stderr,"WARNING: can\'t get termios, errno: %d\n",*piVar2);
+
+  if (tcgetattr(td,&termios) == -1) {
+    fprintf(stderr,"WARNING: can\'t get termios, errno: %d\n",errno);
+    return;
   }
-  else {
-    fprintf(stderr,"---\niflag:  0%08o\n",termios.c_iflag);
-    fprintf(stderr,"oflag:  0%08o\n",termios.c_oflag);
-    fprintf(stderr,"cflag:  0%08o\n",termios.c_cflag);
-    fprintf(stderr,"lflag:  0%08o\n",termios.c_lflag);
-    fprintf(stderr,"ispeed:  %8d\n",termios.c_ispeed);
-    fprintf(stderr,"ospeed:  %8d\n",termios.c_ospeed);
-    for (i = 0; i < 8; i = i + 1) {
-      fprintf(stderr,"cc_c[%d]: %8o\n",i,(unsigned int)termios.c_cc[i]);
-    }
-  }
-  return;
+  fprintf(stderr,"---\niflag:  0%08o\n",termios.c_iflag);
+  fprintf(stderr,"oflag:  0%08o\n",termios.c_oflag);
+  fprintf(stderr,"cflag:  0%08o\n",termios.c_cflag);
+  fprintf(stderr,"lflag:  0%08o\n",termios.c_lflag);
+  fprintf(stderr,"ispeed:  %8d\n",termios.c_ispeed);
+  fprintf(stderr,"ospeed:  %8d\n",termios.c_ospeed);
+  for (i = 0; i < 8; i++)
+    fprintf(stderr,"cc_c[%d]: %8o\n",i,(unsigned int)termios.c_cc[i]);
 }
 
+/* open a serial device raw: 38400 8N1, hardware flow control, reads of
+ * at least one byte */
 int l1d_tty_open(char *device)
 {
-  int td;
-  int *piVar1;
-  int iVar2;
   struct termios termios;
-  
-  td = open(device,2);
+  int td;
+
+  td = open(device,O_RDWR);
   if (td == -1) {
-    piVar1 = __errno_location();
-    fprintf(stderr,"ERROR: can\'t open %s, errno %d\n",device,*piVar1);
-    td = -1;
+    fprintf(stderr,"ERROR: can\'t open %s, errno %d\n",device,errno);
+    return -1;
   }
-  else {
-    iVar2 = tcgetattr(td,(struct termios *)&termios);
-    if (iVar2 == -1) {
-      piVar1 = __errno_location();
-      fprintf(stderr,"ERROR: can\'t get termios, errno %d.\n",*piVar1);
-      td = -1;
-    }
-    else {
-      termios.c_iflag = 5;
-      termios.c_oflag = 0;
-      termios.c_cflag = 0x800008bf;
-      termios.c_lflag = 0;
-      termios.c_cc[6] = 1;
-      termios.c_cc[5] = '\0';
-      iVar2 = tcsetattr(td,0,(struct termios *)&termios);
-      if (iVar2 == -1) {
-        piVar1 = __errno_location();
-        fprintf(stderr,"ERROR: can\'t put termios, errno %d.\n",*piVar1);
-        td = -1;
-      }
-    }
+  if (tcgetattr(td,&termios) == -1) {
+    fprintf(stderr,"ERROR: can\'t get termios, errno %d.\n",errno);
+    return -1;                  /* (the device stays open, as in the original) */
+  }
+  termios.c_iflag = IGNBRK | IGNPAR;
+  termios.c_oflag = 0;
+  termios.c_cflag = CRTSCTS | CLOCAL | CREAD | CS8 | B38400;
+  termios.c_lflag = 0;
+  termios.c_cc[VMIN] = 1;
+  termios.c_cc[VTIME] = 0;
+  if (tcsetattr(td,TCSANOW,&termios) == -1) {
+    fprintf(stderr,"ERROR: can\'t put termios, errno %d.\n",errno);
+    return -1;
   }
   return td;
 }
 
 int l1d_tty_close(int td)
 {
-  int iVar1;
-  struct termios termios;
-  
-  iVar1 = close(td);
-  if (iVar1 == 0) {
-    iVar1 = 0;
-  }
-  else {
-    iVar1 = -1;
-  }
-  return iVar1;
+  return close(td) == 0 ? 0 : -1;
 }
 
+/* PPPRead()'s read function */
 int l1d_read_data(int fd, unsigned char *bptr, int blen)
 {
-  int *piVar1;
   int status;
-  
-  if (l1d_debug != 0) {
-    fprintf(stderr,"l1d_read_data(%d,%x,%d) in\n",fd,bptr,blen);
-  }
-  piVar1 = __errno_location();
-  *piVar1 = 0;
+
+  if (l1d_debug)
+    fprintf(stderr,"l1d_read_data(%d,%lx,%d) in\n",fd,(unsigned long)(uintptr_t)bptr,blen);
+  errno = 0;
   status = SocketRead(fd,bptr,blen);
-  if (l1d_debug != 0) {
-    piVar1 = __errno_location();
-    fprintf(stderr,"l1d_read_data() out, status %d, errno %d\n",status,*piVar1);
-  }
-  if (l1d_debug != 0) {
+  if (l1d_debug) {
+    fprintf(stderr,"l1d_read_data() out, status %d, errno %d\n",status,errno);
     dmp("READ",bptr,status,1);
   }
   return status;
 }
 
+/* IRouterReadPacket()'s read function: one PPP frame */
 int l1d_read_ppp(int fd, uint8 **bptr, int32 blen)
 {
   int status;
-  
-  if (l1d_debug != 0) {
-    fprintf(stderr,"l1d_read_ppp(%d,%x,%d) in\n",fd,bptr,blen);
-  }
+
+  if (l1d_debug)
+    fprintf(stderr,"l1d_read_ppp(%d,%lx,%d) in\n",fd,(unsigned long)(uintptr_t)bptr,blen);
   status = PPPRead(&ppp,l1d_read_data,(void *)(intptr_t)fd,bptr,blen);
-  if (l1d_debug != 0) {
+  if (l1d_debug)
     fprintf(stderr,"l1d_read_ppp() out\n");
-  }
   return status;
 }
 
+/* the line's input handler: a packet stops the event loop (for
+ * L1DirectGetPacket()); repeated errors are counted, not repeated */
 void l1d_read_packet(int port, int fd)
 {
   static int lasterr;
   static int lastcnt;
-  int status;
-  char *pcVar1;
-  char *pcVar2;
-  char x [80];
-  int err;
+  char x[80];
   IRPacket *p;
-  
-  if (l1d_debug != 0) {
+  int status;
+
+  if (l1d_debug)
     fprintf(stderr,"l1d_read_packet(%x,%d) in\n",port,fd);
-  }
   status = IRouterReadPacket(&l1d_id,l1d_read_ppp,(void *)(intptr_t)fd,&p);
   if (status == 0) {
-    if (1 < lastcnt) {
+    if (lastcnt > 1)
       fprintf(stderr,"WARNING: last error on L1 connection repeated %d times\n",lastcnt);
-    }
     lastcnt = 0;
     lasterr = 0;
-    if (p->_err != 0) {
-      pcVar1 = IRFmtError((unsigned int)p->_err);
-      pcVar2 = format_address(p->_src);
-      fprintf(stderr,"WARNING: packet error %s - %s\n",pcVar2,pcVar1);
-    }
-    if (l1d_debug_irtr != 0) {
+    if (p->_err != 0)
+      fprintf(stderr,"WARNING: packet error %s - %s\n",format_address(p->_src),
+              IRFmtError((unsigned int)p->_err));
+    if (l1d_debug_irtr) {
       IRFmtPkt("L2 Read",p,x);
       fprintf(stderr,"%s\n",x);
     }
@@ -673,157 +508,118 @@ void l1d_read_packet(int port, int fd)
     EventStop();
   }
   else if (status == lasterr) {
-    lastcnt = lastcnt + 1;
+    lastcnt++;
   }
   else {
-    if (1 < lastcnt) {
+    if (lastcnt > 1)
       fprintf(stderr,"WARNING: last error on L1 connection repeated %d times\n",lastcnt);
-    }
     lastcnt = 1;
     lasterr = status;
-    pcVar1 = LoggerDefaultMessage(status);
-    fprintf(stderr,"WARNING: can\'t read packet on L1 connection, status: %s\n",pcVar1);
+    fprintf(stderr,"WARNING: can\'t read packet on L1 connection, status: %s\n",
+            LoggerDefaultMessage(status));
   }
-  if (l1d_debug != 0) {
+  if (l1d_debug)
     fprintf(stderr,"l1d_read_packet() out\n");
-  }
-  return;
 }
 
+/* PPPWrite()'s write function */
 int l1d_write_data(int fd, unsigned char *bptr, int blen)
 {
   int status;
-  int *piVar1;
-  
-  if (l1d_debug != 0) {
-    fprintf(stderr,"l1d_write_data(%d,%x,%d) in\n",fd,bptr,blen);
-  }
-  status = (*wfcn)(fd,bptr,blen);
-  if (l1d_debug != 0) {
+
+  if (l1d_debug)
+    fprintf(stderr,"l1d_write_data(%d,%lx,%d) in\n",fd,(unsigned long)(uintptr_t)bptr,blen);
+  status = wfcn(fd,bptr,blen);
+  if (l1d_debug) {
     dmp("WRITE",bptr,blen,1);
-  }
-  if (l1d_debug != 0) {
-    piVar1 = __errno_location();
-    fprintf(stderr,"l1d_write_data() out, status %d, errno %d\n",status,*piVar1);
+    fprintf(stderr,"l1d_write_data() out, status %d, errno %d\n",status,errno);
   }
   return status;
 }
 
+/* IRouterWritePacket()'s write function: one PPP frame */
 int l1d_write_ppp(int fd, uint8 *bptr, int blen)
 {
   int status;
-  
-  if (l1d_debug != 0) {
-    fprintf(stderr,"l1d_write_ppp(%d,%x,%d) in\n",fd,bptr,blen);
-  }
+
+  if (l1d_debug)
+    fprintf(stderr,"l1d_write_ppp(%d,%lx,%d) in\n",fd,(unsigned long)(uintptr_t)bptr,blen);
   status = PPPWrite(&ppp,l1d_write_data,(void *)(intptr_t)fd,bptr,blen);
-  if (l1d_debug != 0) {
+  if (l1d_debug)
     fprintf(stderr,"l1d_write_ppp() out\n");
-  }
   return status;
 }
 
 void l1d_write_packet(int fd, IRPacket *p)
 {
-  IRAddress addr;
+  IRAddress addr = p->_dest;
   int status;
-  char *pcVar1;
-  char *pcVar2;
-  IRAddress dest;
-  
-  if (l1d_debug != 0) {
-    fprintf(stderr,"l1d_write_packet(%d, %x) in\n",fd,p);
-  }
-  addr = p->_dest;
+
+  if (l1d_debug)
+    fprintf(stderr,"l1d_write_packet(%d, %lx) in\n",fd,(unsigned long)(uintptr_t)p);
   status = IRouterWritePacket(&l1d_id,l1d_write_ppp,(void *)(intptr_t)fd,p);
-  if (status != 0) {
-    pcVar1 = LoggerDefaultMessage(status);
-    pcVar2 = format_address(addr);
-    fprintf(stderr,"WARNING: can\'t write L1 packet %s, status: %s\n",pcVar2,pcVar1);
-  }
-  if (l1d_debug != 0) {
+  if (status != 0)
+    fprintf(stderr,"WARNING: can\'t write L1 packet %s, status: %s\n",format_address(addr),
+            LoggerDefaultMessage(status));
+  if (l1d_debug)
     fprintf(stderr,"l1d_write_packet() out\n");
-  }
-  return;
 }
 
-void l1d_ppperr(void *arg, int err, char *bptr, int blen)
+/* PPP's error function. (The original took the PPPError pointer PPP
+ * passes as an int error number, and printed the message for an address.) */
+void l1d_ppperr(void *arg, PPPError *err)
 {
-  char *pcVar1;
-  
-  pcVar1 = LoggerDefaultMessage(err);
-  fprintf(stderr,"WARNING: PPP error %s\n",pcVar1);
-  return;
+  fprintf(stderr,"WARNING: PPP error %s\n",LoggerDefaultMessage(err->status));
 }
 
 static void pkt_timeout(EventData client_data)
 {
   pkt_timeout_id = 0;
   EventStop();
-  return;
 }
 
+/* a packet's source, for messages */
 static char *format_address(IRAddress addr)
 {
   static char buff[80];
-  unsigned int uVar1;
-  int slot;
-  int rack;
-  
-  if ((addr & 0x80000000) == 0) {
-    uVar1 = addr >> 0x1c;
-  }
-  else if (addr >> 0x1e == 2) {
-    uVar1 = 0xe;
-  }
-  else {
-    uVar1 = 0xf;
-  }
-  if (false) {
-switchD_0805a610_caseD_2:
-    sprintf((char *)&buff,"address error");
-  }
-  else {
-    switch(uVar1) {
-    case 0:
-      sprintf((char *)&buff,"%03d.%02d",addr >> 0x12 & 0x3ff,addr >> 0xc & 0x3f);
-      /* ORIGINAL BUG: a missing break (verified in the machine code); the
-       * rack.slot text is overwritten (ORIGINAL_BUGS.md) */
-      /* fall through */
-    case 3:
-      strcpy((char *)&buff,"local attached C");
-      break;
-    case 1:
-      strcpy((char *)&buff,"L2");
-      break;
-    default:
-      goto switchD_0805a610_caseD_2;
-    case 4:
-      strcpy((char *)&buff,"local attached I/O");
-      break;
-    case 5:
-      strcpy((char *)&buff,"local attached C\'s I/O");
-    }
+
+  switch (IR_ADDR_TYPE(addr)) {
+  case IR_ADDR_L1:
+    sprintf(buff,"%03d.%02d",IR_ADDR_RACK(addr),IR_ADDR_SLOT(addr));
+    /* ORIGINAL BUG: a missing break (verified in the machine code); the
+     * rack.slot text is overwritten (ORIGINAL_BUGS.md) */
+    /* fall through */
+  case IR_ADDR_C:
+    strcpy(buff,"local attached C");
+    break;
+  case IR_ADDR_L2:
+    strcpy(buff,"L2");
+    break;
+  case IR_ADDR_I:
+    strcpy(buff,"local attached I/O");
+    break;
+  case IR_ADDR_CI:
+    strcpy(buff,"local attached C\'s I/O");
+    break;
+  default:
+    sprintf(buff,"address error");
+    break;
   }
   return buff;
 }
 
+/* bytes in hex, eight to a line (for --debug) */
 static void dmp(char *s, unsigned char *bptr, int blen, int newline)
 {
   int n;
-  char buff [80];
-  
-  if (s != NULL) {
-    fprintf(stderr,"\n%s %x\n",s,bptr);
-  }
-  for (n = 0; n < blen; n = n + 1) {
+
+  if (s != NULL)
+    fprintf(stderr,"\n%s %lx\n",s,(unsigned long)(uintptr_t)bptr);
+  for (n = 0; n < blen; n++) {
     fprintf(stderr,"%02x ",(unsigned int)bptr[n]);
-    if ((newline != 0) && (((n + 1U) & 7) == 0)) {
+    if (newline && ((n + 1) & 7) == 0)
       fprintf(stderr,"\n");
-    }
   }
-  if (newline != 0) {
+  if (newline)
     fprintf(stderr,"\n");
-  }
-  return;
 }
