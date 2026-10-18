@@ -2,8 +2,9 @@
 #
 #   make            build everything into build/ (32-bit, matching the original ABI)
 #   make test       layout checks: every SGI struct must match the original binaries
-#   make difftest   l2 commands through original/rebuilt l2 + l2cmd, and l2term sessions;
-#                   every output must match the original binaries'
+#   make check      every differential test (l2cmd, l2term, NVRAM, L1, l2gui sessions)
+#                   against this build: outputs must match the original binaries'
+#   make check-all  the same for the 32-bit, 64-bit, ASan and s390x builds
 #   make clean
 #
 # l2gui also needs FLTK, built from ../refs/fltk by ../retools/setup_fltk.sh
@@ -140,7 +141,7 @@ else ifeq ($(QEMU),)
 $(info l2gui skipped: no $(FLTK_CONFIG) (run ../retools/setup_fltk.sh $(FLTK_BITS)))
 endif
 
-.PHONY: all test difftest clean
+.PHONY: all test check check-all difftest clean
 all: $(TOOLS:%=$(B)/bin/%)
 
 $(B)/%.o: %.c
@@ -196,13 +197,30 @@ test:
 	$(CC) $(CFLAGS) -fsyntax-only tests/layout_check.c
 	@echo "layout check passed"
 
-difftest: all
-	tests/difftest.sh
-	tests/l2term_test.py
-	tests/nvram_test.py
-	tests/l1net_test.py
-	tests/l1_test.py
-	$(if $(filter l2gui,$(TOOLS)),NEW_BIN=$(abspath $(B))/bin tests/l2gui_test.py)
+# make check: every differential test against this build (B=; cross builds run
+# through their qemu wrappers). make check-all: the 32-bit, 64-bit and ASan
+# builds, and s390x when ../retools/setup_s390x.sh has been run.
+CHECK_BIN = $(abspath $(B))/$(if $(QEMU),qemu-bin,bin)
+check: all
+	NEW_BIN=$(CHECK_BIN) tests/difftest.sh
+	NEW_BIN=$(CHECK_BIN) tests/l2term_test.py
+	NEW_BIN=$(CHECK_BIN) tests/nvram_test.py
+	NEW_BIN=$(CHECK_BIN) tests/l1net_test.py
+	NEW_BIN=$(CHECK_BIN) tests/l1_test.py
+	$(if $(filter l2gui,$(TOOLS)),NEW_BIN=$(CHECK_BIN) tests/l2gui_test.py)
+
+difftest: check
+
+S390X := $(abspath ../tools/s390x/root/usr)
+check-all:
+	$(MAKE) check
+	$(MAKE) check ARCH=-m64 B=build64
+	ASAN_OPTIONS=detect_leaks=0 $(MAKE) check ARCH=-m64 B=build64asan \
+	    EXTRA_CFLAGS=-fsanitize=address EXTRA_LDFLAGS=-fsanitize=address
+	$(if $(wildcard $(S390X)/bin/qemu-s390x),PATH=$(S390X)/bin:$$PATH \
+	    LD_LIBRARY_PATH=$(S390X)/lib/x86_64-linux-gnu $(MAKE) check \
+	    CC=s390x-linux-gnu-gcc-14 AR=s390x-linux-gnu-ar ARCH= B=builds390x \
+	    QEMU="$(S390X)/bin/qemu-s390x -L $(S390X)/s390x-linux-gnu")
 
 clean:
 	rm -rf $(B)
