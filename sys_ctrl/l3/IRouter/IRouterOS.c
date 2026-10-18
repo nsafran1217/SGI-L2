@@ -192,11 +192,7 @@ int IRouterGetPacketOS(IRIdent *id, IRPacket **pkt, IRClient **client, int wait,
         wait_time.tv_sec = wait;
         wait_time.tv_usec = 0;
       }
-      __d1 = (int)&fdset;
-      for (status = 0x20; status != 0; status = status + -1) {
-        *(undefined4 *)__d1 = 0;
-        __d1 = __d1 + 4;
-      }
+      FD_ZERO(&fdset);
       FD_SET(sd, &fdset);
       iVar2 = select(fdmax,(fd_set *)&fdset,NULL,NULL,(struct timeval *)&wait_time);
       if (iVar2 < 0) {

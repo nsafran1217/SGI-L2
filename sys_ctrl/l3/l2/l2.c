@@ -199,7 +199,7 @@ int main(int argc, char **argv, char **envp)
       sa.__sigaction_handler = (__anon_union_19)0x1;
       sigaction(0x11,(struct sigaction *)&sa,NULL);
       sigemptyset((sigset_t *)&sa.sa_mask);
-      sa.__sigaction_handler.sa_handler = oops_handler;
+      sa.sa_handler = oops_handler;
       sa.sa_flags = 4;
       sigaction(0xb,(struct sigaction *)&sa,NULL);
       sigaction(7,(struct sigaction *)&sa,NULL);

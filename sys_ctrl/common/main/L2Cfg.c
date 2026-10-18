@@ -2489,7 +2489,7 @@ char *L2CfgMQuery(L2Cfg *head, int mode, int format)
         sVar2 = strlen(cptr);
         cptr = cptr + sVar2;
       }
-      pcVar3 = inet_ntoa((in_addr)l2node->ip_addr);
+      pcVar3 = inet_ntoa(*(struct in_addr *)&l2node->ip_addr);
       sprintf(cptr,"%s:%s,","l2",pcVar3);
       sVar2 = strlen(cptr);
       cptr = cptr + sVar2;
@@ -2543,13 +2543,13 @@ char *L2CfgMQuery(L2Cfg *head, int mode, int format)
           }
         }
         if (l2node->msmode == 2) {
-          pcVar3 = inet_ntoa((in_addr)l2node->ip_addr);
+          pcVar3 = inet_ntoa(*(struct in_addr *)&l2node->ip_addr);
           sprintf(cptr,"%s:%s,","l2pri",pcVar3);
           sVar2 = strlen(cptr);
           cptr = cptr + sVar2;
         }
         if (l2node->msmode == 1) {
-          pcVar3 = inet_ntoa((in_addr)l2node->msip);
+          pcVar3 = inet_ntoa(*(struct in_addr *)&l2node->msip);
           sprintf(cptr,"%s:%s,","l2sec",pcVar3);
           sVar2 = strlen(cptr);
           cptr = cptr + sVar2;
@@ -3087,13 +3087,13 @@ int L2CfgMAdviseConsole(L2Cfg *head, char *rptr, int partition, IRAddress addr)
     }
     else {
       if (partition == 0) {
-        pcVar2 = inet_ntoa((in_addr)l2node->ip_addr);
+        pcVar2 = inet_ntoa(*(struct in_addr *)&l2node->ip_addr);
         sprintf(rptr,
                 "\nWARNING: accessing the system console at %03d.%02d from this L2 is not\nadvised!  Suggested access point is the L2 at rack ID %04d (%s)\n\n"
                 ,rack,slot,l2node[1].ip_addr,pcVar2);
       }
       else {
-        pcVar2 = inet_ntoa((in_addr)l2node->ip_addr);
+        pcVar2 = inet_ntoa(*(struct in_addr *)&l2node->ip_addr);
         sprintf(rptr,
                 "\nWARNING: accessing partition %d of the system at %03d.%02d from this\nL2 is not advised!  Suggested access point for partition %d is\nthe L2 at rack ID %04d (%s)\n\n"
                 ,partition,rack,slot,partition,l2node[1].ip_addr,pcVar2);

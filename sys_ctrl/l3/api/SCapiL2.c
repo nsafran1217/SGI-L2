@@ -322,19 +322,9 @@ int sn1SCDiscoverL2Response(int sd, sn1SC_L2 *l2, int wait)
       return 0;
     }
     maxwait.tv_sec = wait;
-    __d1 = (int)&rfd;
-    for (status = 0x20; status != 0; status = status + -1) {
-      *(undefined4 *)__d1 = 0;
-      __d1 = __d1 + 4;
-    }
+    FD_ZERO(&rfd);
     FD_SET(sd, &rfd);
-    if (wait == 0) {
-      ___result = NULL;
-    }
-    else {
-      ___result = &maxwait;
-    }
-    iVar2 = select(sd + 1,(fd_set *)&rfd,NULL,NULL,(struct timeval *)___result);
+    iVar2 = select(sd + 1,(fd_set *)&rfd,NULL,NULL,wait == 0 ? NULL : &maxwait);
     if (iVar2 < 0) {
       piVar3 = __errno_location();
       iVar2 = *piVar3;

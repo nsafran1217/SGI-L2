@@ -588,7 +588,7 @@ char *SocketAddrStr(long unsigned int addr)
   char *pcVar1;
   struct in_addr inaddr;
   
-  pcVar1 = inet_ntoa((in_addr)addr);
+  pcVar1 = inet_ntoa(*(struct in_addr *)&addr);
   return pcVar1;
 }
 

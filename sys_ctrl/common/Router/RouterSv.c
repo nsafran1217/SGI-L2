@@ -576,7 +576,9 @@ static void RouterSendConRequest(RouterClient *client, int class)
     sVar1 = strlen(client_id.fullname);
     memcpy(__dest + sVar1 + 1,&client_id.ipaddr,4);
     arglist.val = (ulong)tbuf;
-    arglist._0_4_ = (int)(__dest + sVar1 + 1 + (4 - (int)tbuf)) * 0x100 | 3;
+    arglist.fre = 1;
+    arglist.clas = 1;
+    arglist.size = (int)((__dest + sVar1 + 1 + 4) - (uchar *)tbuf);
     RouterDoOutput(client,ProcessID,4,1,&arglist,NULL,NULL,
                    NULL,NULL,0,NULL);
   }
@@ -658,7 +660,8 @@ void RouterConfigure(RouterClient *client)
   tbuf[6] = (uchar)(RouterLocalConfig.flags >> 8);
   tbuf[7] = (uchar)RouterLocalConfig.flags;
   arglist.val = (ulong)tbuf;
-  arglist._0_1_ = 3;
+  arglist.fre = 1;
+  arglist.clas = 1;
   arglist.size = 8;
   RouterDoOutput(client,0,0x14,1,&arglist,NULL,NULL,NULL,
                  NULL,0,NULL);

@@ -1167,10 +1167,10 @@ int smp_shell(SMP *smp, char *cmd)
     smp->grp->shell = _Var2;
     if (_Var2 == 0) {
       sigaction(2,NULL,(struct sigaction *)&sa);
-      sa.__sigaction_handler.sa_handler = (__sighandler_t)0x0;
+      sa.sa_handler = SIG_DFL;
       sigaction(2,(struct sigaction *)&sa,NULL);
       sigaction(3,NULL,(struct sigaction *)&sa);
-      sa.__sigaction_handler.sa_handler = (__sighandler_t)0x0;
+      sa.sa_handler = SIG_DFL;
       sigaction(3,(struct sigaction *)&sa,NULL);
       _Var2 = setsid();
       if (_Var2 < 0) {
@@ -1677,11 +1677,7 @@ void smp_write(SMP *smp, char *ibptr, int iblen)
         wtime.tv_sec = 5;
         wtime.tv_usec = 0;
         iVar3 = smp->wfd;
-        __d1 = (int)&wrset;
-        for (iVar4 = 0x20; iVar4 != 0; iVar4 = iVar4 + -1) {
-          *(undefined4 *)__d1 = 0;
-          __d1 = __d1 + 4;
-        }
+        FD_ZERO(&wrset);
         FD_SET(smp->wfd, &wrset);
         piVar2 = __errno_location();
         *piVar2 = 0;

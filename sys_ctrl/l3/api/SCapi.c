@@ -674,7 +674,7 @@ int sn1SCFindL2(char *host)
             iVar1 = -2;
           }
           else {
-            __src = inet_ntoa((in_addr)l2->ip_addr);
+            __src = inet_ntoa(*(struct in_addr *)&l2->ip_addr);
             strcpy(host,__src);
             iVar1 = 0;
           }

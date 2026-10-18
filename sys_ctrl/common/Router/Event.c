@@ -686,11 +686,7 @@ static void EventRemoveBadFD(void)
       }
     }
     if (FD_ISSET(i, &EventWriteSet) != 0) {
-      __d1 = (int)&EventWriteMask;
-      for (iVar3 = 0x20; iVar3 != 0; iVar3 = iVar3 + -1) {
-        *(undefined4 *)__d1 = 0;
-        __d1 = __d1 + 4;
-      }
+      FD_ZERO(&EventWriteMask);
       FD_SET(i, &EventWriteMask);
       iVar3 = select(EventFDRange,NULL,(fd_set *)&EventWriteMask,NULL,
                      (struct timeval *)&zero_time);

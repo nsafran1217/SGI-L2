@@ -76,7 +76,7 @@ int discover_init(void)
   status = SocketGetHostAddr(&discover_ip);
   if (status == 0) {
     _Var1 = getpid();
-    pcVar2 = inet_ntoa((in_addr)discover_ip);
+    pcVar2 = inet_ntoa(*(struct in_addr *)&discover_ip);
     sprintf(client_id,"%s.%d",pcVar2,_Var1);
     memset(&ifr,0,0x20);
     strcpy((char *)&ifr,name);
@@ -198,7 +198,7 @@ void discover_response(void *cd, int sd)
     debug = discover_debug;
   }
   else {
-    src = inet_ntoa((in_addr)cliaddr.sin_addr.s_addr);
+    src = inet_ntoa(*(struct in_addr *)&cliaddr.sin_addr.s_addr);
     ppuVar10 = &PTR_s_128_162_241_129_0808c050;
     ppcVar11 = ips;
     for (iVar9 = 0x12; iVar9 != 0; iVar9 = iVar9 + -1) {
@@ -417,11 +417,7 @@ void discover_service(void)
   int __d0;
   fd_set rfd;
   
-  __d1 = (int)&rfd;
-  for (iVar2 = 0x20; iVar2 != 0; iVar2 = iVar2 + -1) {
-    *(undefined4 *)__d1 = 0;
-    __d1 = __d1 + 4;
-  }
+  FD_ZERO(&rfd);
   FD_SET(discover_sd, &rfd);
   to.tv_sec = 0;
   to.tv_usec = 10;

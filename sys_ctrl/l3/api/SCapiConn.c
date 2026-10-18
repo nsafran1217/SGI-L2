@@ -180,7 +180,7 @@ int sn1SCConnFindL2(char *host, char *iface, char *sysname, char *ssn)
       iVar1 = -2;
     }
     else {
-      __src = inet_ntoa((in_addr)l2->ip_addr);
+      __src = inet_ntoa(*(struct in_addr *)&l2->ip_addr);
       strcpy(host,__src);
       iVar1 = 0;
     }

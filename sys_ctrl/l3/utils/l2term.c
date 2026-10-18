@@ -375,18 +375,18 @@ int main(int argc, char **argv, char **envp)
       iVar1 = SocketGetAddr(host,&addr);
       if ((iVar1 == 0) && (addr != l2node->ip_addr)) {
         if (syscon == 0) {
-          pcVar2 = inet_ntoa((in_addr)l2node->ip_addr);
+          pcVar2 = inet_ntoa(*(struct in_addr *)&l2node->ip_addr);
           fprintf(stderr,"INFO: system console for is at L2 %04d (%s) - redirecting...\n",
                   l2node[1].ip_addr,pcVar2);
         }
         else {
-          pcVar2 = inet_ntoa((in_addr)l2node->ip_addr);
+          pcVar2 = inet_ntoa(*(struct in_addr *)&l2node->ip_addr);
           fprintf(stderr,
                   "INFO: system console for partition %d is at L2 %04d (%s) - redirecting...\n",
                   syscon,l2node[1].ip_addr,pcVar2);
         }
       }
-      pcVar2 = inet_ntoa((in_addr)l2node->ip_addr);
+      pcVar2 = inet_ntoa(*(struct in_addr *)&l2node->ip_addr);
       strcpy(host,pcVar2);
     }
     sn1SCDisconnect();

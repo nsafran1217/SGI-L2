@@ -122,7 +122,7 @@ void cfg_init(void)
   iVar1 = SocketGetHostAddr(&cfg_ip);
   if (iVar1 == 0) {
     _Var2 = getpid();
-    pcVar3 = inet_ntoa((in_addr)cfg_ip);
+    pcVar3 = inet_ntoa(*(struct in_addr *)&cfg_ip);
     sprintf(cfg_client_id,"clientid:%s.%d",pcVar3,_Var2);
     cfg_setup_configcheck(7);
     if ((l2_discover != 0) && (L2CfgLocal.net.msmode != 1)) {
@@ -1160,7 +1160,7 @@ void cfg_disconnect(RouterClient *client)
   IRArgument rarg [3];
   
   if (client->port == IR_PORT_BIAS + 0x2329) {
-    pcVar1 = inet_ntoa((in_addr)client->addr);
+    pcVar1 = inet_ntoa(*(struct in_addr *)&client->addr);
     sprintf(qbuf,"l2:%s,DELETE_L2:1",pcVar1);
     rarg[0]._clas = '\0';
     rarg[0]._frame = '\0';
@@ -1209,7 +1209,7 @@ void cfg_recv_l2ping(void *cd, int sd)
   
   rval = sn1SCDiscoverL2Response(sd,&l2cfg,1);
   if (rval == 0) {
-    ip = inet_ntoa((in_addr)l2cfg.ip_addr);
+    ip = inet_ntoa(*(struct in_addr *)&l2cfg.ip_addr);
     l2node = L2CfgMFindNode(&L2CfgLocal,l2cfg.ip_addr,0,NULL);
     if (l2node == NULL) {
       msgnbr = EnetServerConnect(ip,IR_PORT_BIAS + 0x2329);
@@ -1253,7 +1253,7 @@ void cfg_l2ping(int start_timer)
     while (node != NULL) {
       if ((node->client == NULL) &&
          (node->heartbeat < (uint)cfg_ping_response_minimum)) {
-        pcVar4 = inet_ntoa((in_addr)node->ip_addr);
+        pcVar4 = inet_ntoa(*(struct in_addr *)&node->ip_addr);
         fprintf(stderr,"INFO: L2 %s failed to complete connection\n",pcVar4);
         p_Var1 = node->next;
         del_addr = node->ip_addr;

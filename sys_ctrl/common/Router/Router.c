@@ -104,7 +104,7 @@ int RouterInit(int max_in_args, int use_unix, char *process_name, int process_id
   else {
     ProcessName = pcVar1 + 1;
   }
-  signal(0xd,(__sighandler_t)0x1);
+  signal(0xd,SIG_IGN);
   memset(UserName,0,9);
   memset(FullName,0,0x21);
   __uid = getuid();

@@ -224,7 +224,8 @@ static int RouterProcessAccept(RouterClient *client, int argcountin)
       tbuf_a[6] = (uchar)((client->groups).count >> 8);
       tbuf_a[7] = (uchar)(client->groups).count;
       arglist[0].val = (ulong)tbuf_a;
-      arglist[0]._0_1_ = 3;
+      arglist[0].fre = 1;
+      arglist[0].clas = 1;
       arglist[0].size = 8;
       sVar3 = strlen(client_id.procname);
       memcpy(tbuf_b,client_id.procname,sVar3 + 1);
@@ -239,13 +240,17 @@ static int RouterProcessAccept(RouterClient *client, int argcountin)
       sVar3 = strlen(client_id.fullname);
       memcpy(__dest + sVar3 + 1,&client_id.ipaddr,4);
       arglist[1].val = (ulong)tbuf_b;
-      arglist[1]._0_4_ = (int)(__dest + sVar3 + 1 + (4 - (int)tbuf_b)) * 0x100 | 3;
+      arglist[1].fre = 1;
+      arglist[1].clas = 1;
+      arglist[1].size = (int)((__dest + sVar3 + 1 + 4) - (uchar *)tbuf_b);
       if ((client->groups).count == 0) {
         argcount = 2;
       }
       else {
         arglist[2].val = (ulong)(client->groups).bits;
-        arglist[2]._0_4_ = ((client->groups).count + 7 >> 3) << 8 | 3;
+        arglist[2].fre = 1;
+        arglist[2].clas = 1;
+        arglist[2].size = ((client->groups).count + 7) >> 3;
         argcount = 3;
       }
       RouterDoOutput(client,ProcessID,8,argcount,arglist,NULL,NULL,

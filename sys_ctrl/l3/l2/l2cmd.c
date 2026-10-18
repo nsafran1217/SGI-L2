@@ -2839,24 +2839,24 @@ static int l2cmd_ip(CmdData *cptr, char **results)
         sprintf(rptr,"static IP address not currently set\n");
       }
       else {
-        pcVar2 = inet_ntoa((in_addr)ip_addr);
+        pcVar2 = inet_ntoa(*(struct in_addr *)&ip_addr);
         sprintf(rptr,"addr: %s   ",pcVar2);
         sVar3 = strlen(rptr);
         rptr = rptr + sVar3;
-        pcVar2 = inet_ntoa((in_addr)ip_netmask);
+        pcVar2 = inet_ntoa(*(struct in_addr *)&ip_netmask);
         sprintf(rptr,"mask: %s   ",pcVar2);
         sVar3 = strlen(rptr);
         rptr = rptr + sVar3;
-        pcVar2 = inet_ntoa((in_addr)ip_broadcast);
+        pcVar2 = inet_ntoa(*(struct in_addr *)&ip_broadcast);
         sprintf(rptr,"bcast: %s   ",pcVar2);
         sVar3 = strlen(rptr);
         rptr = rptr + sVar3;
         if (ip_gateway == 0) {
-          pcVar2 = inet_ntoa((in_addr)0x0);
+          pcVar2 = inet_ntoa(*(struct in_addr *)&0x0);
           sprintf(rptr,"gateway: <not set>\n",pcVar2);
         }
         else {
-          pcVar2 = inet_ntoa((in_addr)ip_gateway);
+          pcVar2 = inet_ntoa(*(struct in_addr *)&ip_gateway);
           sprintf(rptr,"gateway: %s\n",pcVar2);
         }
       }
@@ -2890,15 +2890,15 @@ static int l2cmd_ip(CmdData *cptr, char **results)
         nvramSet(6,ip_addr);
         nvramSet(7,ip_netmask);
         nvramSet(8,ip_broadcast);
-        pcVar2 = inet_ntoa((in_addr)ip_addr);
+        pcVar2 = inet_ntoa(*(struct in_addr *)&ip_addr);
         sprintf(rptr,"addr: %s   ",pcVar2);
         sVar3 = strlen(rptr);
         rptr = rptr + sVar3;
-        pcVar2 = inet_ntoa((in_addr)ip_netmask);
+        pcVar2 = inet_ntoa(*(struct in_addr *)&ip_netmask);
         sprintf(rptr,"netmask: %s   ",pcVar2);
         sVar3 = strlen(rptr);
         rptr = rptr + sVar3;
-        pcVar2 = inet_ntoa((in_addr)ip_broadcast);
+        pcVar2 = inet_ntoa(*(struct in_addr *)&ip_broadcast);
         sprintf(rptr,"broadcast addr: %s\n",pcVar2);
         sVar3 = strlen(rptr);
         rptr = rptr + sVar3;
@@ -2913,7 +2913,7 @@ static int l2cmd_ip(CmdData *cptr, char **results)
       }
       else {
         nvramSet(0x19,ip_gateway);
-        pcVar2 = inet_ntoa((in_addr)ip_gateway);
+        pcVar2 = inet_ntoa(*(struct in_addr *)&ip_gateway);
         sprintf(rptr,"gateway addr: %s\n",pcVar2);
         sVar3 = strlen(rptr);
         rptr = rptr + sVar3;

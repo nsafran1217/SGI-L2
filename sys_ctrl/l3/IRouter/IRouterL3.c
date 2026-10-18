@@ -256,11 +256,7 @@ int IRouterGetPacketL3(IRIdent *id, IRPacket **pkt, IRClient **client, int wait,
     if (pRVar3 == NULL) {
       return -0x12f;
     }
-    __d1 = (int)&evt_subset;
-    for (waiting = 0x20; waiting != 0; waiting = waiting + -1) {
-      *(undefined4 *)__d1 = 0;
-      __d1 = __d1 + 4;
-    }
+    FD_ZERO(&evt_subset);
     FD_SET((*client)->socket, &evt_subset);
   }
   RouterListClients(rtr_set_input_func);
