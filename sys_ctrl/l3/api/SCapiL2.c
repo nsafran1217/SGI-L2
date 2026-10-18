@@ -3,415 +3,304 @@
  *
  * Reconstructed from the STABS debug info and Ghidra decompilation of l2.
  * Original: /data/cf/sysco/scs123.patch/sys_ctrl/l3/api/SCapiL2.c
+ *
+ * L2 discovery (l2find, and tools started without an L2 host): a UDP
+ * datagram (client_info, often empty) is broadcast to the discovery port on
+ * each interface, and every L2 answers with "key:value,key:value,...":
+ * version, ssn, name, rack, and l2pri or l2sec with its group. The list is
+ * sorted by system name and then rack, address; L2s on this host come
+ * first. (l3/l2/discover.c is the L2's side.)
  */
 
-#include <unistd.h>
-#include "SCapiL2.h"   /* needed by the reconstruction */
-#include "../sys/syslogLib.h"   /* needed by the reconstruction */
-#include <stdio.h>
-#include <stddef.h>
-#include <stdarg.h>
-#include <stdlib.h>
-#include <sys/types.h>
-#include <time.h>
-#include <string.h>
-#include <sys/socket.h>
-#include <limits.h>
-#include <syslimits.h>
-#include <linux/limits.h>
-#include <sys/ioctl.h>
-#include <sys/time.h>
-#include <net/if.h>
-#include <net/if_arp.h>
-#include <netinet/in.h>
-#include <stdint.h>
-#include <netinet/if_ether.h>
-#include <linux/if_ether.h>
-#include <net/ethernet.h>
 #include <arpa/inet.h>
-#include <fcntl.h>
 #include <errno.h>
+#include <net/if.h>
+#include <netinet/in.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/ioctl.h>
+#include <sys/select.h>
+#include <sys/socket.h>
+#include <unistd.h>
+#include "SCapiL2.h"
 #include "SCapi.h"
-#include "../../common/main/L2Cfg.h"
-#include "../../common/sys/syslog.h"
-#include "decomp.h"     /* Ghidra types/macros; remove once the file is cleaned up */
+#include "../../common/IRouter/IRouter.h"
+#include "../sys/syslogLib.h"
+
+#define DISCOVER_PORT   10000   /* plus IR_PORT_BIAS */
+#define DISCOVER_ROUNDS 2       /* broadcasts per discovery */
+#define SEND_RETRIES    10
+#define MAX_IFACES      20      /* find_interfaces()'s lists, NULL/0 ended */
+#define MAX_IFCONF      50
+#define L2_LIST_STEP    10
+
+/* sn1SC_L2.ms */
+#define L2_MS_SECONDARY 1
+#define L2_MS_PRIMARY   2
 
 static char **find_interfaces(uint32 **addrlist_ptr);
 
-static uint32 *addrlist;
+static uint32 *addrlist;        /* this host's addresses (find_interfaces()) */
 
-int sn1SCDiscoverL2(char *dev, char *client_info, sn1SC_L2 **l2_return_list, int *l2_cnt, int wait)
+/* is addr one of this host's? */
+static int local_address(uint32 addr)
 {
-  int iVar1;
-  sn1SC_L2 *nl2;
-  int l2;
-  sn1SC_L2 l2ent;
   uint32 *aptr;
-  int l2_local;
-  int l2_list_size;
-  sn1SC_L2 *l2_list;
-  int i;
-  int sd;
-  int rval;
-  bool local;
-  
-  sd = -1;
-  l2_local = 0;
-  *l2_cnt = 0;
-  l2_list_size = 10;
-  l2_list = malloc(10 * sizeof(sn1SC_L2));
-  if (l2_list == NULL) {
-    iVar1 = -1;
-  }
-  else {
-    *l2_return_list = l2_list;
-    for (i = 0; i < 2; i = i + 1) {
-      sd = sn1SCDiscoverL2Start(sd,dev,client_info);
-      if (sd < 0) {
-        return -1;
-      }
-      while ((rval = sn1SCDiscoverL2Response(sd,&l2ent,wait), -1 < rval && (rval != 1))) {
-        local = false;
-        aptr = addrlist;
-        while( true ) {
-          if ((aptr == NULL) || (*aptr == 0)) goto LAB_08070f46;
-          if (*aptr == l2ent.ip_addr) break;
-          aptr = aptr + 1;
-        }
-        local = true;
-LAB_08070f46:
-        if (local) {
-          l2 = find_l2_slot(&l2ent,l2_list,0,l2_local);
-        }
-        else {
-          l2 = find_l2_slot(&l2ent,l2_list,l2_local,*l2_cnt);
-        }
-        if (l2 != -1) {
-          if (l2 < *l2_cnt) {
-            memmove(l2_list + l2 + 1,l2_list + l2,(*l2_cnt - l2) * 0x124);
-          }
-          memcpy(l2_list + l2,&l2ent,0x124);
-          if (local) {
-            l2_local = l2_local + 1;
-          }
-          *l2_cnt = *l2_cnt + 1;
-          if (*l2_cnt == l2_list_size) {
-            l2_list_size = l2_list_size + 10;
-            l2_list = realloc(l2_list, l2_list_size * sizeof(sn1SC_L2));
-            if (l2_list == NULL) {
-              return -1;
-            }
-            *l2_return_list = l2_list;
-          }
-        }
-      }
-    }
-    sn1SCDiscoverL2Done(sd);
-    if (rval < 0) {
-      iVar1 = -1;
-    }
-    else {
-      iVar1 = 0;
-    }
-  }
-  return iVar1;
+
+  for (aptr = addrlist; aptr != NULL && *aptr != 0; aptr++)
+    if (*aptr == addr)
+      return 1;
+  return 0;
 }
 
+/*
+ * Discover the L2s on dev (every interface if NULL or ""), waiting wait
+ * seconds for answers (forever if 0) in each of two rounds. *l2_return_list
+ * (malloc()ed) gets *l2_cnt of them.
+ */
+int sn1SCDiscoverL2(char *dev, char *client_info, sn1SC_L2 **l2_return_list, int *l2_cnt, int wait)
+{
+  sn1SC_L2 *l2_list;
+  sn1SC_L2 l2ent;
+  int l2_list_size = L2_LIST_STEP;
+  int l2_local = 0;             /* the local L2s, at the front */
+  int sd = -1;
+  int round, l2, local;
+  int rval = 0;
+
+  *l2_cnt = 0;
+  l2_list = malloc(l2_list_size * sizeof(sn1SC_L2));
+  if (l2_list == NULL)
+    return -1;
+  *l2_return_list = l2_list;
+  for (round = 0; round < DISCOVER_ROUNDS; round++) {
+    sd = sn1SCDiscoverL2Start(sd,dev,client_info);
+    if (sd < 0)
+      return -1;
+    while ((rval = sn1SCDiscoverL2Response(sd,&l2ent,wait)) == 0) {
+      local = local_address(l2ent.ip_addr);
+      l2 = local ? find_l2_slot(&l2ent,l2_list,0,l2_local)
+                 : find_l2_slot(&l2ent,l2_list,l2_local,*l2_cnt);
+      if (l2 == -1)
+        continue;               /* (seen it already) */
+      if (l2 < *l2_cnt)
+        memmove(l2_list + l2 + 1,l2_list + l2,(*l2_cnt - l2) * sizeof(sn1SC_L2));
+      l2_list[l2] = l2ent;
+      if (local)
+        l2_local++;
+      if (++*l2_cnt == l2_list_size) {
+        l2_list_size += L2_LIST_STEP;
+        l2_list = realloc(l2_list,l2_list_size * sizeof(sn1SC_L2));
+        if (l2_list == NULL)
+          return -1;
+        *l2_return_list = l2_list;
+      }
+    }
+  }
+  sn1SCDiscoverL2Done(sd);
+  return rval < 0 ? -1 : 0;
+}
+
+/* syslog() an error with errno's text and number after the other arguments */
+#define LOG_ERRNO(ln, ...) do { \
+    int err_ = errno; \
+    syslog(3,"SCapiL2.c",ln,0,__VA_ARGS__,strerror(err_),err_); \
+  } while (0)
+
+/* an interface request for name, family AF_INET */
+static void ifreq_for(struct ifreq *ifr, const char *name)
+{
+  strncpy(ifr->ifr_name,name,sizeof(ifr->ifr_name) - 1);
+  ifr->ifr_addr.sa_family = AF_INET;
+}
+
+/*
+ * Broadcast the discovery datagram on dev, or every interface (on sd, or a
+ * new broadcast socket if sd is -1). Returns the socket, or -1.
+ */
 int sn1SCDiscoverL2Start(int sd, char *dev, char *client_info)
 {
-  uint32 uVar1;
-  bool bVar2;
-  int *piVar3;
-  char *pcVar4;
-  int iVar5;
-  size_t __n;
-  int status;
-  struct sockaddr_in *__addr;
-  socklen_t __addr_len;
-  char *istr;
-  int icmd;
-  struct sockaddr_in *p;
-  struct ifreq ifr;
-  int retry;
-  uint8 pkt [8192];
-  struct sockaddr_in cliaddr;
-  struct sockaddr_in myaddr;
-  uint8 broadcast_addr [4];
-  int o;
+  char *dflt_namelist[2] = { "eth0", NULL };
+  char **namelist = dflt_namelist;
   char **nlptr;
-  char **namelist;
-  char *dflt_namelist [2];
-  uint32_t temp_3f98bd2185;
-  
-  dflt_namelist[0] = "eth0";
-  dflt_namelist[1] = NULL;
-  namelist = dflt_namelist;
-  o = 1;
-  if ((dev == NULL) || (*dev == '\0')) {
+  struct sockaddr_in myaddr, cliaddr;
+  struct ifreq ifr;
+  uint8 pkt[8192];
+  unsigned long icmd;
+  char *istr;
+  int o = 1;
+  int retry, status;
+
+  if (dev == NULL || *dev == '\0') {
     namelist = find_interfaces(&addrlist);
-    if (namelist == NULL) {
+    if (namelist == NULL)
       return -1;
-    }
   }
   else {
     dflt_namelist[0] = dev;
   }
   if (sd == -1) {
-    sd = socket(2,2,0x11);
+    sd = socket(AF_INET,SOCK_DGRAM,IPPROTO_UDP);
     if (sd < 0) {
-      piVar3 = __errno_location();
-      iVar5 = *piVar3;
-      piVar3 = __errno_location();
-      pcVar4 = strerror(*piVar3);
-      syslog(3,"SCapiL2.c",210,0,"sn1SCDiscoverL2Start: socket: %s [%d]\n",pcVar4,iVar5);
+      LOG_ERRNO(210,"sn1SCDiscoverL2Start: socket: %s [%d]\n");
+      return -1;
+    }
+    if (setsockopt(sd,SOL_SOCKET,SO_BROADCAST,&o,sizeof(o)) < 0) {
+      LOG_ERRNO(217,"sn1SCDiscoverL2Start: setsockopt: %s [%d]\n");
       close(sd);
       return -1;
     }
-    iVar5 = setsockopt(sd,1,6,&o,4);
-    if (iVar5 < 0) {
-      piVar3 = __errno_location();
-      iVar5 = *piVar3;
-      piVar3 = __errno_location();
-      pcVar4 = strerror(*piVar3);
-      syslog(3,"SCapiL2.c",217,0,"sn1SCDiscoverL2Start: setsockopt: %s [%d]\n",pcVar4,iVar5);
-      close(sd);
-      return -1;
-    }
-    myaddr.sin_family = 2;
-    myaddr.sin_port = 0;
-    myaddr.sin_addr.s_addr = 0;
-    memset(myaddr.sin_zero,0,8);
-    iVar5 = bind(sd,(struct sockaddr *)&myaddr,0x10);
-    if (iVar5 < 0) {
-      piVar3 = __errno_location();
-      iVar5 = *piVar3;
-      piVar3 = __errno_location();
-      pcVar4 = strerror(*piVar3);
-      syslog(3,"SCapiL2.c",232,0,"sn1SCDiscoverL2Start: server bind: %s [%d]\n",pcVar4,iVar5);
+    memset(&myaddr,0,sizeof(myaddr));
+    myaddr.sin_family = AF_INET;
+    if (bind(sd,(struct sockaddr *)&myaddr,sizeof(myaddr)) < 0) {
+      LOG_ERRNO(232,"sn1SCDiscoverL2Start: server bind: %s [%d]\n");
       close(sd);
       return -1;
     }
   }
-  nlptr = namelist;
-  do {
-    if (*nlptr == NULL) {
-      return sd;
-    }
-    memset(&ifr,0,sizeof(struct ifreq));
-    strcpy((char *)&ifr,*nlptr);
-    strcpy((char *)&ifr,*nlptr);
-    ifr.ifr_ifru.ifru_addr.sa_family = 2;
-    ioctl(sd,0x8915,&ifr);
-    iVar5 = ioctl(sd,0x8915,&ifr);
-    if (iVar5 < 0) {
-      piVar3 = __errno_location();
-      iVar5 = *piVar3;
-      piVar3 = __errno_location();
-      pcVar4 = strerror(*piVar3);
-      syslog(3,"SCapiL2.c",262,0,"sn1SCDiscoverL2Start: ioctl %s SIOCGIFADDR: %s [%d]\n",*nlptr,
-             pcVar4,iVar5);
+
+  for (nlptr = namelist; *nlptr != NULL; nlptr++) {
+    /* (the original asked for the address twice and did not use it) */
+    memset(&ifr,0,sizeof(ifr));
+    ifreq_for(&ifr,*nlptr);
+    if (ioctl(sd,SIOCGIFADDR,&ifr) < 0) {
+      LOG_ERRNO(262,"sn1SCDiscoverL2Start: ioctl %s SIOCGIFADDR: %s [%d]\n",*nlptr);
       close(sd);
       return -1;
     }
-    strcpy((char *)&ifr,*nlptr);
-    ifr.ifr_ifru.ifru_addr.sa_family = 2;
-    iVar5 = ioctl(sd,0x8913,&ifr);
-    if (iVar5 < 0) {
-      piVar3 = __errno_location();
-      iVar5 = *piVar3;
-      piVar3 = __errno_location();
-      pcVar4 = strerror(*piVar3);
-      syslog(3,"SCapiL2.c",272,0,"l2find find_if: ioctl %s SIOCGIFFLAGS: %s [%d]\n",*nlptr,pcVar4,
-             iVar5);
+    ifreq_for(&ifr,*nlptr);
+    if (ioctl(sd,SIOCGIFFLAGS,&ifr) < 0) {
+      LOG_ERRNO(272,"l2find find_if: ioctl %s SIOCGIFFLAGS: %s [%d]\n",*nlptr);
       close(sd);
       return -1;
     }
-    if ((ifr.ifr_flags & 0x10) == 0) {
-      icmd = 0x8919;
-      istr = "SIOCGIFBRDADDR";
-    }
-    else {
-      icmd = 0x8917;
+    /* a point-to-point link's other end, else the broadcast address */
+    if (ifr.ifr_flags & IFF_POINTOPOINT) {
+      icmd = SIOCGIFDSTADDR;
       istr = "SIOCGIFDSTADDR";
     }
-    strcpy((char *)&ifr,*nlptr);
-    ifr.ifr_ifru.ifru_addr.sa_family = 2;
-    iVar5 = ioctl(sd,icmd,&ifr);
-    temp_3f98bd2185 = ((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr.s_addr;
-    if (iVar5 < 0) {
-      piVar3 = __errno_location();
-      iVar5 = *piVar3;
-      piVar3 = __errno_location();
-      pcVar4 = strerror(*piVar3);
-      syslog(3,"SCapiL2.c",290,0,"sn1SCDiscoverL2Start: ioctl %s %s: %s [%d]\n",*nlptr,istr,pcVar4
-             ,iVar5);
-    }
     else {
-      uVar1 = ((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr.s_addr;
-      cliaddr.sin_family = 2;
-      cliaddr.sin_port = htons((short)IR_PORT_BIAS + 10000);
-      cliaddr.sin_addr.s_addr = uVar1;
-      if ((client_info == NULL) || (*client_info == '\0')) {
-        pkt[0] = '\0';
-      }
-      else {
-        strcpy((char *)pkt,client_info);
-      }
-      retry = 0;
-      do {
-        __addr_len = 0x10;
-        __addr = &cliaddr;
-        iVar5 = 0;
-        __n = strlen((char *)pkt);
-        status = sendto(sd,pkt,__n,iVar5,(struct sockaddr *)__addr,__addr_len);
-        if (((cliaddr.sin_addr.s_addr != temp_3f98bd2185) || (-1 < status)) ||
-           ((piVar3 = __errno_location(), *piVar3 != 0x71 &&
-            (piVar3 = __errno_location(), *piVar3 != 0x6f)))) break;
-        bVar2 = retry < 10;
-        retry = retry + 1;
-      } while (bVar2);
-      if (status < 0) {
-        piVar3 = __errno_location();
-        iVar5 = *piVar3;
-        piVar3 = __errno_location();
-        pcVar4 = strerror(*piVar3);
-        syslog(4,"SCapiL2.c",331,0,"sn1SCDiscoverL2Start: sendto %s: %s [%d]\n",*nlptr,pcVar4,
-               iVar5);
-      }
+      icmd = SIOCGIFBRDADDR;
+      istr = "SIOCGIFBRDADDR";
     }
-    nlptr = nlptr + 1;
-  } while( true );
+    ifreq_for(&ifr,*nlptr);
+    if (ioctl(sd,icmd,&ifr) < 0) {
+      LOG_ERRNO(290,"sn1SCDiscoverL2Start: ioctl %s %s: %s [%d]\n",*nlptr,istr);
+      continue;
+    }
+    memset(&cliaddr,0,sizeof(cliaddr));
+    cliaddr.sin_family = AF_INET;
+    cliaddr.sin_port = htons(IR_PORT_BIAS + DISCOVER_PORT);
+    cliaddr.sin_addr.s_addr = ((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr.s_addr;
+    if (client_info == NULL || *client_info == '\0')
+      pkt[0] = '\0';
+    else
+      snprintf((char *)pkt,sizeof(pkt),"%s",client_info);
+    /* (an interface just coming up may refuse at first) */
+    for (retry = 0; ; retry++) {
+      status = sendto(sd,pkt,strlen((char *)pkt),0,(struct sockaddr *)&cliaddr,sizeof(cliaddr));
+      if (status >= 0 || (errno != EHOSTUNREACH && errno != ECONNREFUSED) || retry >= SEND_RETRIES)
+        break;
+    }
+    if (status < 0) {
+      int err = errno;
+
+      syslog(4,"SCapiL2.c",331,0,"sn1SCDiscoverL2Start: sendto %s: %s [%d]\n",*nlptr,strerror(err),err);
+    }
+  }
+  return sd;
 }
 
+/* copy a value into a field, as strncpy() with one byte kept for the end */
+static void set_value(char *field, size_t size, const char *value)
+{
+  strncpy(field,value,size - 1);
+}
+
+/*
+ * The next answer into *l2: 0, or 1 when wait seconds pass without one
+ * (wait 0: forever), -1 on an error. Datagrams with none of the keys are
+ * skipped.
+ */
 int sn1SCDiscoverL2Response(int sd, sn1SC_L2 *l2, int wait)
 {
-  unsigned char *pbVar1;
-  int iVar2;
-  int *piVar3;
-  char *ccptr;
-  ssize_t sVar4;
-  char *pcVar5;
-  char *pcVar6;
-  char *pcVar7;
-  int status;
-  int __d1;
-  char __result;
-  int __d0;
-  char *vptr;
-  char *aptr;
-  char *avptr;
-  char *cptr;
-  uint8 pkt [8192];
-  fd_set rfd;
-  struct timeval maxwait;
-  int asize;
+  uint8 pkt[8192];
   struct sockaddr_in cliaddr;
-  bool response_valid;
-  
-  asize = 0x10;
-  maxwait.tv_usec = 0;
-  response_valid = false;
-  cliaddr.sin_family = 2;
-  cliaddr.sin_port = 0;
-  cliaddr.sin_addr.s_addr = 0;
-  while( true ) {
-    if (response_valid) {
-      return 0;
-    }
+  socklen_t asize = sizeof(cliaddr);
+  struct timeval maxwait;
+  fd_set rfd;
+  ssize_t len;
+  int valid = 0;
+  char *copy, *cptr, *comma, *key, *val;
+
+  memset(&cliaddr,0,sizeof(cliaddr));
+  cliaddr.sin_family = AF_INET;
+  while (!valid) {
     maxwait.tv_sec = wait;
+    maxwait.tv_usec = 0;
     FD_ZERO(&rfd);
-    FD_SET(sd, &rfd);
-    iVar2 = select(sd + 1,(fd_set *)&rfd,NULL,NULL,wait == 0 ? NULL : &maxwait);
-    if (iVar2 < 0) {
-      piVar3 = __errno_location();
-      iVar2 = *piVar3;
-      piVar3 = __errno_location();
-      ccptr = strerror(*piVar3);
-      syslog(3,"SCapiL2.c",384,0,"sn1SCDiscoverL2Response: select: %s [%d]\n",ccptr,iVar2);
+    FD_SET(sd,&rfd);
+    if (select(sd + 1,&rfd,NULL,NULL,wait == 0 ? NULL : &maxwait) < 0) {
+      LOG_ERRNO(384,"sn1SCDiscoverL2Response: select: %s [%d]\n");
       return -1;
     }
-    cliaddr.sin_family = 2;
-    if (FD_ISSET(sd, &rfd) == 0) {
+    if (!FD_ISSET(sd,&rfd))
       return 1;
+    /* (the original read up to 8192 bytes into 8192 and added a NUL) */
+    len = recvfrom(sd,pkt,sizeof(pkt) - 1,0,(struct sockaddr *)&cliaddr,&asize);
+    if (len < 0) {
+      if (errno == EAGAIN)
+        return 1;
+      LOG_ERRNO(404,"l2find: recvfrom: %s [%d]\n");
+      return -1;
     }
-    sVar4 = recvfrom(sd,pkt,0x2000,0,(struct sockaddr *)&cliaddr,(socklen_t *)&asize);
-    if (sVar4 < 0) break;
-    pkt[sVar4] = '\0';
-    memset(l2,0,0x124);
+    pkt[len] = '\0';
+    memset(l2,0,sizeof(*l2));
     l2->ip_addr = cliaddr.sin_addr.s_addr;
-    strncpy(l2->raw,(char *)pkt,199);
-    pcVar5 = strdup((char *)pkt);
-    cptr = pcVar5;
-    while ((pcVar7 = cptr, cptr != NULL && (*cptr != '\0'))) {
-      pcVar6 = strchr(cptr,0x2c);
-      if (pcVar6 == NULL) {
-        cptr = NULL;
+    set_value(l2->raw,sizeof(l2->raw),(char *)pkt);
+    copy = strdup((char *)pkt);
+    /* "key:value" pairs separated by commas (a value ends at a ':' too) */
+    for (cptr = copy; cptr != NULL && *cptr != '\0'; cptr = comma) {
+      comma = strchr(cptr,',');
+      if (comma != NULL)
+        *comma++ = '\0';
+      key = strtok(cptr,":");
+      val = strtok(NULL,":");
+      if (val == NULL)
+        val = "";
+      if (key == NULL)
+        continue;               /* (an empty pair, as ",,": the original passed NULL to strcmp) */
+      if (strcmp(key,"version") == 0) {
+        valid = 1;
+        set_value(l2->version,sizeof(l2->version),val);
       }
-      else {
-        *pcVar6 = '\0';
-        cptr = pcVar6 + 1;
+      else if (strcmp(key,"ssn") == 0) {
+        valid = 1;
+        set_value(l2->ssn,sizeof(l2->ssn),val);
       }
-      pcVar7 = strtok(pcVar7,":");
-      vptr = strtok(NULL,":");
-      if (vptr == NULL) {
-        vptr = "";
+      else if (strcmp(key,"name") == 0) {
+        valid = 1;
+        set_value(l2->sysname,sizeof(l2->sysname),val);
       }
-      iVar2 = strcmp(pcVar7,"version");
-      if (iVar2 == 0) {
-        response_valid = true;
-        strncpy(l2->version,vptr,0x13);
+      else if (strcmp(key,"rack") == 0) {
+        valid = 1;
+        l2->rack = atoi(val);
       }
-      else {
-        iVar2 = strcmp(pcVar7,"ssn");
-        if (iVar2 == 0) {
-          response_valid = true;
-          strncpy(l2->ssn,vptr,0x13);
-        }
-        else {
-          iVar2 = strcmp(pcVar7,"name");
-          if (iVar2 == 0) {
-            response_valid = true;
-            strncpy(l2->sysname,vptr,0x1f);
-          }
-          else {
-            iVar2 = strcmp(pcVar7,"rack");
-            if (iVar2 == 0) {
-              response_valid = true;
-              iVar2 = atoi(vptr);
-              l2->rack = iVar2;
-            }
-            else {
-              iVar2 = strcmp(pcVar7,"l2pri");
-              if (iVar2 == 0) {
-                response_valid = true;
-                l2->ms = 2;
-                sscanf(vptr,"%d",&l2->group);
-              }
-              else {
-                iVar2 = strcmp(pcVar7,"l2sec");
-                if (iVar2 == 0) {
-                  response_valid = true;
-                  l2->ms = 1;
-                  sscanf(vptr,"%d",&l2->group);
-                }
-              }
-            }
-          }
-        }
+      else if (strcmp(key,"l2pri") == 0) {
+        valid = 1;
+        l2->ms = L2_MS_PRIMARY;
+        sscanf(val,"%d",&l2->group);
+      }
+      else if (strcmp(key,"l2sec") == 0) {
+        valid = 1;
+        l2->ms = L2_MS_SECONDARY;
+        sscanf(val,"%d",&l2->group);
       }
     }
-    free(pcVar5);
+    free(copy);
   }
-  piVar3 = __errno_location();
-  if (*piVar3 == 0xb) {
-    return 1;
-  }
-  piVar3 = __errno_location();
-  iVar2 = *piVar3;
-  piVar3 = __errno_location();
-  pcVar5 = strerror(*piVar3);
-  syslog(3,"SCapiL2.c",404,0,"l2find: recvfrom: %s [%d]\n",pcVar5,iVar2);
-  return -1;
+  return 0;
 }
 
 int sn1SCDiscoverL2Done(int sd)
@@ -420,149 +309,103 @@ int sn1SCDiscoverL2Done(int sd)
   return 0;
 }
 
+/*
+ * Where l2ent goes in l2_list[beg..end): by system name, then (if l2ent has
+ * a rack) rack, then this host's loopback first and address (compared as
+ * the network-order word); -1 if it is there already.
+ */
 int find_l2_slot(sn1SC_L2 *l2ent, sn1SC_L2 *l2_list, int beg, int end)
 {
-  int iVar1;
-  uint32_t uVar2;
-  int l2;
-  
-  l2 = beg;
-  do {
-    if (end <= l2) {
+  int l2, c;
+
+  for (l2 = beg; l2 < end; l2++) {
+    c = strcmp(l2ent->sysname,l2_list[l2].sysname);
+    if (c < 0)
       return l2;
+    if (c > 0)
+      continue;
+    if (l2ent->ip_addr == l2_list[l2].ip_addr)
+      return -1;
+    if (l2ent->rack != 0) {
+      if (l2_list[l2].rack < l2ent->rack)
+        continue;
+      if (l2ent->rack < l2_list[l2].rack)
+        return l2;
     }
-    iVar1 = strcmp(l2ent->sysname,l2_list[l2].sysname);
-    if (iVar1 < 0) {
+    if (ntohl(l2ent->ip_addr) == INADDR_LOOPBACK || l2ent->ip_addr <= l2_list[l2].ip_addr)
       return l2;
-    }
-    iVar1 = strcmp(l2ent->sysname,l2_list[l2].sysname);
-    if (iVar1 == 0) {
-      if (l2ent->ip_addr == l2_list[l2].ip_addr) {
-        return -1;
-      }
-      if (l2ent->rack != 0) {
-        if (l2_list[l2].rack < l2ent->rack) goto LAB_08072050;
-        if (l2ent->rack < l2_list[l2].rack) {
-          return l2;
-        }
-      }
-      uVar2 = ntohl(l2ent->ip_addr);
-      if (uVar2 == 0x7f000001) {
-        return l2;
-      }
-      if (l2ent->ip_addr <= l2_list[l2].ip_addr) {
-        return l2;
-      }
-    }
-LAB_08072050:
-    l2 = l2 + 1;
-  } while( true );
+  }
+  return end;
 }
 
+/*
+ * The interfaces that are up (not "dummy*"), each once, with their
+ * addresses (a point-to-point link's other end) in *addrlist_ptr; both
+ * lists are static and end with NULL and 0.
+ */
 static char **find_interfaces(uint32 **addrlist_ptr)
 {
-  static char *namelist[20];
-  static uint32 addrlist[20];
-  static struct ifreq ifrbuf[50];
-  int sd;
-  int *piVar1;
-  char *pcVar2;
-  char **ppcVar3;
-  int status;
-  int iVar4;
-  char *s;
-  struct ifreq ifr;
-  struct sockaddr_in *p;
-  struct ifreq *ifp_;
-  uint32 *altmp;
-  char **nltmp;
-  int j;
-  uint32 lb_addr;
-  struct ifreq *ifp;
+  static char *namelist[MAX_IFACES];
+  static uint32 addrlist[MAX_IFACES];
+  static struct ifreq ifrbuf[MAX_IFCONF];
   struct ifconf ic;
-  int i;
-  char **nlptr;
-  
-  inet_addr("127.0.0.1");
-  if (addrlist_ptr != NULL) {
+  struct ifreq ifr, *ifp;
+  struct sockaddr_in *p;
+  int sd, i, n;
+
+  if (addrlist_ptr != NULL)
     *addrlist_ptr = NULL;
-  }
-  sd = socket(2,2,0x11);
+  sd = socket(AF_INET,SOCK_DGRAM,IPPROTO_UDP);
   if (sd < 0) {
-    piVar1 = __errno_location();
-    iVar4 = *piVar1;
-    piVar1 = __errno_location();
-    pcVar2 = strerror(*piVar1);
-    syslog(3,"SCapiL2.c",550,0,"l2find find_if: socket: %s [%d]\n",pcVar2,iVar4);
-    ppcVar3 = NULL;
+    LOG_ERRNO(550,"l2find find_if: socket: %s [%d]\n");
+    return NULL;
   }
-  else {
-    ic.ifc_len = sizeof(ifrbuf);
-    ic.ifc_ifcu.ifcu_buf = (char *)ifrbuf;
-    status = ioctl(sd,0x8912,&ic);
-    if (status < 0) {
-      piVar1 = __errno_location();
-      iVar4 = *piVar1;
-      piVar1 = __errno_location();
-      pcVar2 = strerror(*piVar1);
-      syslog(3,"SCapiL2.c",558,0,"l2find find_if: ioctl SIOCGIFCONF: %s [%d]\n",pcVar2,iVar4);
-      ppcVar3 = NULL;
-    }
-    else {
-      for (nlptr = (char **)&namelist; *nlptr != NULL; nlptr = nlptr + 1) {
-        free(*nlptr);
-        *nlptr = NULL;
-      }
-      memset(addrlist,0,sizeof(addrlist));
-      for (i = 0; i < ic.ifc_len; i = i + sizeof(struct ifreq)) {
-        pcVar2 = ic.ifc_ifcu.ifcu_buf + i;
-        p = (struct sockaddr_in *)&((struct ifreq *)pcVar2)->ifr_addr;
-        iVar4 = strncmp(pcVar2,"dummy",5);
-        if (iVar4 != 0) {
-          nltmp = (char **)&namelist;
-          altmp = addrlist;
-          while ((*nltmp != NULL && (iVar4 = strcmp(*nltmp,pcVar2), iVar4 != 0))) {
-            nltmp = nltmp + 1;
-            altmp = altmp + 1;
-          }
-          if (*nltmp == NULL) {
-            strcpy((char *)&ifr,pcVar2);
-            iVar4 = ioctl(sd,0x8913,&ifr);
-            if (iVar4 < 0) {
-              piVar1 = __errno_location();
-              iVar4 = *piVar1;
-              piVar1 = __errno_location();
-              pcVar2 = strerror(*piVar1);
-              syslog(3,"SCapiL2.c",601,0,"l2find find_if: ioctl SIOCGIFFLAGS: %s [%d]\n",pcVar2,
-                     iVar4);
-              return NULL;
-            }
-            if ((ifr.ifr_flags & 1) != 0) {
-              if ((ifr.ifr_flags & 0x10) != 0) {
-                strcpy((char *)&ifr,pcVar2);
-                iVar4 = ioctl(sd,0x8917,&ifr);
-                if (iVar4 < 0) {
-                  piVar1 = __errno_location();
-                  iVar4 = *piVar1;
-                  piVar1 = __errno_location();
-                  pcVar2 = strerror(*piVar1);
-                  syslog(3,"SCapiL2.c",622,0,"l2find find_if: ioctl SIOCGIFDSTADDR: %s [%d]\n",
-                         pcVar2,iVar4);
-                  return NULL;
-                }
-                p = (struct sockaddr_in *)&ifr.ifr_ifru;
-              }
-              pcVar2 = strdup(pcVar2);
-              *nltmp = pcVar2;
-              *altmp = (p->sin_addr).s_addr;
-            }
-          }
-        }
-      }
+  ic.ifc_len = sizeof(ifrbuf);
+  ic.ifc_buf = (char *)ifrbuf;
+  if (ioctl(sd,SIOCGIFCONF,&ic) < 0) {
+    LOG_ERRNO(558,"l2find find_if: ioctl SIOCGIFCONF: %s [%d]\n");
+    close(sd);                  /* (the original kept it open) */
+    return NULL;
+  }
+  for (n = 0; namelist[n] != NULL; n++) {
+    free(namelist[n]);
+    namelist[n] = NULL;
+  }
+  memset(addrlist,0,sizeof(addrlist));
+
+  for (i = 0; i < ic.ifc_len / (int)sizeof(struct ifreq); i++) {
+    ifp = &ifrbuf[i];
+    p = (struct sockaddr_in *)&ifp->ifr_addr;
+    if (strncmp(ifp->ifr_name,"dummy",5) == 0)
+      continue;
+    for (n = 0; namelist[n] != NULL && strcmp(namelist[n],ifp->ifr_name) != 0; n++)
+      ;
+    if (namelist[n] != NULL)
+      continue;                 /* (an interface with several addresses) */
+    if (n == MAX_IFACES - 1)
+      break;                    /* (the original did not stop) */
+    memset(&ifr,0,sizeof(ifr));
+    strncpy(ifr.ifr_name,ifp->ifr_name,sizeof(ifr.ifr_name) - 1);
+    if (ioctl(sd,SIOCGIFFLAGS,&ifr) < 0) {
+      LOG_ERRNO(601,"l2find find_if: ioctl SIOCGIFFLAGS: %s [%d]\n");
       close(sd);
-      *addrlist_ptr = addrlist;
-      ppcVar3 = (char **)&namelist;
+      return NULL;
     }
+    if (!(ifr.ifr_flags & IFF_UP))
+      continue;
+    if (ifr.ifr_flags & IFF_POINTOPOINT) {
+      strncpy(ifr.ifr_name,ifp->ifr_name,sizeof(ifr.ifr_name) - 1);
+      if (ioctl(sd,SIOCGIFDSTADDR,&ifr) < 0) {
+        LOG_ERRNO(622,"l2find find_if: ioctl SIOCGIFDSTADDR: %s [%d]\n");
+        close(sd);
+        return NULL;
+      }
+      p = (struct sockaddr_in *)&ifr.ifr_dstaddr;
+    }
+    namelist[n] = strdup(ifp->ifr_name);
+    addrlist[n] = p->sin_addr.s_addr;
   }
-  return ppcVar3;
+  close(sd);
+  *addrlist_ptr = addrlist;
+  return namelist;
 }
