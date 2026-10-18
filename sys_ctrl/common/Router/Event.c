@@ -78,7 +78,7 @@ static void EventIOListAlloc(int count)
 
 EventID EventAddInput(int fd, void (*input_func)(), EventData client_data, char *desc)
 {
-  byte *pbVar1;
+  unsigned char *pbVar1;
   char *func_name;
   
   if (fd < 0x401) {
@@ -108,7 +108,7 @@ EventID EventAddInput(int fd, void (*input_func)(), EventData client_data, char 
 
 void EventReplaceInput(int fd, void (*new_input_func)(), EventData new_client_data, char *new_desc, void (**old_input_func)(), EventData *old_client_data, char *old_desc)
 {
-  byte *pbVar1;
+  unsigned char *pbVar1;
   char *func_name;
   
   if (fd < 0x401) {
@@ -143,7 +143,7 @@ void EventReplaceInput(int fd, void (*new_input_func)(), EventData new_client_da
 
 void EventReplaceInputTemp(int fd, void (*new_input_func)(), EventData new_client_data, char *new_desc)
 {
-  byte *pbVar1;
+  unsigned char *pbVar1;
   char *func_name;
   
   if (fd < 0x401) {
@@ -172,7 +172,7 @@ void EventReplaceInputTemp(int fd, void (*new_input_func)(), EventData new_clien
 
 void EventRestoreInputTemp(int fd)
 {
-  byte *pbVar1;
+  unsigned char *pbVar1;
   char *func_name;
   
   if (fd < 0x401) {
@@ -200,9 +200,9 @@ void EventRestoreInputTemp(int fd)
 
 void EventRemoveInput(EventID id)
 {
-  byte *pbVar1;
+  unsigned char *pbVar1;
   
-  if (id < (uint)EventIOListSize) {
+  if (id < (unsigned int)EventIOListSize) {
     EventIOList[id].input_func = NULL;
     EventIOList[id].input_data = (EventData)0x0;
     EventIOList[id].input_desc[0] = '\0';
@@ -215,7 +215,7 @@ void EventRemoveInput(EventID id)
 
 EventID EventAddOutput(int fd, void (*output_func)(), EventData client_data, char *desc)
 {
-  byte *pbVar1;
+  unsigned char *pbVar1;
   char *func_name;
   
   if (fd < 0x401) {
@@ -245,9 +245,9 @@ EventID EventAddOutput(int fd, void (*output_func)(), EventData client_data, cha
 
 void EventRemoveOutput(EventID id)
 {
-  byte *pbVar1;
+  unsigned char *pbVar1;
   
-  if (id < (uint)EventIOListSize) {
+  if (id < (unsigned int)EventIOListSize) {
     EventIOList[id].output_func = NULL;
     EventIOList[id].output_data = (EventData)0x0;
     EventIOList[id].output_desc[0] = '\0';
@@ -260,7 +260,7 @@ void EventRemoveOutput(EventID id)
 
 void EventEnableOutput(EventID id, int enable)
 {
-  byte *pbVar1;
+  unsigned char *pbVar1;
   
   if (enable == 0) {
     FD_CLR(id, &EventWriteSet);
@@ -274,7 +274,7 @@ void EventEnableOutput(EventID id, int enable)
 
 void EventEnableInput(EventID id, int enable)
 {
-  byte *pbVar1;
+  unsigned char *pbVar1;
   
   if (enable == 0) {
     FD_CLR(id, &EventReadSet);
@@ -657,7 +657,7 @@ static void EventQueueTimer(EventTimerEntry *entry)
 
 static void EventRemoveBadFD(void)
 {
-  byte *pbVar1;
+  unsigned char *pbVar1;
   static struct timeval zero_time;
   int *piVar2;
   int iVar3;

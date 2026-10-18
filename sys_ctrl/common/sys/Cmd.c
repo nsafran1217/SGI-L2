@@ -47,7 +47,7 @@ int CmdProcess(int mode, char *cmd, char **results, Cmd *cmds_in, int num_cmds_i
   size_t sVar1;
   int iVar2;
   int rval;
-  ulong uVar3;
+  unsigned long uVar3;
   int iVar4;
   char *pcVar5;
   char *current_tok_str;

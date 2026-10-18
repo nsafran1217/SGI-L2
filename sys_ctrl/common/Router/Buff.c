@@ -15,16 +15,16 @@
 
 int BuffCompress(unsigned char *ibuf, unsigned int ilen, unsigned char **obuf, unsigned int *olen)
 {
-  uchar *puVar1;
-  uchar *puVar2;
-  uchar uVar3;
-  uchar *puVar4;
+  unsigned char *puVar1;
+  unsigned char *puVar2;
+  unsigned char uVar3;
+  unsigned char *puVar4;
   int iVar5;
-  uchar c;
+  unsigned char c;
   int count;
   int out_count;
-  uint len;
-  uchar *buff;
+  unsigned int len;
+  unsigned char *buff;
   int iVar6;
   
   out_count = 0;
@@ -50,7 +50,7 @@ int BuffCompress(unsigned char *ibuf, unsigned int ilen, unsigned char **obuf, u
     iVar6 = iVar5;
     ibuf = puVar1 + 1;
     iVar5 = iVar6 + -1;
-    uVar3 = (uchar)((uint)count >> 8);
+    uVar3 = (unsigned char)((unsigned int)count >> 8);
     if (iVar5 == -1) break;
     if (*ibuf == c) {
       count = count + 1;
@@ -89,7 +89,7 @@ int BuffCompress(unsigned char *ibuf, unsigned int ilen, unsigned char **obuf, u
             puVar4 = puVar4 + 2;
             out_count = out_count + 4;
           }
-          *puVar4 = (uchar)count;
+          *puVar4 = (unsigned char)count;
           puVar4[1] = c;
           puVar4 = puVar4 + 2;
         }
@@ -143,7 +143,7 @@ LAB_0807b231:
         puVar4 = puVar4 + 2;
         out_count = out_count + 4;
       }
-      *puVar4 = (uchar)count;
+      *puVar4 = (unsigned char)count;
       puVar4[1] = c;
     }
     goto LAB_0807b311;
@@ -173,10 +173,10 @@ LAB_0807b2a2:
   out_count = out_count + 1;
 LAB_0807b311:
   if ((obuf != NULL) && (olen != NULL)) {
-    *puVar2 = (uchar)(ilen >> 0x18);
-    puVar2[1] = (uchar)(ilen >> 0x10);
-    puVar2[2] = (uchar)(ilen >> 8);
-    puVar2[3] = (uchar)ilen;
+    *puVar2 = (unsigned char)(ilen >> 0x18);
+    puVar2[1] = (unsigned char)(ilen >> 0x10);
+    puVar2[2] = (unsigned char)(ilen >> 8);
+    puVar2[3] = (unsigned char)ilen;
     *obuf = puVar2;
     *olen = out_count + 4;
   }
@@ -185,21 +185,21 @@ LAB_0807b311:
 
 int BuffUncompress(unsigned char *ibuf, unsigned int ilen, unsigned char **obuf, unsigned int *olen)
 {
-  byte bVar1;
-  byte *pbVar2;
-  uint uVar3;
-  byte *pbVar4;
-  byte *pbVar5;
-  byte *pbVar6;
+  unsigned char bVar1;
+  unsigned char *pbVar2;
+  unsigned int uVar3;
+  unsigned char *pbVar4;
+  unsigned char *pbVar5;
+  unsigned char *pbVar6;
   int iVar7;
   int out_count;
-  uint len;
-  uchar *buff;
-  uchar c;
+  unsigned int len;
+  unsigned char *buff;
+  unsigned char c;
   
   out_count = 0;
   iVar7 = ilen - 4;
-  pbVar2 = malloc((uint)*ibuf << 0x18 | (uint)ibuf[1] << 0x10 | (uint)ibuf[2] << 8 | (uint)ibuf[3]);
+  pbVar2 = malloc((unsigned int)*ibuf << 0x18 | (unsigned int)ibuf[1] << 0x10 | (unsigned int)ibuf[2] << 8 | (unsigned int)ibuf[3]);
   pbVar4 = pbVar2;
   pbVar6 = ibuf + 4;
   if (pbVar2 == NULL) {
@@ -210,7 +210,7 @@ int BuffUncompress(unsigned char *ibuf, unsigned int ilen, unsigned char **obuf,
       c = *pbVar6;
       pbVar5 = pbVar6 + 1;
       if (c == 0xfe) {
-        uVar3 = (uint)*pbVar5;
+        uVar3 = (unsigned int)*pbVar5;
         bVar1 = pbVar6[2];
         pbVar6 = pbVar6 + 3;
         out_count = out_count + uVar3;
@@ -221,7 +221,7 @@ int BuffUncompress(unsigned char *ibuf, unsigned int ilen, unsigned char **obuf,
         }
       }
       else if (c == 0xfd) {
-        uVar3 = (uint)CONCAT11(*pbVar5,pbVar6[2]);
+        uVar3 = (unsigned int)CONCAT11(*pbVar5,pbVar6[2]);
         bVar1 = pbVar6[3];
         pbVar6 = pbVar6 + 4;
         out_count = out_count + uVar3;

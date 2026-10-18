@@ -866,7 +866,7 @@ int sn1SCRsp(IRPacket **pkt, uint32 *id, int wait)
       fprintf(stderr,"%s\n",pcVar3);
     }
     if (id != NULL) {
-      *id = (uint)CONCAT11((*pkt)->_seqnum1,(*pkt)->_seqnum0);
+      *id = (unsigned int)CONCAT11((*pkt)->_seqnum1,(*pkt)->_seqnum0);
     }
     rval = 0;
   }
@@ -1020,7 +1020,7 @@ int sn1SCSendRsp(int errcode, IRPacket *reqpkt, int argc, IRArgument *argv)
 int sn1SCCmd(IRAddress *toaddr, int opcode, int argc, IRArgument *argv, IRPacket **rpkt, int wait)
 {
   char *pcVar1;
-  uint uVar2;
+  unsigned int uVar2;
   uint32 rspid;
   uint32 reqid;
   int rval;
@@ -1163,14 +1163,14 @@ int sn1SCTextCmd(IRAddress *toaddr, char *cmd, char **rsp)
         status = 0;
       }
       else {
-        status = -600 - (uint)pkt->_err;
+        status = -600 - (unsigned int)pkt->_err;
       }
       if (status == 0) {
         free(rptr);
         *rsp = NULL;
         bw = BuffWriteInit();
         BuffWrite(bw,"",0);
-        for (arg = 0; arg < (int)(uint)pkt->_argc; arg = arg + 1) {
+        for (arg = 0; arg < (int)(unsigned int)pkt->_argc; arg = arg + 1) {
           if ((pkt->_argv[arg]._clas & 7) == 2) {
             if ((pkt->_argv[arg]._clas & 7) == 0) {
               line = (char *)IR_VAL_PTR(pkt->_argv[arg]._val);

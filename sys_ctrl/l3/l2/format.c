@@ -67,8 +67,8 @@ char *format_caddress(IRAddress addr, int partition)
   int subc;
   int iVar5;
   int tasknum;
-  uint uVar6;
-  uint uVar7;
+  unsigned int uVar6;
+  unsigned int uVar7;
   int blot;
   int brick;
   int slot;
@@ -90,8 +90,8 @@ char *format_caddress(IRAddress addr, int partition)
       else {
         uVar6 = 0xffffffff;
       }
-      iVar5 = BRICK_TASKNUM_SLAB((uint)cfg->type,uVar6);
-      iVar3 = BRICK_TASKNUM_SUBCHAN((uint)cfg->type,uVar6);
+      iVar5 = BRICK_TASKNUM_SLAB((unsigned int)cfg->type,uVar6);
+      iVar3 = BRICK_TASKNUM_SUBCHAN((unsigned int)cfg->type,uVar6);
       if ((addr & 0x80000000) == 0) {
         uVar6 = addr & 0x1f;
       }
@@ -127,8 +127,8 @@ char *format_caddress(IRAddress addr, int partition)
       else {
         uVar6 = 0xffffffff;
       }
-      slab = BRICK_TASKNUM_SLAB((uint)cfg->type,uVar6);
-      subc = BRICK_TASKNUM_SUBCHAN((uint)cfg->type,uVar6);
+      slab = BRICK_TASKNUM_SLAB((unsigned int)cfg->type,uVar6);
+      subc = BRICK_TASKNUM_SUBCHAN((unsigned int)cfg->type,uVar6);
       if (subc < 4) {
         iVar5 = subc + 0x41;
         pcVar1 = " CPU %d%c";

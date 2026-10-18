@@ -136,7 +136,7 @@ LAB_08060f80:
             rack = (int)l2port->l1cfg[l1].rack;
             slot = (int)l2port->l1cfg[l1].slot;
             type = l2port->l1cfg[l1].type;
-            if (((rack != 0) && (slot != 0)) && (((uint)rack < 0x100 && ((uint)slot < 0x40)))) {
+            if (((rack != 0) && (slot != 0)) && (((unsigned int)rack < 0x100 && ((unsigned int)slot < 0x40)))) {
               if (d->type == 2) {
                 if (*plist != '\x05') {
                   if (((type != 'R') && (type != 'D')) && (type != '-')) {

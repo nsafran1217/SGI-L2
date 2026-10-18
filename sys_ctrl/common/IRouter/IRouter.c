@@ -90,13 +90,13 @@ static int IRouterCreatePacket(IRPacket **rpkt, int clas, int eframe, int pdata,
 {
   IRFrame *__ptr;
   int iVar1;
-  byte bVar2;
+  unsigned char bVar2;
   IRFrame *nextframe;
   int argoffset;
   int fragsize;
   int pktpayload;
   int arg;
-  uchar *dataptr;
+  unsigned char *dataptr;
   int framenum;
   int curframesize;
   int actframesize;
@@ -114,7 +114,7 @@ static int IRouterCreatePacket(IRPacket **rpkt, int clas, int eframe, int pdata,
     pktsize = argcount * 8 + 0x14;
     for (arg = 0; arg < argcount; arg = arg + 1) {
       if ((arglist[arg]._clas & 7) != 0) {
-        pktsize = pktsize + (uint)arglist[arg]._size;
+        pktsize = pktsize + (unsigned int)arglist[arg]._size;
       }
     }
     minframesize = 0x400;
@@ -123,7 +123,7 @@ static int IRouterCreatePacket(IRPacket **rpkt, int clas, int eframe, int pdata,
     }
     else {
       maxframesize = 0x3000;
-      if ((0x7f < (uint)pktsize / 0x2fec) && (maxframesize = 0x3400, 0x7f < (uint)pktsize / 0x33ec))
+      if ((0x7f < (unsigned int)pktsize / 0x2fec) && (maxframesize = 0x3400, 0x7f < (unsigned int)pktsize / 0x33ec))
       {
         errcode = 0x1b;
         pktsize = 0x14;
@@ -144,10 +144,10 @@ static int IRouterCreatePacket(IRPacket **rpkt, int clas, int eframe, int pdata,
       firstframe->_next_frame = NULL;
       firstframe->_byte_order = IRByteOrder;
       firstframe->_seqnum0 = (uint8)seqnum;
-      firstframe->_seqnum1 = (uint8)((uint)seqnum >> 8);
+      firstframe->_seqnum1 = (uint8)((unsigned int)seqnum >> 8);
       firstframe->_clas = (uint8)clas;
       firstframe->_pdata_auth = (firstframe->_pdata_auth & 7) | (char)pdata << 3;
-      firstframe->_pdata_auth = (firstframe->_pdata_auth & 0xf8) | ((byte)authority & 7);
+      firstframe->_pdata_auth = (firstframe->_pdata_auth & 0xf8) | ((unsigned char)authority & 7);
       if (dest != NULL) {
         memcpy(&firstframe->_dest,dest,4);
       }
@@ -168,11 +168,11 @@ static int IRouterCreatePacket(IRPacket **rpkt, int clas, int eframe, int pdata,
       for (arg = 0; (pktsize != 0 && (arg < argcount)); arg = arg + 1) {
         pktpayload = (int)arglist[arg]._size;
         if ((arglist[arg]._clas & 7) != 0) {
-          if ((uint)actframesize < pktpayload + 0x14U) {
+          if ((unsigned int)actframesize < pktpayload + 0x14U) {
             fragcount = false;
             argoffset = 0;
             do {
-              if ((uint)actframesize < pktpayload + 0x14U) {
+              if ((unsigned int)actframesize < pktpayload + 0x14U) {
                 fragsize = actframesize - curframesize;
               }
               else {
@@ -180,7 +180,7 @@ static int IRouterCreatePacket(IRPacket **rpkt, int clas, int eframe, int pdata,
               }
               memcpy(dataptr,(uint8 *)IR_VAL_PTR(arglist[arg]._val) + argoffset,fragsize);
               if (!fragcount) {
-                firstframe->_argv[arg]._frame = (byte)framenum;
+                firstframe->_argv[arg]._frame = (unsigned char)framenum;
                 firstframe->_argv[arg]._val = IR_DATA_OFFSET(currframe, dataptr);
                 fragcount = true;
               }
@@ -220,7 +220,7 @@ static int IRouterCreatePacket(IRPacket **rpkt, int clas, int eframe, int pdata,
             if ((arglist[arg]._clas & 8) != 0) {
               free(IR_VAL_PTR(arglist[arg]._val));
             }
-            firstframe->_argv[arg]._frame = (byte)framenum;
+            firstframe->_argv[arg]._frame = (unsigned char)framenum;
             firstframe->_argv[arg]._val = IR_DATA_OFFSET(currframe, dataptr);
             dataptr = dataptr + pktpayload;
             curframesize = curframesize + pktpayload;
@@ -234,7 +234,7 @@ static int IRouterCreatePacket(IRPacket **rpkt, int clas, int eframe, int pdata,
       if (framenum < 0x80) {
         currframe = firstframe;
         do {
-          currframe->_fnum = (byte)framenum | (currframe->_fnum & 0x80);
+          currframe->_fnum = (unsigned char)framenum | (currframe->_fnum & 0x80);
           currframe = currframe->_next_frame;
           framenum = framenum + -1;
         } while (framenum != 0);
@@ -305,7 +305,7 @@ int IRouterSetAuthority(IRIdent *id, int authority)
 int IRouterFreePacket(IRPacket *pkt)
 {
   struct _IRFrame *p_Var1;
-  ushort uVar2;
+  unsigned short uVar2;
   int arg;
   IRFrame *currframe;
   IRFrame *lastframe;
@@ -315,12 +315,12 @@ int IRouterFreePacket(IRPacket *pkt)
     fflush(stderr);
   }
   if (pkt->_use_count == 0) {
-    printf("packet free error, class: %d, src: %08x\n",(uint)pkt->_clas,pkt->_src);
+    printf("packet free error, class: %d, src: %08x\n",(unsigned int)pkt->_clas,pkt->_src);
   }
   else {
     if (--pkt->_use_count == 0) {
       if (pkt->_arg_data != NULL) {
-        for (arg = 0; arg < (int)(uint)pkt->_argc; arg = arg + 1) {
+        for (arg = 0; arg < (int)(unsigned int)pkt->_argc; arg = arg + 1) {
           if (pkt->_arg_data[arg] != NULL) {
             free(pkt->_arg_data[arg]);
           }
@@ -354,8 +354,8 @@ void IRouterGetQueueSuspendTime(int *req_rsp_time, int *evt_time)
 
 IRPacket *IRouterMakePacket(IRIdent *id, IRAddress *toaddr, int pdata, int opcode, int clas, int prev, int argcount, IRArgument *arglist)
 {
-  ushort uVar1;
-  uint uVar2;
+  unsigned short uVar1;
+  unsigned int uVar2;
   int iVar3;
   int eframe;
   IRPacket *pkt;
@@ -388,7 +388,7 @@ IRPacket *IRouterMakePacket(IRIdent *id, IRAddress *toaddr, int pdata, int opcod
   }
   uVar1 = id->seqnum;
   id->seqnum = id->seqnum + 1;
-  iVar3 = IRouterCreatePacket(&pkt,clas,eframe,pdata,(uint)id->authority,opcode,0,(uint)uVar1,toaddr
+  iVar3 = IRouterCreatePacket(&pkt,clas,eframe,pdata,(unsigned int)id->authority,opcode,0,(unsigned int)uVar1,toaddr
                               ,&id->addr,argcount,arglist,NULL,0);
   if (iVar3 != 0) {
     pkt = NULL;
@@ -401,7 +401,7 @@ int IRouterReadPacket(IRIdent *id, int (*rfcn)(), void *fd, IRPacket **pkt)
   IRFrame *frame;
   IRFrame *next;
   int rval;
-  byte *pbVar1;
+  unsigned char *pbVar1;
   IRFrame *pIVar2;
   int iVar3;
   int selerr;
@@ -587,7 +587,7 @@ void IRouterSetFrameByteOrder(IRFrame *frame, int byteorder)
       frame->_src = uVar2;
       uVar1 = __builtin_bswap16(frame->_opcode);
       frame->_opcode = uVar1;
-      for (arg = 0; arg < (int)(uint)frame->_argc; arg = arg + 1) {
+      for (arg = 0; arg < (int)(unsigned int)frame->_argc; arg = arg + 1) {
         uVar1 = __builtin_bswap16(frame->_argv[arg]._size);
         frame->_argv[arg]._size = uVar1;
         uVar2 = __builtin_bswap32(frame->_argv[arg]._val);
@@ -604,7 +604,7 @@ void IRouterSetFrameByteOrder(IRFrame *frame, int byteorder)
       frame->_src = uVar2;
       uVar1 = __builtin_bswap16(frame->_opcode);
       frame->_opcode = uVar1;
-      for (arg = 0; arg < (int)(uint)frame->_argc; arg = arg + 1) {
+      for (arg = 0; arg < (int)(unsigned int)frame->_argc; arg = arg + 1) {
         uVar1 = __builtin_bswap16(frame->_argv[arg]._size);
         frame->_argv[arg]._size = uVar1;
         uVar2 = __builtin_bswap32(frame->_argv[arg]._val);
@@ -621,18 +621,18 @@ uintptr_t IRArg(IRPacket *pkt, int arg)
   uint8 *puVar1;
   uint8 **ppuVar2;
   int argsize;
-  uint fnum;
-  uint dlen;
-  uchar *dptr;
-  uchar *bptr;
+  unsigned int fnum;
+  unsigned int dlen;
+  unsigned char *dptr;
+  unsigned char *bptr;
   IRFrame *fptr;
   
-  if (arg < (int)(uint)pkt->_argc) {
+  if (arg < (int)(unsigned int)pkt->_argc) {
     if ((pkt->_argv[arg]._clas & 7) == 0) {
       return pkt->_argv[arg]._val;     /* inline value */
     }
     else {
-      fnum = (uint)pkt->_argv[arg]._frame;
+      fnum = (unsigned int)pkt->_argv[arg]._frame;
       fptr = pkt;
       while ((fptr != NULL && (fnum = fnum - 1, fnum != 0))) {
         fptr = fptr->_next_frame;
@@ -644,17 +644,17 @@ uintptr_t IRArg(IRPacket *pkt, int arg)
         argsize = (int)pkt->_argv[arg]._size;
         puVar1 = IR_DATA_PTR(fptr, pkt->_argv[arg]._val);
         /* data continues in the next frame(s): assemble a copy */
-        if ((uint)((IR_FRAME_WIRE(fptr) + fptr->_size) - puVar1) < (uint)argsize) {
+        if ((unsigned int)((IR_FRAME_WIRE(fptr) + fptr->_size) - puVar1) < (unsigned int)argsize) {
           if (pkt->_arg_data == NULL) {
-            ppuVar2 = malloc((uint)pkt->_argc * sizeof(uint8 *));
+            ppuVar2 = malloc((unsigned int)pkt->_argc * sizeof(uint8 *));
             pkt->_arg_data = ppuVar2;
             if (ppuVar2 == NULL) {
               return 0;
             }
-            memset(pkt->_arg_data,0,(uint)pkt->_argc * sizeof(uint8 *));
+            memset(pkt->_arg_data,0,(unsigned int)pkt->_argc * sizeof(uint8 *));
           }
           if (pkt->_arg_data[arg] == NULL) {
-            puVar1 = malloc((uint)pkt->_argv[arg]._size);
+            puVar1 = malloc((unsigned int)pkt->_argv[arg]._size);
             pkt->_arg_data[arg] = puVar1;
             if (puVar1 == NULL) {
               puVar1 = NULL;
@@ -671,7 +671,7 @@ uintptr_t IRArg(IRPacket *pkt, int arg)
                   fptr = fptr->_next_frame;
                   dptr = &fptr->_argv[0]._clas;
                   dlen = argsize;
-                  if ((uint)(fptr->_size - 0x14) <= (uint)argsize) {
+                  if ((unsigned int)(fptr->_size - 0x14) <= (unsigned int)argsize) {
                     dlen = fptr->_size - 0x14;
                   }
                 }
@@ -794,9 +794,9 @@ switchD_0807d0e6_caseD_7:
 char *IRFmtPkt(char *who, IRPacket *p, char *bptr)
 {
   char *pcVar1;
-  uint uVar2;
-  uint uVar3;
-  uint uVar4;
+  unsigned int uVar2;
+  unsigned int uVar3;
+  unsigned int uVar4;
   char buf2 [32];
   char buf1 [32];
   char *temp_7bf64f974a1;
@@ -806,11 +806,11 @@ char *IRFmtPkt(char *who, IRPacket *p, char *bptr)
   IRFmtAddr(p->_src,buf2);
   temp_7bf64f974a1 = buf2;
   temp_7bfe26d060f = buf1;
-  uVar2 = (uint)p->_opcode;
-  uVar3 = (uint)p->_err;
-  uVar4 = (uint)p->_argc;
-  pcVar1 = IRFmtClas((uint)p->_clas);
-  sprintf(bptr,"%-12.12s %5d %s(%d,%d,%d) D: %s S: %s",who,(uint)CONCAT11(p->_seqnum1,p->_seqnum0),
+  uVar2 = (unsigned int)p->_opcode;
+  uVar3 = (unsigned int)p->_err;
+  uVar4 = (unsigned int)p->_argc;
+  pcVar1 = IRFmtClas((unsigned int)p->_clas);
+  sprintf(bptr,"%-12.12s %5d %s(%d,%d,%d) D: %s S: %s",who,(unsigned int)CONCAT11(p->_seqnum1,p->_seqnum0),
           pcVar1,uVar4,uVar3,uVar2,temp_7bfe26d060f,temp_7bf64f974a1);
   return bptr;
 }
@@ -827,9 +827,9 @@ void IRPrintFrame(char *who, IRFrame *f)
   }
   else {
     fprintf(stderr,"%-6.6s %08x %08x %04x %02x %02x %02x %02x %02x %02x %08x %08x %02x %02x %04x\n",
-            who,f,f->_next_frame,(uint)f->_size,(uint)f->_rev,(uint)f->_err,(uint)f->_seqnum0,
-            (uint)(f->_fnum >> 7),(uint)(f->_fnum & 0x7f),(uint)f->_clas,f->_dest,f->_src,
-            (uint)f->_argc,(uint)f->_seqnum1,(uint)f->_opcode);
+            who,f,f->_next_frame,(unsigned int)f->_size,(unsigned int)f->_rev,(unsigned int)f->_err,(unsigned int)f->_seqnum0,
+            (unsigned int)(f->_fnum >> 7),(unsigned int)(f->_fnum & 0x7f),(unsigned int)f->_clas,f->_dest,f->_src,
+            (unsigned int)f->_argc,(unsigned int)f->_seqnum1,(unsigned int)f->_opcode);
   }
   return;
 }

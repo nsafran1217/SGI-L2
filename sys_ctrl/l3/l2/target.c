@@ -55,7 +55,7 @@ int target_l2(L2CMD *c, char **results, int ip, char *cptr, int response, int de
 {
   L2CfgNode *node;
   int iVar1;
-  uint uVar2;
+  unsigned int uVar2;
   uint32_t uVar3;
   size_t sVar4;
   int fd;

@@ -113,7 +113,7 @@ LAB_0804da53:
     }
   }
 LAB_0804da70:
-  for (l1 = 0; (l1sim_auto != 0 && ((uint)l1 < 4)); l1 = l1 + 1) {
+  for (l1 = 0; (l1sim_auto != 0 && ((unsigned int)l1 < 4)); l1 = l1 + 1) {
     if (0 < l2_copynum) {
       sprintf(cmdopts,"--copy %d",l2_copynum);
     }

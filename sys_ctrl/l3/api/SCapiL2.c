@@ -141,7 +141,7 @@ int sn1SCDiscoverL2Start(int sd, char *dev, char *client_info)
   char **nlptr;
   char **namelist;
   char *dflt_namelist [2];
-  undefined4 temp_3f98bd2185;
+  uint32_t temp_3f98bd2185;
   
   dflt_namelist[0] = "eth0";
   dflt_namelist[1] = NULL;
@@ -288,7 +288,7 @@ int sn1SCDiscoverL2Start(int sd, char *dev, char *client_info)
 
 int sn1SCDiscoverL2Response(int sd, sn1SC_L2 *l2, int wait)
 {
-  byte *pbVar1;
+  unsigned char *pbVar1;
   int iVar2;
   int *piVar3;
   char *ccptr;

@@ -129,7 +129,7 @@ int reqq_get(REQRSPQ *q, IRPacket **pkt, int *response, int *delay)
 
 int reqq_empty(REQRSPQ *q)
 {
-  return (uint)(q->reqq_length == 0);
+  return (unsigned int)(q->reqq_length == 0);
 }
 
 void reqq_reset(REQRSPQ *q)
@@ -154,13 +154,13 @@ void reqq_reset(REQRSPQ *q)
 void rspq_put(REQRSPQ *q, unsigned int seqn, IRAddress dest)
 {
   RSPQ *qe;
-  uint uVar1;
+  unsigned int uVar1;
   L2CfgNode *node;
   uint32_t ip_addr;
   IRAddress ir_addr;
   RouterClient *client;
   RSPQ *qp;
-  uint sort;
+  unsigned int sort;
   
   sort = 0;
   qe = malloc(sizeof(RSPQ));
@@ -228,10 +228,10 @@ void rspq_put(REQRSPQ *q, unsigned int seqn, IRAddress dest)
 
 int rspq_update(REQRSPQ *q, IRPacket *pkt)
 {
-  uint uVar1;
+  unsigned int uVar1;
   int iVar2;
   void *pvVar3;
-  uint uStack_14;
+  unsigned int uStack_14;
   int timeout;
   RSPQ *qe;
   int rev;
@@ -351,7 +351,7 @@ RSPQ *rspq_peek(REQRSPQ *q, RSPQ *qe, unsigned int *seqn, IRAddress *dest, IRPac
 
 int rspq_empty(REQRSPQ *q)
 {
-  return (uint)(q->rspq_length == 0);
+  return (unsigned int)(q->rspq_length == 0);
 }
 
 static void rspq_timeout(REQRSPQ *q)

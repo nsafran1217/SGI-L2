@@ -121,7 +121,7 @@ int nvramInit(int mode)
       bad_ch = true;
       nvramInitCH();
     }
-    nvramIUA = (nvramInternalUseArea *)(nvramTempCopy + (uint)nvramCH->internal_use_area * 8);
+    nvramIUA = (nvramInternalUseArea *)(nvramTempCopy + (unsigned int)nvramCH->internal_use_area * 8);
     uVar2 = ipmiCheckCSum((uint8 *)nvramIUA,0x82c);
     bVar4 = uVar2 != '\0';
     if (bVar4) {
@@ -130,7 +130,7 @@ int nvramInit(int mode)
     pnVar1 = nvramIUA;
     if (nvramIUA->version == 1) {
       nvramIUA->version = 0;
-      *(byte *)pnVar1 = *(byte *)pnVar1 | 0x20;
+      *(unsigned char *)pnVar1 = *(unsigned char *)pnVar1 | 0x20;
       nvramIUA->multisys = 1;
       nvramSave(nvramTempCopy,0x4000);
     }
@@ -187,7 +187,7 @@ static void nvramInitIUA(void)
   memset(nvramIUA,0,sizeof(nvramInternalUseArea));
   pnVar1 = nvramIUA;
   nvramIUA->version = 0;
-  *(byte *)pnVar1 = *(byte *)pnVar1 | 0x20;
+  *(unsigned char *)pnVar1 = *(unsigned char *)pnVar1 | 0x20;
   nvramIUA->rack = '\0';
   nvramIUA->multisys = 1;
   uVar2 = ipmiCalcCSum((uint8 *)nvramIUA,0x82c);
@@ -198,16 +198,16 @@ static void nvramInitIUA(void)
 static void nvramInitCH(void)
 {
   ipmiCommonHeader *piVar1;
-  byte bVar2;
+  unsigned char bVar2;
   
   memset(nvramCH,0,sizeof(ipmiCommonHeader));
   piVar1 = nvramCH;
   nvramCH->version = 0;
-  *(byte *)piVar1 = *(byte *)piVar1 | 0x10;
+  *(unsigned char *)piVar1 = *(unsigned char *)piVar1 | 0x10;
   nvramCH->internal_use_area = 1;
   bVar2 = ipmiCalcCSum((uint8 *)nvramCH,8);
   nvramCH->checksum = bVar2;
-  nvramIUA = (nvramInternalUseArea *)(nvramTempCopy + (uint)nvramCH->internal_use_area * 8);
+  nvramIUA = (nvramInternalUseArea *)(nvramTempCopy + (unsigned int)nvramCH->internal_use_area * 8);
   nvramInitIUA();
   return;
 }
@@ -221,7 +221,7 @@ void nvramSet(int32 location, uintptr_t value)   /* original: uint32 value; stri
   if ((nvram_initialized & 3U) != 0) {
     switch(location) {
     case 1:
-      nvramIUA->rack = (byte)value;
+      nvramIUA->rack = (unsigned char)value;
       break;
     case 2:
       nvramIUA->auto_powerup = value;
@@ -281,7 +281,7 @@ void nvramSet(int32 location, uintptr_t value)   /* original: uint32 value; stri
       }
       break;
     case 0x12:
-      nvramIUA->modem_baud = (byte)value;
+      nvramIUA->modem_baud = (unsigned char)value;
       break;
     case 0x13:
       memset(nvramIUA->password,0,0x10);
@@ -296,13 +296,13 @@ void nvramSet(int32 location, uintptr_t value)   /* original: uint32 value; stri
       nvramIUA->slow_pwrup = value;
       break;
     case 0x16:
-      nvramIUA->slot = (byte)value;
+      nvramIUA->slot = (unsigned char)value;
       break;
     case 0x17:
-      nvramIUA->broadcast_timeout = (byte)value;
+      nvramIUA->broadcast_timeout = (unsigned char)value;
       break;
     case 0x18:
-      nvramIUA->target_timeout = (byte)value;
+      nvramIUA->target_timeout = (unsigned char)value;
       break;
     case 0x19:
       nv32set(&nvramIUA->ip_gateway,(uint32)value);
@@ -556,7 +556,7 @@ char *nvramLogFetch(void)
   while (blkbeg != NULL) {
     for (c = blkbeg; c < blkend; c = c + 1) {
       if (tcnt == 0) {
-        if ((uchar)*c == 0xf0) {
+        if ((unsigned char)*c == 0xf0) {
           size = size + 0x12;
           tcnt = 4;
         }
@@ -589,7 +589,7 @@ char *nvramLogFetch(void)
     while (blkbeg != NULL) {
       for (c = blkbeg; c < blkend; c = c + 1) {
         if (tcnt == 0) {
-          if ((uchar)*c == 0xf0) {
+          if ((unsigned char)*c == 0xf0) {
             tbits = 0;          /* time follows as 4 little-endian bytes */
             tcnt = 4;
           }
@@ -599,7 +599,7 @@ char *nvramLogFetch(void)
           }
         }
         else {
-          tbits |= (uint32)(uchar)*c << (8 * (4 - tcnt));
+          tbits |= (uint32)(unsigned char)*c << (8 * (4 - tcnt));
           tcnt = tcnt + -1;
           if (tcnt == 0) {
             tval = (time_t)tbits;

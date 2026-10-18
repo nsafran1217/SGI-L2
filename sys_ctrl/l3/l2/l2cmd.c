@@ -167,7 +167,7 @@ static int check_smp(SMP *smp, char **results)
             "ERROR: this command must be run from an SMP (terminal) session (i.e. via l2term or telnet to the L2)\n"
            );
   }
-  return (uint)(iVar1 != 0);
+  return (unsigned int)(iVar1 != 0);
 }
 
 static void l2cmd_timeout(int to, void *data)
@@ -397,7 +397,7 @@ static int l2cmd_config(CmdData *cptr, char **results, L2CMD *c)
     break;
   case 1:
     if (cfg_auto_rescan == 0) {
-      for (p = 0; (uint)p < 0x28; p = p + 1) {
+      for (p = 0; (unsigned int)p < 0x28; p = p + 1) {
         if (l2_l1_ports[p].fd != -1) {
           cfg_ping_l1(p);
         }
@@ -469,7 +469,7 @@ static int l2cmd_connect(CmdData *cptr, char **results)
 static int l2cmd_rtc(CmdData *cptr, char **results, L2CMD *c)
 {
   static char *tzptr;
-  uint uVar1;
+  unsigned int uVar1;
   int *piVar2;
   char *pcVar3;
   struct tm *ptVar4;
@@ -570,7 +570,7 @@ switchD_080557f5_caseD_0:
 
 static int l2cmd_demo(CmdData *cptr, char **results, L2CMD *c)
 {
-  uint uVar1;
+  unsigned int uVar1;
   int iVar2;
   size_t sVar3;
   IRArgument rarg [2];
@@ -639,12 +639,12 @@ static int l2cmd_l2dbg(CmdData *cptr, char **results)
   size_t sVar3;
   char *pcVar4;
   int rval;
-  undefined *puVar5;
-  uint uVar6;
+  unsigned char *puVar5;
+  unsigned int uVar6;
   int iVar7;
   uint32 uVar8;
   int byte;
-  uchar fmt;
+  unsigned char fmt;
   int fd_;
   struct timeval cur_time;
   EventTimerEntry *e;
@@ -831,28 +831,28 @@ static int l2cmd_l2dbg(CmdData *cptr, char **results)
   }
   else if (uVar6 == 0x1b) {
     /* memory dump: the address is a 32-bit command argument (the i386 address space) */
-    dump_addr = (uintptr_t)(uint)cptr->exp_stack[0];
+    dump_addr = (uintptr_t)(unsigned int)cptr->exp_stack[0];
     dump_len = cptr->exp_stack[1];
     cVar1 = *cptr->str_stack[0];
-    rptr = response(results,(((uint)dump_len >> 3) + 1) * 0x50);
+    rptr = response(results,(((unsigned int)dump_len >> 3) + 1) * 0x50);
     while (dump_len != 0) {
-      sprintf(rptr,"%08x: ",(uint)dump_addr);
+      sprintf(rptr,"%08x: ",(unsigned int)dump_addr);
       sVar3 = strlen(rptr);
       rptr = rptr + sVar3;
       byte = 0;
       for (; (byte < 0x10 && (dump_len != 0)); dump_len = dump_len + -1) {
         if (cVar1 == 'a') {
-          iVar7 = isprint((uint)*(unsigned char *)dump_addr);
+          iVar7 = isprint((unsigned int)*(unsigned char *)dump_addr);
           if (iVar7 == 0) {
             uVar6 = 0x3f;
           }
           else {
-            uVar6 = (uint)*(unsigned char *)dump_addr;
+            uVar6 = (unsigned int)*(unsigned char *)dump_addr;
           }
           sprintf(rptr,"%c ",uVar6);
         }
         else {
-          sprintf(rptr,"%02x ",(uint)*(unsigned char *)dump_addr);
+          sprintf(rptr,"%02x ",(unsigned int)*(unsigned char *)dump_addr);
         }
         sVar3 = strlen(rptr);
         rptr = rptr + sVar3;
@@ -879,7 +879,7 @@ static int l2cmd_l2dbg(CmdData *cptr, char **results)
   }
   else if (uVar6 == 0x1d) {
     rptr = response(results,cptr->exp_stack[0] + 0x50);
-    for (fd_ = 0; (uint)fd_ < cptr->exp_stack[0]; fd_ = fd_ + 0x40) {
+    for (fd_ = 0; (unsigned int)fd_ < cptr->exp_stack[0]; fd_ = fd_ + 0x40) {
       strcpy(rptr,s);
       pcVar2 = "\n";
       iVar7 = rand();
@@ -952,14 +952,14 @@ static int l2cmd_l2dbg(CmdData *cptr, char **results)
 static void load_timer(void)
 {
   usleep(100);
-  load_timerid = EventAddTimeOut(0,(ulong)(1000000 / (longlong)load_debug),load_timer,(EventData)0x0
+  load_timerid = EventAddTimeOut(0,(unsigned long)(1000000 / (long long)load_debug),load_timer,(EventData)0x0
                                  ,"simulated L2 loading");
   return;
 }
 
 static int l2cmd_destination(CmdData *cptr, char **results, L2CMD *c)
 {
-  uint uVar1;
+  unsigned int uVar1;
   int iVar2;
   size_t sVar3;
   char *pcVar4;
@@ -1036,11 +1036,11 @@ static int l2cmd_destination(CmdData *cptr, char **results, L2CMD *c)
 
 static int l2cmd_env(CmdData *cptr, char **results, L2CMD *c)
 {
-  uint addr_00;
+  unsigned int addr_00;
   int iVar1;
   L2CfgL1 *l1cfg;
   char *pcVar2;
-  undefined *puVar3;
+  unsigned char *puVar3;
   size_t sVar4;
   bool bVar5;
   IRAddress l1addr;
@@ -1048,7 +1048,7 @@ static int l2cmd_env(CmdData *cptr, char **results, L2CMD *c)
   int msg_count;
   char *rptr;
   int addr;
-  uint state;
+  unsigned int state;
   
   l1_count = 0;
   if (c == NULL) {
@@ -1328,8 +1328,8 @@ static int l2cmd_loopback(CmdData *cptr, char **results, L2CMD *c)
 {
   int iVar1;
   IRAddress addr;
-  uint length;
-  uint count;
+  unsigned int length;
+  unsigned int count;
   SMP *smp;
   
   response(results,0xa0);
@@ -1406,7 +1406,7 @@ static int l2cmd_route(CmdData *cptr, char **results, L2CMD *c)
 
 static int l2cmd_hreboot_l1(CmdData *cptr, char **results, L2CMD *c)
 {
-  uint uVar1;
+  unsigned int uVar1;
   int iVar2;
   IRArgument argv [1];
   IRAddress addr;
@@ -1457,7 +1457,7 @@ static int l2cmd_nvram(CmdData *cptr, char **results)
 int l2cmd_power(CmdData *cptr, char **results, L2CMD *c)
 {
   uint8 uVar1;
-  uint uVar2;
+  unsigned int uVar2;
   static int delay = 500;
   int iVar3;
   CmdData *cptr_00;
@@ -1468,7 +1468,7 @@ int l2cmd_power(CmdData *cptr, char **results, L2CMD *c)
   char *rptr;
   int pmode;
   char *pcVar6;
-  undefined *puVar7;
+  unsigned char *puVar7;
   uint8 *puVar8;
   uint8 *puVar9;
   bool bVar10;
@@ -1543,8 +1543,8 @@ int l2cmd_power(CmdData *cptr, char **results, L2CMD *c)
               static const uint8 slist_init[25] = { 1, 2, 5, 6, 9, 10, 13, 14, 17, 18, 21, 22, 25, 26, 29, 30, 33, 34, 37, 38, 41, 42, 45, 46, 49 };
               memcpy(slist, slist_init, sizeof(slist_init));
             }
-            for (slot = 0; (uint)slot < 0x19; slot = slot + 1) {
-              slots[slot] = (uint)slist[slot] + i * 2;
+            for (slot = 0; (unsigned int)slot < 0x19; slot = slot + 1) {
+              slots[slot] = (unsigned int)slist[slot] + i * 2;
             }
             slots[slot] = -1;
             iVar3 = broadcast_l1(c,1,pwrcmd,1,0,flags | 1,slots,0);
@@ -1570,8 +1570,8 @@ int l2cmd_power(CmdData *cptr, char **results, L2CMD *c)
                    (((node->port_list[port].l1cfg)->type == 'D' ||
                     ((node->port_list[port].l1cfg)->type == '-')))))) &&
                  ((node->port_list[port].l1cfg)->power_state == '\0')) {
-                addr = ((uint)(node->port_list[port].l1cfg)->rack << 6 |
-                       (uint)((node->port_list[port].l1cfg)->slot & 0x3f)) << 0xc | 3;
+                addr = ((unsigned int)(node->port_list[port].l1cfg)->rack << 6 |
+                       (unsigned int)((node->port_list[port].l1cfg)->slot & 0x3f)) << 0xc | 3;
                 argv[1]._val = IR_PTR_VAL(strdup("power up"));
                 argv[0]._clas = '\0';
                 argv[0]._frame = '\0';
@@ -1634,8 +1634,8 @@ int l2cmd_power(CmdData *cptr, char **results, L2CMD *c)
                   if (l1c->configured != '\0' && l1c->type != 'R' && l1c->type != 'D' &&
                       l1c->type != '-') {
                     for (addr__ = 0; found == 0 && addr__ < c->dest->count; addr__ = addr__ + 1) {
-                      if ((c->dest->list[addr__] >> 0x12 & 0x3ff) == (uint)l1c->rack &&
-                          (c->dest->list[addr__] >> 0xc & 0x3f) == (uint)l1c->slot) {
+                      if ((c->dest->list[addr__] >> 0x12 & 0x3ff) == (unsigned int)l1c->rack &&
+                          (c->dest->list[addr__] >> 0xc & 0x3f) == (unsigned int)l1c->slot) {
                         found = 1;
                       }
                     }
@@ -1659,7 +1659,7 @@ int l2cmd_power(CmdData *cptr, char **results, L2CMD *c)
                     if (l1c->configured != '\0' &&
                         (l1c->type == 'R' || l1c->type == 'D' || l1c->type == '-') &&
                         l1c->power_state != '\0') {
-                      addr_ = ((uint)l1c->rack << 6 | (uint)(l1c->slot & 0x3f)) << 0xc | 3;
+                      addr_ = ((unsigned int)l1c->rack << 6 | (unsigned int)(l1c->slot & 0x3f)) << 0xc | 3;
                       argv[1]._val = IR_PTR_VAL(strdup("power down"));
                       argv[0]._clas = '\0';
                       argv[0]._frame = '\0';
@@ -1765,7 +1765,7 @@ int l2cmd_power(CmdData *cptr, char **results, L2CMD *c)
         sprintf(*results,"power up mode is %s (power up RTRs in %s)\n",puVar7,pcVar6);
         break;
       case 7:
-        nvramSet(0x15,(uint)(*cptr->toks[2] == 's'));
+        nvramSet(0x15,(unsigned int)(*cptr->toks[2] == 's'));
       }
       iVar3 = 0;
     }
@@ -1835,7 +1835,7 @@ static int l2cmd_rackid(CmdData *cptr, char **results)
 
 static int l2cmd_password(CmdData *cptr, char **results, L2CMD *c)
 {
-  uint uVar1;
+  unsigned int uVar1;
   char *pcVar2;
   char *pw;
   int iVar3;
@@ -1873,7 +1873,7 @@ int pbay_rsp(IRPacket *rsp, L2CMD *c, IRAddress *dest, int pktsleft, cmd_respons
   int *piVar1;
   void *pvVar2;
   char *serial;
-  uint uVar3;
+  unsigned int uVar3;
   char *pcVar4;
   size_t sVar5;
   char *pcVar6;
@@ -1969,7 +1969,7 @@ int pbay_rsp(IRPacket *rsp, L2CMD *c, IRAddress *dest, int pktsleft, cmd_respons
     }
   }
   else {
-    pcVar4 = IRFmtError((uint)rsp->_err);
+    pcVar4 = IRFmtError((unsigned int)rsp->_err);
     pcVar6 = format_address(*dest);
     sprintf(emsg,"ERROR: couldn\'t send packet to %s, %s\n",pcVar6,pcVar4);
   }
@@ -2005,7 +2005,7 @@ LAB_08059522:
       iVar8 = sVar5 + cmd_rsp->slen;
       cmd_rsp->slen = iVar8;
       sVar5 = strlen(emsg);
-      if ((uint)cmd_rsp->size <= sVar5 + iVar8 + 0x14) {
+      if ((unsigned int)cmd_rsp->size <= sVar5 + iVar8 + 0x14) {
         iVar8 = cmd_rsp->size;
         sVar5 = strlen(emsg);
         sVar5 = sVar5 + iVar8 + 0x204;
@@ -2060,7 +2060,7 @@ LAB_08059522:
       iVar8 = sVar5 + cmd_rsp->slen;
       cmd_rsp->slen = iVar8;
       sVar5 = strlen(emsg);
-      if ((uint)cmd_rsp->size <= sVar5 + iVar8 + 0x10) {
+      if ((unsigned int)cmd_rsp->size <= sVar5 + iVar8 + 0x10) {
         iVar8 = cmd_rsp->size;
         sVar5 = strlen(emsg);
         sVar5 = sVar5 + iVar8 + 0x200;
@@ -2302,7 +2302,7 @@ static int l2cmd_haltl2(CmdData *cptr, char **results, L2CMD *c)
 
 static int l2cmd_ping(CmdData *cptr, char **results)
 {
-  undefined *puVar1;
+  unsigned char *puVar1;
   
   switch(*cptr->params) {
   case 0:
@@ -2367,7 +2367,7 @@ static int l2cmd_l2dsp(CmdData *cptr, char **results)
     break;
   case 2:
   case 3:
-    nvramSet(9,(uint)(*cptr->params == 3));
+    nvramSet(9,(unsigned int)(*cptr->params == 3));
     L2CfgMEventDisplayDisable(&L2CfgLocal);
     /* fall through */
   case 4:
@@ -2570,7 +2570,7 @@ static int l2cmd_shell(CmdData *cptr, char **results, L2CMD *c)
 
 static int l2cmd_smp(CmdData *cptr, char **results, L2CMD *c)
 {
-  uint uVar1;
+  unsigned int uVar1;
   int iVar2;
   
   if (c == NULL) {
@@ -2650,7 +2650,7 @@ static int l2cmd_serial(CmdData *cptr, char **results)
 
 static int l2cmd_sysname(CmdData *cptr, char **results)
 {
-  uint uVar1;
+  unsigned int uVar1;
   char *name;
   size_t sVar2;
   
@@ -2905,7 +2905,7 @@ static int l2cmd_ip(CmdData *cptr, char **results)
 
 static int l2cmd_log(CmdData *cptr, char **results)
 {
-  uint uVar1;
+  unsigned int uVar1;
   char *pcVar2;
   
   uVar1 = *cptr->params;
@@ -2944,11 +2944,11 @@ static int l2cmd_select(CmdData *cptr, char **results, L2CMD *c)
   int subc;
   IRAddress IVar1;
   int iVar2;
-  uint uVar3;
+  unsigned int uVar3;
   char *pcVar4;
   char *pcVar5;
   size_t sVar6;
-  uint uVar7;
+  unsigned int uVar7;
   IRAddress detected_;
   char *endp;
   IRAddress detected;
@@ -3104,7 +3104,7 @@ static int l2cmd_select(CmdData *cptr, char **results, L2CMD *c)
       if (iVar2 == 0) {
         detected_ = strtol(cptr->str_stack[0] + 7,NULL,0);
         if (((cfg->type == ',') || (cfg->type == '}')) || (cfg->type == '.')) {
-          uVar3 = BRICK_TASKNUM((uint)cfg->type,0,4);
+          uVar3 = BRICK_TASKNUM((unsigned int)cfg->type,0,4);
           uVar3 = (uVar3 & 0x7f) << 5;
           if ((conaddr & 0x80000000) == 0) {
             conaddr = (conaddr & 0xfffff000) | uVar3 | (detected_ & 0x1f);
@@ -3114,7 +3114,7 @@ static int l2cmd_select(CmdData *cptr, char **results, L2CMD *c)
           }
         }
         else {
-          uVar3 = BRICK_TASKNUM((uint)cfg->type,detected_,4);
+          uVar3 = BRICK_TASKNUM((unsigned int)cfg->type,detected_,4);
           if ((conaddr & 0x80000000) == 0) {
             uVar7 = conaddr & 0xfffff000;
           }
@@ -3129,7 +3129,7 @@ static int l2cmd_select(CmdData *cptr, char **results, L2CMD *c)
         if (iVar2 == 0) {
           detected_ = strtol(cptr->str_stack[0] + 3,NULL,0);
           if (((cfg->type == ',') || (cfg->type == '}')) || (cfg->type == '.')) {
-            uVar3 = BRICK_TASKNUM((uint)cfg->type,0,4);
+            uVar3 = BRICK_TASKNUM((unsigned int)cfg->type,0,4);
             uVar3 = (uVar3 & 0x7f) << 5;
             if ((conaddr & 0x80000000) == 0) {
               conaddr = (conaddr & 0xfffff000) | uVar3 | (detected_ & 0x1f);
@@ -3139,7 +3139,7 @@ static int l2cmd_select(CmdData *cptr, char **results, L2CMD *c)
             }
           }
           else {
-            uVar3 = BRICK_TASKNUM((uint)cfg->type,detected_,4);
+            uVar3 = BRICK_TASKNUM((unsigned int)cfg->type,detected_,4);
             if ((conaddr & 0x80000000) == 0) {
               uVar7 = conaddr & 0xfffff000;
             }
@@ -3164,7 +3164,7 @@ static int l2cmd_select(CmdData *cptr, char **results, L2CMD *c)
             first = iVar2 + -0x61;
           }
           if (((cfg->type == ',') || (cfg->type == '}')) || (cfg->type == '.')) {
-            uVar3 = BRICK_TASKNUM((uint)cfg->type,0,first);
+            uVar3 = BRICK_TASKNUM((unsigned int)cfg->type,0,first);
             uVar3 = (uVar3 & 0x7f) << 5;
             if ((conaddr & 0x80000000) == 0) {
               conaddr = (conaddr & 0xfffff000) | uVar3 | (detected & 0x1f);
@@ -3174,7 +3174,7 @@ static int l2cmd_select(CmdData *cptr, char **results, L2CMD *c)
             }
           }
           else {
-            uVar3 = BRICK_TASKNUM((uint)cfg->type,detected,first);
+            uVar3 = BRICK_TASKNUM((unsigned int)cfg->type,detected,first);
             if ((conaddr & 0x80000000) == 0) {
               uVar7 = conaddr & 0xfffff000;
             }
@@ -3267,7 +3267,7 @@ static int l2cmd_select(CmdData *cptr, char **results, L2CMD *c)
       if (iVar2 == 0) {
         detected = strtol(cptr->str_stack[0] + 7,NULL,0);
         if (((cfg->type == ',') || (cfg->type == '}')) || (cfg->type == '.')) {
-          uVar3 = BRICK_TASKNUM((uint)cfg->type,0,4);
+          uVar3 = BRICK_TASKNUM((unsigned int)cfg->type,0,4);
           uVar3 = (uVar3 & 0x7f) << 5;
           if ((conaddr & 0x80000000) == 0) {
             conaddr = (conaddr & 0xfffff000) | uVar3 | (detected & 0x1f);
@@ -3277,7 +3277,7 @@ static int l2cmd_select(CmdData *cptr, char **results, L2CMD *c)
           }
         }
         else {
-          uVar3 = BRICK_TASKNUM((uint)cfg->type,detected,4);
+          uVar3 = BRICK_TASKNUM((unsigned int)cfg->type,detected,4);
           if ((conaddr & 0x80000000) == 0) {
             uVar7 = conaddr & 0xfffff000;
           }
@@ -3292,7 +3292,7 @@ static int l2cmd_select(CmdData *cptr, char **results, L2CMD *c)
         if (iVar2 == 0) {
           detected = strtol(cptr->str_stack[0] + 3,NULL,0);
           if (((cfg->type == ',') || (cfg->type == '}')) || (cfg->type == '.')) {
-            uVar3 = BRICK_TASKNUM((uint)cfg->type,0,4);
+            uVar3 = BRICK_TASKNUM((unsigned int)cfg->type,0,4);
             uVar3 = (uVar3 & 0x7f) << 5;
             if ((conaddr & 0x80000000) == 0) {
               conaddr = (conaddr & 0xfffff000) | uVar3 | (detected & 0x1f);
@@ -3302,7 +3302,7 @@ static int l2cmd_select(CmdData *cptr, char **results, L2CMD *c)
             }
           }
           else {
-            uVar3 = BRICK_TASKNUM((uint)cfg->type,detected,4);
+            uVar3 = BRICK_TASKNUM((unsigned int)cfg->type,detected,4);
             if ((conaddr & 0x80000000) == 0) {
               uVar7 = conaddr & 0xfffff000;
             }
@@ -3327,7 +3327,7 @@ static int l2cmd_select(CmdData *cptr, char **results, L2CMD *c)
             iVar2 = iVar2 + -0x61;
           }
           if (((cfg->type == ',') || (cfg->type == '}')) || (cfg->type == '.')) {
-            uVar3 = BRICK_TASKNUM((uint)cfg->type,0,iVar2);
+            uVar3 = BRICK_TASKNUM((unsigned int)cfg->type,0,iVar2);
             uVar3 = (uVar3 & 0x7f) << 5;
             if ((conaddr & 0x80000000) == 0) {
               conaddr = (conaddr & 0xfffff000) | uVar3 | (first & 0x1fU);
@@ -3337,7 +3337,7 @@ static int l2cmd_select(CmdData *cptr, char **results, L2CMD *c)
             }
           }
           else {
-            uVar3 = BRICK_TASKNUM((uint)cfg->type,first,iVar2);
+            uVar3 = BRICK_TASKNUM((unsigned int)cfg->type,first,iVar2);
             if ((conaddr & 0x80000000) == 0) {
               uVar7 = conaddr & 0xfffff000;
             }
@@ -3428,7 +3428,7 @@ static int l2cmd_tty(CmdData *cptr, char **results, L2CMD *c)
 
 static int l2cmd_version(CmdData *cptr, char **results)
 {
-  uint uVar1;
+  unsigned int uVar1;
   int verbose;
   
   uVar1 = *cptr->params;
@@ -3444,9 +3444,9 @@ static int ver_summary_rsp(IRPacket *rsp, L2CMD *c, IRAddress *dest, int pktslef
   void *pvVar3;
   char *verstr;
   char *pcVar4;
-  uint uVar5;
+  unsigned int uVar5;
   char *pcVar6;
-  undefined *puVar7;
+  unsigned char *puVar7;
   int iVar8;
   char *uVar9;
   char *rptr_;
@@ -3520,7 +3520,7 @@ static int ver_summary_rsp(IRPacket *rsp, L2CMD *c, IRAddress *dest, int pktslef
     }
     else {
       if ((rsp->_argv[1]._clas & 7) == 0) {
-        uVar5 = (uint)rsp->_argv[1]._val;
+        uVar5 = (unsigned int)rsp->_argv[1]._val;
       }
       else {
         uVar5 = IRArg(rsp,1);
@@ -3530,7 +3530,7 @@ static int ver_summary_rsp(IRPacket *rsp, L2CMD *c, IRAddress *dest, int pktslef
     }
   }
   else {
-    pcVar6 = IRFmtError((uint)rsp->_err);
+    pcVar6 = IRFmtError((unsigned int)rsp->_err);
     pcVar4 = format_address(*dest);
     sprintf(emsg,"    ERROR: couldn\'t send packet to %s, %s\n",pcVar4,pcVar6);
   }
@@ -3573,7 +3573,7 @@ static int ver_summary_rsp(IRPacket *rsp, L2CMD *c, IRAddress *dest, int pktslef
     iVar8 = sVar2 + cmd_rsp->slen;
     cmd_rsp->slen = iVar8;
     sVar2 = strlen(emsg);
-    if ((uint)cmd_rsp->size <= sVar2 + iVar8 + 0x10) {
+    if ((unsigned int)cmd_rsp->size <= sVar2 + iVar8 + 0x10) {
       iVar8 = cmd_rsp->size;
       sVar2 = strlen(emsg);
       sVar2 = sVar2 + iVar8 + 0x200;
@@ -3676,7 +3676,7 @@ static int ver_summary_rsp(IRPacket *rsp, L2CMD *c, IRAddress *dest, int pktslef
 static int l2cmd_version_summary(CmdData *cptr, char **results, L2CMD *c)
 {
   int iVar1;
-  uint *data;
+  unsigned int *data;
   L2CMD *tc;
   char emsg [80];
   ver_summary_data *sd;
@@ -3690,7 +3690,7 @@ static int l2cmd_version_summary(CmdData *cptr, char **results, L2CMD *c)
   }
   else {
     sd = calloc(1,sizeof(ver_summary_data));
-    data = (uint *)sd;
+    data = (unsigned int *)sd;
     if (data == NULL) {
       strcpy(*results,"ERROR: could not allocate memory to store internal command data\n");
       iVar1 = -1;
@@ -3805,7 +3805,7 @@ static int cc(char *src, char *tgt)
 
 static int l2cmd_l2cmd(CmdData *cptr, char **results, L2CMD *c)
 {
-  uint uVar1;
+  unsigned int uVar1;
   int iVar2;
   int ip;
   int rspexp;

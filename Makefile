@@ -145,7 +145,7 @@ endif
 .PHONY: all test check check-all difftest clean
 all: $(TOOLS:%=$(B)/bin/%)
 
-$(B)/%.o: %.c
+$(B)/%.o: %.c Makefile
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -MMD -MP -c $< -o $@
 
@@ -157,7 +157,7 @@ $(B)/gen/sys_ctrl/l3/gui/ui/%.cxx: sys_ctrl/l3/gui/ui/%.fl $(wildcard sys_ctrl/l
 	@mkdir -p $(dir $@)
 	cd $(dir $@) && $(FLUID) -c -o $*.cxx -h $*.h $(abspath $<)
 
-$(B)/sys_ctrl/l3/gui/%.o: sys_ctrl/l3/gui/%.cc $(UI_GEN)
+$(B)/sys_ctrl/l3/gui/%.o: sys_ctrl/l3/gui/%.cc $(UI_GEN) Makefile
 	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) -I$(B)/gen/sys_ctrl/l3/gui -MMD -MP -c $< -o $@
 

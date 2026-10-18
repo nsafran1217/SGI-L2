@@ -85,7 +85,7 @@ int broadcast(REQRSPQ *q, IRIdent *id)
               fprintf(stderr,"%d.%d ",pkt->_dest >> 0x12 & 0x3ff,pkt->_dest >> 0xc & 0x3f);
             }
             if (response != 0) {
-              rspq_put(q,(uint)CONCAT11(pkt->_seqnum1,pkt->_seqnum0),pkt->_dest);
+              rspq_put(q,(unsigned int)CONCAT11(pkt->_seqnum1,pkt->_seqnum0),pkt->_dest);
               rspq_timeout_set(q,broadcast_response_timeout);
             }
             pcount = pcount + 1;
@@ -183,8 +183,8 @@ int broadcast_l1(L2CMD *c, int method, char *cmd, int response, int delay, int t
   L2CfgL1 *pLVar4;
   int brick_rack;
   int brick_slot;
-  uint rack;
-  uint slot_00;
+  unsigned int rack;
+  unsigned int slot_00;
   L2CfgL1 *l1_;
   int flags;
   char *cptr;

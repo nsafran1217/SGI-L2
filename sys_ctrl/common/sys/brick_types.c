@@ -18,7 +18,7 @@ unsigned int brickConvertString(char *sptr)
 {
   size_t sVar1;
   int iVar2;
-  uint type;
+  unsigned int type;
   
   type = 0x3f;
   sVar1 = strlen(sptr);

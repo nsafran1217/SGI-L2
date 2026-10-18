@@ -22,7 +22,7 @@ void dmp(char *s, unsigned char *bptr, int blen, int newline)
     fprintf(stderr,"\n%s %x\n",s,bptr);
   }
   for (n = 0; n < blen; n = n + 1) {
-    fprintf(stderr,"%02x ",(uint)bptr[n]);
+    fprintf(stderr,"%02x ",(unsigned int)bptr[n]);
     if ((newline != 0) && (((n + 1U) & 7) == 0)) {
       fprintf(stderr,"\n");
     }

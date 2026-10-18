@@ -93,7 +93,7 @@ SMP *smp_init(IRIdent *id, int rfd, int wfd, void (*rfcn)(), uint32 host, int po
   SMP *smp;
   SMPGroup *pSVar1;
   L2CMD *pLVar2;
-  uint uVar3;
+  unsigned int uVar3;
   char *pw;
   uint32 uVar4;
   int taskid;
@@ -269,12 +269,12 @@ int smp_is_valid(SMP *smp)
   
   for (tsmp = smp_list; (tsmp != NULL && (tsmp != smp)); tsmp = tsmp->next) {
   }
-  return (uint)(tsmp != NULL);
+  return (unsigned int)(tsmp != NULL);
 }
 
 void smp_baud(int baud)
 {
-  uint uVar1;
+  unsigned int uVar1;
   SMP *s;
   
   nvramSet(0x12,baud);
@@ -481,8 +481,8 @@ IRAddress smp_set_confilter(SMP *smp, IRAddress confilter)
 void smp_query(SMP *smp, int verbose, char **results)
 {
   size_t sVar1;
-  undefined *puVar2;
-  uint uVar3;
+  unsigned char *puVar2;
+  unsigned int uVar3;
   uint32 uVar4;
   IRAddress IVar5;
   char *pcVar6;
@@ -1215,7 +1215,7 @@ void smp_process_packet(SMP *smp, IRPacket *p, int source, void (*w)())
   char *sptr;
   int slen;
   char *pcVar1;
-  undefined4 uVar2;
+  uint32_t uVar2;
   int slen_;
   char *sptr_;
   int arg;
@@ -1223,7 +1223,7 @@ void smp_process_packet(SMP *smp, IRPacket *p, int source, void (*w)())
   if (l2_debug != 0) {
     fprintf(stderr,"smp_process_packet(%x) in\n",p);
   }
-  for (arg = 0; arg < (int)(uint)p->_argc; arg = arg + 1) {
+  for (arg = 0; arg < (int)(unsigned int)p->_argc; arg = arg + 1) {
     if ((p->_argv[arg]._clas & 7) == 2) {
       if ((p->_argv[arg]._clas & 7) == 0) {
         sptr = (char *)IR_VAL_PTR(p->_argv[arg]._val);
@@ -1257,7 +1257,7 @@ void smp_process_event(IRPacket *p)
 {
   int type;
   int task;
-  uint uVar1;
+  unsigned int uVar1;
   L2CfgL1 *cfg;
   IRAddress faddr;
   IRAddress IVar2;
@@ -1317,10 +1317,10 @@ void smp_process_event(IRPacket *p)
           uVar1 = p->_src;
           faddr = smp_get_conaddr(smp,NULL,NULL);
           if ((uVar1 & 0x80000000) == 0) {
-            IVar2 = (uVar1 & 0xffffffe0) | (uint)(p->_pdata_auth >> 3);
+            IVar2 = (uVar1 & 0xffffffe0) | (unsigned int)(p->_pdata_auth >> 3);
           }
           else {
-            IVar2 = (uVar1 & 0xc0ffffff) | (uint)(p->_pdata_auth >> 3) << 0x18;
+            IVar2 = (uVar1 & 0xc0ffffff) | (unsigned int)(p->_pdata_auth >> 3) << 0x18;
           }
           if (IVar2 != faddr) goto LAB_080504e9;
         }
@@ -1343,12 +1343,12 @@ void q(SMP *smp)
   int print_source;
   int iVar1;
   char *pcVar2;
-  uint uVar3;
+  unsigned int uVar3;
   IRPacket *pkt;
   IRAddress dest;
   int task;
   int type;
-  uint seqn;
+  unsigned int seqn;
   
   if (((smp->grp->mode == 0) || (smp->grp->mode == 2)) || (smp->grp->mode == 4)) {
     print_source = smp->grp->l2cmd->q->rspq_max_length;
@@ -1436,7 +1436,7 @@ LAB_08050817:
     smp_output(smp,pcVar2,iVar1);
     smp_output(smp,", ",-1);
     iVar1 = -1;
-    pcVar2 = IRFmtError((uint)pkt->_err);
+    pcVar2 = IRFmtError((unsigned int)pkt->_err);
     smp_output(smp,pcVar2,iVar1);
     smp_output(smp,"\n",-1);
     IRouterFreePacket(pkt);
@@ -1461,7 +1461,7 @@ static void smp_process_queue(SMP *smp)
 {
   int task;
   int type;
-  uint seqn;
+  unsigned int seqn;
   
   rspq_timeout_clr(smp->grp->l2cmd->q);
   q(smp);
@@ -1630,7 +1630,7 @@ void smp_read(SMP *smp)
 
 void smp_write(SMP *smp, char *ibptr, int iblen)
 {
-  byte *pbVar1;
+  unsigned char *pbVar1;
   static char obuff[4096];
   static int oblen;
   static char *obptr;
@@ -1660,7 +1660,7 @@ void smp_write(SMP *smp, char *ibptr, int iblen)
       oblen = 0;
       obptr = obuff;
       do {
-        while ((iblen != 0 && ((uint)oblen < 0xfff))) {
+        while ((iblen != 0 && ((unsigned int)oblen < 0xfff))) {
           if (*ibptr == '\n') {
             *obptr = '\r';
             obptr = obptr + 1;
@@ -1763,7 +1763,7 @@ void smp_console(SMP *smp, IRAddress conaddr, int reenter)
 {
   int iVar1;
   char *pcVar2;
-  undefined *puVar3;
+  unsigned char *puVar3;
   char buff [200];
   
   iVar1 = power_status(conaddr >> 0x12 & 0x3ff,conaddr >> 0xc & 0x3f);
@@ -1897,7 +1897,7 @@ void smp_tty_debug(int fd)
       if (smp_cc[i] == NULL) {
         local_EAX_298 = index;
       }
-      fprintf(stderr,"%2d cc_c[%-8s]: 0x%04x\n",fd,local_EAX_298,(uint)termios.c_cc[i]);
+      fprintf(stderr,"%2d cc_c[%-8s]: 0x%04x\n",fd,local_EAX_298,(unsigned int)termios.c_cc[i]);
     }
   }
   return;
@@ -1931,7 +1931,7 @@ static void smp_event(int opcode, int group, char *bptr)
     sVar1 = strlen((char *)IR_VAL_PTR(argv[2]._val));
     argv[2]._size = (short)sVar1 + 1;
   }
-  p = IRouterMakePacket(&l2_console_id,NULL,0,(uint)(opcode != 4),2,2,3,argv);
+  p = IRouterMakePacket(&l2_console_id,NULL,0,(unsigned int)(opcode != 4),2,2,3,argv);
   if (p != NULL) {
     IRouterSendPacket(&l2_console_id,p);
   }

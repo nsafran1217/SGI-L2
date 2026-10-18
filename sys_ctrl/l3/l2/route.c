@@ -356,35 +356,35 @@ switchD_08065f40_caseD_9:
 void route_process_response(IRPacket *p)
 {
   IRArgument *pIVar1;
-  undefined *puVar2;
+  unsigned char *puVar2;
   char cVar3;
   char *pcVar4;
   size_t sVar5;
-  uint val1;
-  uint val2;
-  uint uVar6;
-  uint ts;
+  unsigned int val1;
+  unsigned int val2;
+  unsigned int uVar6;
+  unsigned int ts;
   char *pcVar7;
   int slot;
   int type;
   int iVar8;
   int iVar9;
-  uint uVar10;
-  undefined *puStack_cc;
+  unsigned int uVar10;
+  unsigned char *puStack_cc;
   char *wpstr;
   char *rpstr;
   int rack;
   int wport;
   int rport;
   int rsp;
-  uint last;
+  unsigned int last;
   int arg;
   char p2 [8];
   char p1 [8];
   char buff [128];
   
   if (p->_err != '\0') {
-    pcVar4 = IRFmtError((uint)p->_err);
+    pcVar4 = IRFmtError((unsigned int)p->_err);
     sprintf(buff,"ERROR: %s\n",pcVar4);
     sVar5 = strlen(buff);
     smp_output(route_smp,buff,sVar5);
@@ -420,7 +420,7 @@ void route_process_response(IRPacket *p)
             puStack_cc = NULL;
           }
           else {
-            puStack_cc = (undefined *)(intptr_t)(ts - last);   /* slot reused: a number here, a string below */
+            puStack_cc = (unsigned char *)(intptr_t)(ts - last);   /* slot reused: a number here, a string below */
           }
           uVar10 = ts;
           pcVar4 = pstr(type,val2 >> 0x10 & 0xff);
@@ -445,7 +445,7 @@ void route_process_response(IRPacket *p)
             puStack_cc = NULL;
           }
           else {
-            puStack_cc = (undefined *)(intptr_t)(uVar6 - last);
+            puStack_cc = (unsigned char *)(intptr_t)(uVar6 - last);
           }
           puVar2 = puStack_cc;
           if ((val1 & 0x40000000) == 0) {
@@ -473,10 +473,10 @@ void route_process(IRPacket *p)
 {
   IRArgument *pIVar1;
   uint8 uVar2;
-  uint uVar3;
-  uint uVar4;
-  uint val2;
-  uint val1;
+  unsigned int uVar3;
+  unsigned int uVar4;
+  unsigned int val2;
+  unsigned int val1;
   int response;
   int arg;
   bool found;
@@ -493,7 +493,7 @@ void route_process(IRPacket *p)
     if (uVar3 == 0) {
       uVar4 = L2CfgLocal.rack | 0x80000000;
       uVar3 = time(NULL);
-      p->_argv[arg]._val = (uint)(uVar2 == '\x01') << 0x1e | uVar4;
+      p->_argv[arg]._val = (unsigned int)(uVar2 == '\x01') << 0x1e | uVar4;
       val2 = uVar3 & 0xffff;
       p->_argv[arg + 1]._val = val2;
       found = true;

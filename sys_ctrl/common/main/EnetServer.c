@@ -124,7 +124,7 @@ int enet_validate(RouterClient *client, uint32 addr, char *host)
   RouterClient *pRVar2;
   int iVar3;
   RouterClient *cdel;
-  uchar *ap;
+  unsigned char *ap;
   L2CfgNode *node;
   
   if (((client->port != IR_PORT_BIAS + 0x1f42) && (client->port != IR_PORT_BIAS + 0x1f43)) &&
@@ -376,7 +376,7 @@ void enet_event(RouterClient *client, int event, int argcountin, RouterArgument 
     status = (*enet_packet_cb)(enet_id,npkt);
     if (status == -0x259) {
       syslog(4,"../../common/main/EnetServer.c",0x249,0,
-             "Invalid IRouter packet class (%d) received from %s",(uint)npkt->_clas,&client->id);
+             "Invalid IRouter packet class (%d) received from %s",(unsigned int)npkt->_clas,&client->id);
     }
   }
   return;

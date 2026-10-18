@@ -18,8 +18,13 @@ reconstruction land on `main` first and are merged here.
 - SGI's names stay where they are SGI's (functions, globals, struct fields,
   STABS locals); only decompiler inventions (`iVar1`, `pcVar3`, `LAB_...`,
   `local_14`, `auStack_...`) are renamed.
-- SGI bugs that `main` keeps for output fidelity stay kept until we decide
-  otherwise, one by one (ORIGINAL_BUGS.md).
+- During the cleanup (phases 1-2) SGI bugs that `main` keeps for output
+  fidelity stay as they are, so the cleanup itself changes no behaviour.
+  Mechanical steps are proven with `tools/objcmp.sh` (identical object code).
+- From phase 3 on (modernizing) object code no longer matters, only
+  behaviour: the differential tests must still pass, and SGI's bugs can be
+  fixed. A fix that changes output updates the test's expectation (or masks
+  the difference) and moves its ORIGINAL_BUGS.md entry from "Kept" to "Fixed".
 
 ## Phases
 
@@ -77,6 +82,6 @@ Per file:
 | Phase | State |
 |---|---|
 | 0 | done: warning-free with `-Wall -Wextra` (less `-Wunused-parameter`), `-Werror` (`WERROR=` to drop it); `tools/objcmp.sh` proves mechanical commits; `make check` / `check-all` |
-| 1 | |
+| 1 | in progress: Ghidra type names done (`ulong` by hand: `uintptr_t` / `uint32_t` / `unsigned long`; the rest with `tools/retoken.py`) |
 | 2 | |
 | 3 | |

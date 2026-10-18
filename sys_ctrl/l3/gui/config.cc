@@ -19,8 +19,10 @@ static CmdData dest_data;
 static int snap_dest(CmdData *cptr, char **results);
 
 /* the destination prefix alone, as a command: CmdProcess fills the lists */
+/* (CmdCallback is SGI's unprototyped int (); the cast goes through a generic
+ * function pointer, the sanctioned way between function types) */
 static Cmd dest_cmd[1] = {
-  { { (char *)10 }, (CmdCallback *)snap_dest, { 0 }, "" },
+  { { (char *)10 }, (CmdCallback *)(void (*)(void))snap_dest, { 0 }, "", 0 },
 };
 
 int config_init(char *dest)

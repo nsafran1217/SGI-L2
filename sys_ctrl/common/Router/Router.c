@@ -83,17 +83,17 @@ static struct bitbuf lbitbuf;
 static struct bitbuf ubitbuf;
 
 /* argument words on the wire, independent of the host's byte order */
-static void put_be32(uchar *b, uint32_t v)
+static void put_be32(unsigned char *b, uint32_t v)
 {
-  b[0] = (uchar)(v >> 24); b[1] = (uchar)(v >> 16); b[2] = (uchar)(v >> 8); b[3] = (uchar)v;
+  b[0] = (unsigned char)(v >> 24); b[1] = (unsigned char)(v >> 16); b[2] = (unsigned char)(v >> 8); b[3] = (unsigned char)v;
 }
 
-static void put_le32(uchar *b, uint32_t v)
+static void put_le32(unsigned char *b, uint32_t v)
 {
-  b[0] = (uchar)v; b[1] = (uchar)(v >> 8); b[2] = (uchar)(v >> 16); b[3] = (uchar)(v >> 24);
+  b[0] = (unsigned char)v; b[1] = (unsigned char)(v >> 8); b[2] = (unsigned char)(v >> 16); b[3] = (unsigned char)(v >> 24);
 }
 
-static uint32_t get_be32(const uchar *b)
+static uint32_t get_be32(const unsigned char *b)
 {
   return (uint32_t)b[0] << 24 | (uint32_t)b[1] << 16 | (uint32_t)b[2] << 8 | b[3];
 }
@@ -183,7 +183,7 @@ int RouterConnectionCount(void)
 int RouterHostConnected(char *host, int port, int process_id, RouterClient **client)
 {
   int iVar1;
-  uint uVar2;
+  unsigned int uVar2;
   
   *client = ClientList.head;
   do {
@@ -208,7 +208,7 @@ int RouterHostConnected(char *host, int port, int process_id, RouterClient **cli
 
 int RouterAddrConnected(uint32_t addr, int port, int process_id, RouterClient **client)
 {
-  uint uVar1;
+  unsigned int uVar1;
   
   *client = ClientList.head;
   do {
@@ -255,7 +255,7 @@ int RouterPriRequestOut(RouterClient *client, int opcode, int argcount, RouterAr
 {
   int iVar1;
   char *func_name;
-  uchar priority_;
+  unsigned char priority_;
   
   iVar1 = RouterCheckOutput(client,"RouterRequestOut");
   if (iVar1 == 0) {
@@ -288,7 +288,7 @@ int RouterPriRelRequestOut(RouterClient *client, int opcode, int argcount, Route
 {
   int iVar1;
   char *func_name;
-  uchar priority_;
+  unsigned char priority_;
   
   iVar1 = RouterCheckOutput(client,"RouterRelRequestOut");
   if (iVar1 == 0) {
@@ -315,7 +315,7 @@ void RouterResponseOut(RouterClient *client, int argcount, RouterArgument *argli
 
 void RouterPriResponseOut(RouterClient *client, int argcount, RouterArgument *arglist, int priority, void *purge_data)
 {
-  uchar priority_;
+  unsigned char priority_;
   
   RouterDoOutput(client,0,0x40,argcount,arglist,NULL,NULL,
                  NULL,NULL,priority & 0xff,purge_data);
@@ -336,7 +336,7 @@ int RouterPriEventOut(int opcode, int argcount, RouterArgument *arglist, int pri
   int events_sent;
   RouterQEntry *entry;
   RouterClient *client_ptr;
-  uchar priority_;
+  unsigned char priority_;
   
   events_sent = 0;
   for (client_ptr = ClientList.head; client_ptr != NULL;
@@ -363,7 +363,7 @@ int RouterPriIDEventOut(int process_id, int opcode, int argcount, RouterArgument
   int events_sent;
   RouterQEntry *entry;
   RouterClient *client_ptr;
-  uchar priority_;
+  unsigned char priority_;
   
   events_sent = 0;
   for (client_ptr = ClientList.head; client_ptr != NULL;
@@ -393,7 +393,7 @@ int RouterPriGroupEventOut(int process_id, int group, int opcode, int argcount, 
   int events_sent;
   RouterQEntry *entry;
   RouterClient *client_ptr;
-  uchar priority_;
+  unsigned char priority_;
   
   client_ptr = ClientList.head;
   events_sent = 0;
@@ -406,9 +406,9 @@ int RouterPriGroupEventOut(int process_id, int group, int opcode, int argcount, 
     iVar1 = group + 7;
   }
   for (; client_ptr != NULL; client_ptr = client_ptr->next) {
-    if (((client_ptr->process_id == process_id) && ((uint)group <= (client_ptr->groups).count)) &&
-       ((byte)((client_ptr->groups).bits[group_index >> 3] &
-              (byte)(1 << (((char)group + (char)(iVar1 >> 3) * -8) & 0x1fU))) != 0)) {
+    if (((client_ptr->process_id == process_id) && ((unsigned int)group <= (client_ptr->groups).count)) &&
+       ((unsigned char)((client_ptr->groups).bits[group_index >> 3] &
+              (unsigned char)(1 << (((char)group + (char)(iVar1 >> 3) * -8) & 0x1fU))) != 0)) {
       RouterDoOutput(client_ptr,opcode,0x80,argcount,arglist,NULL,NULL,
                      NULL,NULL,priority & 0xff,purge_data);
       events_sent = events_sent + 1;
@@ -425,7 +425,7 @@ void RouterClientEventOut(RouterClient *client, int opcode, int argcount, Router
 
 void RouterPriClientEventOut(RouterClient *client, int opcode, int argcount, RouterArgument *arglist, int priority, void *purge_data)
 {
-  uchar priority_;
+  unsigned char priority_;
   
   RouterDoOutput(client,opcode,0x80,argcount,arglist,NULL,NULL,
                  NULL,NULL,priority & 0xff,purge_data);
@@ -447,7 +447,7 @@ void RouterFlushOutputs(int timeout)
 
 void RouterFlushOutput(RouterClient *client, int timeout)
 {
-  byte bVar1;
+  unsigned char bVar1;
   int *piVar2;
   int iVar3;
   RouterClient *client_00;
@@ -755,9 +755,9 @@ void RouterStartInput(RouterClient *client)
 
 RouterFunc RouterInput(RouterClient *client)
 {
-  uint uVar1;
-  uint uVar2;
-  uchar *bptr;
+  unsigned int uVar1;
+  unsigned int uVar2;
+  unsigned char *bptr;
   int rvalue;
   int *piVar3;
   RouterHeader *pRVar4;
@@ -826,7 +826,7 @@ LAB_08076364:
       memcpy(client->in_buf,&thdr,8);
       client->in_hostbyteorder = 1;
     }
-    if ((uint)((int)(client->in_bufptr - (char *)client->in_buf)) < (uint)(client->in_buf->length + 8)) {
+    if ((unsigned int)((int)(client->in_bufptr - (char *)client->in_buf)) < (unsigned int)(client->in_buf->length + 8)) {
       client->in_bytesneeded = client->in_buf->length;
       buf_bytesneeded = client->in_bytesneeded + 8;
       if (client->in_bufsize < buf_bytesneeded) {
@@ -863,7 +863,7 @@ LAB_08076364:
 
 int RouterProcessPacket(RouterClient *client)
 {
-  byte bVar1;
+  unsigned char bVar1;
   int argcountin;
   int rvalue;
   char *func_name;
@@ -941,10 +941,10 @@ static int RouterProcessRequest(RouterClient *client, int argcountin)
     iVar1 = -1;
   }
   else {
-    client->in_sequence = (ushort)client->in_buf->id;
+    client->in_sequence = (unsigned short)client->in_buf->id;
     client->ResponseSent = 0;
     argcountout = (*client->request_cb)
-                            (client,(uint)client->in_buf->opcode,argcountin,client->InArgList,
+                            (client,(unsigned int)client->in_buf->opcode,argcountin,client->InArgList,
                              &arglistout);
     if (client->ResponseSent == 0) {
       RouterResponseOut(client,argcountout,arglistout);
@@ -957,7 +957,7 @@ static int RouterProcessRequest(RouterClient *client, int argcountin)
 static int RouterProcessResponse(RouterClient *client, int argcountin)
 {
   int *piVar1;
-  uint uVar2;
+  unsigned int uVar2;
   RouterQEntry *prev;
   RouterQEntry *response;
   char *func_name;
@@ -1012,7 +1012,7 @@ static int RouterProcessResponse(RouterClient *client, int argcountin)
 static int RouterProcessEvent(RouterClient *client, int argcountin)
 {
   if (client->event_cb != NULL) {
-    (*client->event_cb)(client,(uint)client->in_buf->opcode,argcountin,client->InArgList);
+    (*client->event_cb)(client,(unsigned int)client->in_buf->opcode,argcountin,client->InArgList);
   }
   return 0;
 }
@@ -1043,10 +1043,10 @@ static int RouterProcessDisResponse(RouterClient *client)
 
 static int RouterProcessConfigInit(RouterClient *client, int argcountin)
 {
-  ulong uVar1;
+  uintptr_t uVar1;
   int iVar2;
   RouterConfig *__s;
-  uchar *tptr;
+  unsigned char *tptr;
   RouterConfig *cfg;
   RouterArgument arglist;
   char *func_name;
@@ -1065,10 +1065,10 @@ static int RouterProcessConfigInit(RouterClient *client, int argcountin)
       RouterMemError();
     }
     memset(__s,0,sizeof(RouterConfig));
-    __s->rev = (uint)*(byte *)(uVar1 + 1) << 0x10 | (uint)*(byte *)(uVar1 + 2) << 8 |
-               (uint)*(byte *)(uVar1 + 3);
-    __s->flags = (uint)*(byte *)(uVar1 + 5) << 0x10 | (uint)*(byte *)(uVar1 + 6) << 8 |
-                 (uint)*(byte *)(uVar1 + 7);
+    __s->rev = (unsigned int)*(unsigned char *)(uVar1 + 1) << 0x10 | (unsigned int)*(unsigned char *)(uVar1 + 2) << 8 |
+               (unsigned int)*(unsigned char *)(uVar1 + 3);
+    __s->flags = (unsigned int)*(unsigned char *)(uVar1 + 5) << 0x10 | (unsigned int)*(unsigned char *)(uVar1 + 6) << 8 |
+                 (unsigned int)*(unsigned char *)(uVar1 + 7);
     if ((client->out_cfg != NULL) && (client->out_cfg != client->in_cfg)) {
       free(client->out_cfg);
     }
@@ -1084,10 +1084,10 @@ static int RouterProcessConfigInit(RouterClient *client, int argcountin)
 
 static int RouterProcessConfigRequest(RouterClient *client, int argcountin)
 {
-  ulong uVar1;
+  uintptr_t uVar1;
   int iVar2;
   RouterConfig *__s;
-  uchar *tptr;
+  unsigned char *tptr;
   RouterConfig *cfg;
   RouterArgument arglist;
   char *func_name;
@@ -1106,10 +1106,10 @@ static int RouterProcessConfigRequest(RouterClient *client, int argcountin)
       RouterMemError();
     }
     memset(__s,0,sizeof(RouterConfig));
-    __s->rev = (uint)*(byte *)(uVar1 + 1) << 0x10 | (uint)*(byte *)(uVar1 + 2) << 8 |
-               (uint)*(byte *)(uVar1 + 3);
-    __s->flags = (uint)*(byte *)(uVar1 + 5) << 0x10 | (uint)*(byte *)(uVar1 + 6) << 8 |
-                 (uint)*(byte *)(uVar1 + 7);
+    __s->rev = (unsigned int)*(unsigned char *)(uVar1 + 1) << 0x10 | (unsigned int)*(unsigned char *)(uVar1 + 2) << 8 |
+               (unsigned int)*(unsigned char *)(uVar1 + 3);
+    __s->flags = (unsigned int)*(unsigned char *)(uVar1 + 5) << 0x10 | (unsigned int)*(unsigned char *)(uVar1 + 6) << 8 |
+                 (unsigned int)*(unsigned char *)(uVar1 + 7);
     if (client->in_cfg != NULL) {
       free(client->in_cfg);
     }
@@ -1129,10 +1129,10 @@ static int RouterProcessConfigRequest(RouterClient *client, int argcountin)
 
 static int RouterProcessConfigResponse(RouterClient *client, int argcountin)
 {
-  ulong uVar1;
+  uintptr_t uVar1;
   RouterConfig *__s;
   int iVar2;
-  uchar *tptr;
+  unsigned char *tptr;
   RouterConfig *cfg;
   char *func_name;
   
@@ -1143,10 +1143,10 @@ static int RouterProcessConfigResponse(RouterClient *client, int argcountin)
       RouterMemError();
     }
     memset(__s,0,sizeof(RouterConfig));
-    __s->rev = (uint)*(byte *)(uVar1 + 1) << 0x10 | (uint)*(byte *)(uVar1 + 2) << 8 |
-               (uint)*(byte *)(uVar1 + 3);
-    __s->flags = (uint)*(byte *)(uVar1 + 5) << 0x10 | (uint)*(byte *)(uVar1 + 6) << 8 |
-                 (uint)*(byte *)(uVar1 + 7);
+    __s->rev = (unsigned int)*(unsigned char *)(uVar1 + 1) << 0x10 | (unsigned int)*(unsigned char *)(uVar1 + 2) << 8 |
+               (unsigned int)*(unsigned char *)(uVar1 + 3);
+    __s->flags = (unsigned int)*(unsigned char *)(uVar1 + 5) << 0x10 | (unsigned int)*(unsigned char *)(uVar1 + 6) << 8 |
+                 (unsigned int)*(unsigned char *)(uVar1 + 7);
     if ((client->in_cfg != NULL) && (client->in_cfg != client->out_cfg)) {
       free(client->in_cfg);
     }
@@ -1166,17 +1166,17 @@ static int RouterProcessConfigResponse(RouterClient *client, int argcountin)
 
 void RouterDoOutput(RouterClient *client, int opcode, int class, int argcount, RouterArgument *arglist, void (*response_cb)(), unsigned char *response_data, void (*error_cb)(), unsigned char *error_data, int priority, void *purge_data)
 {
-  byte bVar1;
+  unsigned char bVar1;
   RouterHeader *pRVar2;
   RouterQEntry *entry;
-  uchar priority_;
+  unsigned char priority_;
   
-  priority_ = (uchar)priority;
+  priority_ = (unsigned char)priority;
   RouterPack(client,opcode,class,argcount,arglist,response_cb,response_data,error_cb,error_data,
              priority & 0xff,purge_data,&entry);
   if ((entry->header).clas == 0x40) {
     pRVar2 = entry->packet;
-    bVar1 = (byte)client->in_sequence;
+    bVar1 = (unsigned char)client->in_sequence;
     (entry->header).id = bVar1;
     pRVar2->id = bVar1;
   }
@@ -1188,7 +1188,7 @@ void RouterPurge(RouterClient *client, int (*purge_cb)(), void *purge_data)
 {
   int *piVar1;
   struct _RouterQEntry *p_Var2;
-  uint uVar3;
+  unsigned int uVar3;
   RouterQ *queue;
   int plen;
   int delete;
@@ -1254,13 +1254,13 @@ static void RouterStartOutput(RouterClient *client, RouterQEntry *entry)
 
 static void RouterLoadOutput(RouterClient *client, RouterQEntry *entry)
 {
-  byte bVar1;
+  unsigned char bVar1;
   RouterHeader *pRVar2;
-  undefined3 uVar3;
-  undefined3 uVar4;
-  undefined3 uVar5;
-  uint uVar6;
-  uchar *bptr;
+  uint32_t uVar3;
+  uint32_t uVar4;
+  uint32_t uVar5;
+  unsigned int uVar6;
+  unsigned char *bptr;
   
   client->out_pkts = client->out_pkts + 1;
   client->out_buf = entry;
@@ -1274,29 +1274,29 @@ static void RouterLoadOutput(RouterClient *client, RouterQEntry *entry)
       client->out_sequence = client->out_sequence + 1;
     }
     pRVar2 = entry->packet;
-    bVar1 = (byte)client->out_sequence;
+    bVar1 = (unsigned char)client->out_sequence;
     (entry->header).id = bVar1;
     pRVar2->id = bVar1;
   }
   memcpy(&entry->header,entry->packet,8);
-  bptr = (uchar *)entry->packet;
-  *bptr = (uchar)((entry->header).opcode >> 8);
-  bptr[1] = (uchar)(entry->header).opcode;
+  bptr = (unsigned char *)entry->packet;
+  *bptr = (unsigned char)((entry->header).opcode >> 8);
+  bptr[1] = (unsigned char)(entry->header).opcode;
   bptr[2] = (entry->header).clas;
   bptr[3] = (entry->header).id;
   bptr[4] = (entry->header).config;
   uVar3 = (entry->header).length;
-  bptr[5] = (uchar)(uVar3 >> 0x10);
+  bptr[5] = (unsigned char)(uVar3 >> 0x10);
   uVar4 = (entry->header).length;
-  bptr[6] = (uchar)(uVar4 >> 8);
+  bptr[6] = (unsigned char)(uVar4 >> 8);
   uVar5 = (entry->header).length;
-  bptr[7] = (uchar)uVar5;
+  bptr[7] = (unsigned char)uVar5;
   return;
 }
 
 static RouterFunc RouterOutput(RouterClient *client)
 {
-  byte bVar1;
+  unsigned char bVar1;
   int rvalue;
   int *piVar2;
   int iVar3;
@@ -1416,25 +1416,25 @@ static void RouterCheckOutputMonitor(RouterClient *client)
 
 void RouterPack(RouterClient *client, int opcode, int class, int argcount, RouterArgument *arglist, void (*response_cb)(), unsigned char *response_data, void (*error_cb)(), unsigned char *error_data, int priority, void *purge_data, RouterQEntry **entry)
 {
-  uint *puVar1;
-  uint uVar2;
-  uint uVar3;
-  uint uVar4;
-  uint uVar5;
+  unsigned int *puVar1;
+  unsigned int uVar2;
+  unsigned int uVar3;
+  unsigned int uVar4;
+  unsigned int uVar5;
   RouterQEntry *pRVar6;
   RouterHeader *pRVar7;
   int iVar8;
-  ulong class_size;
+  uint32_t class_size;
   int i;
-  uchar *cbuf_ptr;
-  uchar *data_start;
-  uchar *buf_ptr;
+  unsigned char *cbuf_ptr;
+  unsigned char *data_start;
+  unsigned char *buf_ptr;
   int compress;
   int csize;
   int size;
-  uchar priority_;
+  unsigned char priority_;
   
-  priority_ = (uchar)priority;
+  priority_ = (unsigned char)priority;
   size = 0;
   csize = 0;
   compress = 0;
@@ -1470,11 +1470,11 @@ void RouterPack(RouterClient *client, int opcode, int class, int argcount, Route
   pRVar7 = (*entry)->packet;
   pRVar7->length = 0;
   pRVar7->length = pRVar7->length | size;
-  (*entry)->packet->opcode = (ushort)opcode;
-  (*entry)->packet->clas = (byte)class;
+  (*entry)->packet->opcode = (unsigned short)opcode;
+  (*entry)->packet->clas = (unsigned char)class;
   (*entry)->packet->id = 0;
   (*entry)->packet->config = 0;
-  data_start = (uchar *)((*entry)->packet + 1);
+  data_start = (unsigned char *)((*entry)->packet + 1);
   buf_ptr = data_start;
   for (i = 0; i < argcount; i = i + 1) {
     put_be32(buf_ptr,arglist[i].clas << 0x18 | arglist[i].size);
@@ -1498,7 +1498,7 @@ void RouterPack(RouterClient *client, int opcode, int class, int argcount, Route
     (client->out_stats).notry_bytes = size + (client->out_stats).notry_bytes;
   }
   else {
-    iVar8 = BuffCompress(data_start,size,&cbuf_ptr,(uint *)&csize);
+    iVar8 = BuffCompress(data_start,size,&cbuf_ptr,(unsigned int *)&csize);
     if (iVar8 == -1) {
       RouterMemError();
     }
@@ -1534,30 +1534,30 @@ void RouterPack(RouterClient *client, int opcode, int class, int argcount, Route
 
 int RouterUnpack(RouterClient *client, RouterHeader *packet)
 {
-  uint *puVar1;
-  uint uVar2;
-  uint uVar3;
-  uint uVar4;
-  uint uVar5;
-  uint uVar6;
-  uint uVar7;
-  uint uVar8;
-  uint uVar9;
-  uint uVar10;
-  uint uVar11;
+  unsigned int *puVar1;
+  unsigned int uVar2;
+  unsigned int uVar3;
+  unsigned int uVar4;
+  unsigned int uVar5;
+  unsigned int uVar6;
+  unsigned int uVar7;
+  unsigned int uVar8;
+  unsigned int uVar9;
+  unsigned int uVar10;
+  unsigned int uVar11;
   RouterArgument *pRVar12;
   int iVar13;
   RouterArgument *pRVar14;
-  ulong class_size;
+  uint32_t class_size;
   uint32_t uVar15;
   void *pvVar16;
   int j;
   int i;
   int usize;
   int size;
-  uchar *buf_end;
-  uchar *ubuf_ptr;
-  uchar *buf_ptr;
+  unsigned char *buf_end;
+  unsigned char *ubuf_ptr;
+  unsigned char *buf_ptr;
   bool compress;
   
   compress = false;
@@ -1566,10 +1566,10 @@ int RouterUnpack(RouterClient *client, RouterHeader *packet)
     compress = true;
   }
   size = packet->length - 8;
-  buf_ptr = (uchar *)(packet + 1);
-  buf_end = (uchar *)(buf_ptr + packet->length);
+  buf_ptr = (unsigned char *)(packet + 1);
+  buf_end = (unsigned char *)(buf_ptr + packet->length);
   if ((compress) && ((packet->config & 0x80) != 0)) {
-    iVar13 = BuffUncompress(buf_ptr,packet->length,&ubuf_ptr,(uint *)&usize);
+    iVar13 = BuffUncompress(buf_ptr,packet->length,&ubuf_ptr,(unsigned int *)&usize);
     if (iVar13 == -1) {
       RouterMemError();
     }
@@ -1584,8 +1584,8 @@ int RouterUnpack(RouterClient *client, RouterHeader *packet)
     (client->in_stats).uncompressed_bytes = usize + (client->in_stats).uncompressed_bytes;
   }
   else {
-    buf_ptr = (uchar *)(packet + 1);
-    buf_end = (uchar *)(buf_ptr + packet->length);
+    buf_ptr = (unsigned char *)(packet + 1);
+    buf_end = (unsigned char *)(buf_ptr + packet->length);
     if (compress) {
       InputStats.nocompress_count = InputStats.nocompress_count + 1;
       InputStats.nocompress_bytes = InputStats.nocompress_bytes + packet->length;
@@ -1629,7 +1629,7 @@ int RouterUnpack(RouterClient *client, RouterHeader *packet)
     else {
       if (buf_end < buf_ptr + client->InArgList[i].size) break;
       pvVar16 = malloc(client->InArgList[i].size);
-      client->InArgList[i].val = (ulong)pvVar16;
+      client->InArgList[i].val = (uintptr_t)pvVar16;
       if (pvVar16 == NULL) {
         RouterFreeArguments(i,client->InArgList);
         RouterMemError();
@@ -1763,7 +1763,7 @@ void RouterPrintClientStats(RouterClient *client, FILE *fd, int reset)
 
 static void RouterPrintStats(FILE *fd, RouterCompressStats *s)
 {
-  uint uVar1;
+  unsigned int uVar1;
   int ratio;
   
   fprintf(fd,"                        transfers         bytes   \n");
@@ -1783,7 +1783,7 @@ static void RouterPrintStats(FILE *fd, RouterCompressStats *s)
 
 static void RouterQStore(RouterQ *queue, RouterQEntry *entry, int use_priority)
 {
-  uint uVar1;
+  unsigned int uVar1;
   int cnt;
   RouterQEntry *e;
   RouterQEntry *pe;
@@ -1835,7 +1835,7 @@ static void RouterQStore(RouterQ *queue, RouterQEntry *entry, int use_priority)
 
 static RouterQEntry *RouterQRetrieve(RouterQ *queue)
 {
-  uint uVar1;
+  unsigned int uVar1;
   RouterQEntry *pRVar2;
   RouterQEntry *entry;
   
@@ -1860,7 +1860,7 @@ static RouterQEntry *RouterQRetrieve(RouterQ *queue)
 static void RouterQRemoveRequests(RouterClient *client, RouterQ *queue)
 {
   struct _RouterQEntry *p_Var1;
-  uint uVar2;
+  unsigned int uVar2;
   int plen;
   RouterQEntry *req_entry;
   RouterQEntry *last_entry;
@@ -2064,7 +2064,7 @@ int RouterCheckOutput(RouterClient *client, char *func_name)
 
 void RouterConnectionLost(RouterClient *client)
 {
-  uint uVar1;
+  unsigned int uVar1;
   int msgnbr;
   
   uVar1 = client->use & 0x3f;
@@ -2094,7 +2094,7 @@ LAB_08078ec0:
 
 void RouterConnectionTimeout(RouterClient *client)
 {
-  uint uVar1;
+  unsigned int uVar1;
   int msgnbr;
   
   uVar1 = client->use & 0x3f;
@@ -2125,7 +2125,7 @@ LAB_08078f60:
 
 void RouterConnectionError(RouterClient *client)
 {
-  uint uVar1;
+  unsigned int uVar1;
   int msgnbr;
   
   uVar1 = client->use & 0x3f;
@@ -2160,7 +2160,7 @@ void RouterClientError(RouterClient *client, int msgnbr)
 
 void RouterBadClass(RouterClient *client, char *func_name)
 {
-  byte bVar1;
+  unsigned char bVar1;
   
   bVar1 = client->in_buf->clas;
   if (bVar1 < 0x13) {

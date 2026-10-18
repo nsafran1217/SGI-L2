@@ -151,7 +151,7 @@ int SysCfgConnProcessEvent(sn1SCConn *conn, char *user, IRPacket *pkt)
     l2list = conn->SysCfgL2List;
   }
   if (pkt->_err != 0) {
-    pcVar1 = IRFmtError((uint)pkt->_err);
+    pcVar1 = IRFmtError((unsigned int)pkt->_err);
     syslog(3,"SysCfg.c",0x84,0,"%s: SysCfgConnProcessEvent: packet error - %s\n",user,pcVar1);
     return -1;
   }
@@ -241,7 +241,7 @@ void SysCfgConnPrintL1(sn1SCConn *conn, int fd)
       strcpy(part,"    ");
     }
     else {
-      sprintf(part,".%-3d",(uint)(*l1)->partition);
+      sprintf(part,".%-3d",(unsigned int)(*l1)->partition);
     }
     sVar1 = strlen((*l1)->system_sn);
     if (sVar1 == 0) {
@@ -257,7 +257,7 @@ void SysCfgConnPrintL1(sn1SCConn *conn, int fd)
     else {
       pcVar3 = (*l1)->brick_sn;
     }
-    sprintf(buff,"%03d.%02d%s BSN: %s SSN: %s\n",(uint)(*l1)->rack,(uint)(*l1)->slot,part,pcVar3,
+    sprintf(buff,"%03d.%02d%s BSN: %s SSN: %s\n",(unsigned int)(*l1)->rack,(unsigned int)(*l1)->slot,part,pcVar3,
             pcVar2);
     sVar1 = strlen(buff);
     write(fd,buff,sVar1);

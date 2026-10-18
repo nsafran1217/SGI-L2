@@ -76,7 +76,7 @@ typedef struct {
     unsigned int fre : 1;
     unsigned int clas : 7;
     int size : 24;
-    long unsigned int val;
+    uintptr_t val;      /* STABS: long unsigned int; holds pointers too */
 } RouterArgument;
 struct _RouterServer {
     int inet_socket;

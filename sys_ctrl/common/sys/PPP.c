@@ -31,20 +31,20 @@ char buff[128];
 
 static U16 pppfcs(int fcs, unsigned char *bptr, unsigned int blen, unsigned char *fptr)
 {
-  ushort uVar1;
+  unsigned short uVar1;
   
-  while (blen = blen - 1, uVar1 = (ushort)((uint)fcs >> 8), blen != 0xffffffff) {
-    fcs = (int)((uVar1 & 0xff) ^ fcstab[((fcs & 0xffffU) ^ (uint)*bptr) & 0xff]);
+  while (blen = blen - 1, uVar1 = (unsigned short)((unsigned int)fcs >> 8), blen != 0xffffffff) {
+    fcs = (int)((uVar1 & 0xff) ^ fcstab[((fcs & 0xffffU) ^ (unsigned int)*bptr) & 0xff]);
     bptr = bptr + 1;
   }
-  return fcstab[((fcs & 0xffffU) ^ (uint)*fptr) & 0xff] >> 8 ^
-         fcstab[((uint)((uVar1 & 0xff) ^ fcstab[((fcs & 0xffffU) ^ (uint)*fptr) & 0xff]) ^ (uint)fptr[1]
+  return fcstab[((fcs & 0xffffU) ^ (unsigned int)*fptr) & 0xff] >> 8 ^
+         fcstab[((unsigned int)((uVar1 & 0xff) ^ fcstab[((fcs & 0xffffU) ^ (unsigned int)*fptr) & 0xff]) ^ (unsigned int)fptr[1]
                 ) & 0xff];
 }
 
 static U16 pppnext(int cptr, int fcs)
 {
-  return ((ushort)((uint)fcs >> 8) & 0xff) ^ fcstab[((fcs & 0xffffU) ^ (cptr & 0xffU)) & 0xff];
+  return ((unsigned short)((unsigned int)fcs >> 8) & 0xff) ^ fcstab[((fcs & 0xffffU) ^ (cptr & 0xffU)) & 0xff];
 }
 
 static void call_efcn(PPPInstance *pptr, unsigned int status, unsigned char *bptr, unsigned int blen, unsigned char *csbuf, unsigned char *rawbuf, unsigned int rawlen)
@@ -67,8 +67,8 @@ void PPPInit(PPPInstance *pptr, unsigned char *iptr, unsigned int isize, unsigne
   pptr->isize = isize;
   pptr->obuf = optr;
   pptr->osize = osize;
-  pptr->xonxoff = (uint)(xonxoff != 0);
-  pptr->control = (uint)(control != 0);
+  pptr->xonxoff = (unsigned int)(xonxoff != 0);
+  pptr->control = (unsigned int)(control != 0);
   pptr->offset = offset;
   pptr->resize = resize;
   pptr->efcn = efcn;
@@ -91,15 +91,15 @@ void PPPReset(PPPInstance *pptr, int which)
 
 int PPPWrite(PPPInstance *pptr, int (*wfcn)(), void *fd, unsigned char *bptr, int blen)
 {
-  ushort uVar1;
-  byte bVar2;
-  uint blen_00;
-  uint status_00;
+  unsigned short uVar1;
+  unsigned char bVar2;
+  unsigned int blen_00;
+  unsigned int status_00;
   int status;
   int iVar3;
   bool escaped;
   int bytes;
-  uchar fbuf [2];
+  unsigned char fbuf [2];
   U16 fcs;
   int wlen;
   
@@ -137,7 +137,7 @@ LAB_0807f7a2:
       pptr->optr = pptr->optr + 1;
       pptr->olen = pptr->olen + 1;
     }
-    fcs = pppnext((uint)*bptr,(uint)fcs);
+    fcs = pppnext((unsigned int)*bptr,(unsigned int)fcs);
     bptr = bptr + 1;
     blen = blen + -1;
     if (pptr->osize <= pptr->olen + 5U) {
@@ -152,8 +152,8 @@ LAB_0807f7a2:
     }
   }
   fcs = ~fcs;
-  fbuf[0] = (uchar)fcs;
-  fbuf[1] = (uchar)(fcs >> 8);
+  fbuf[0] = (unsigned char)fcs;
+  fbuf[1] = (unsigned char)(fcs >> 8);
   fcs = 0;
   do {
     if (1 < fcs) {
@@ -200,22 +200,22 @@ LAB_0807f936:
 
 int PPPRead(PPPInstance *pptr, int (*rfcn)(), void *fd, unsigned char **rbuf, int rmax)
 {
-  uint uVar1;
+  unsigned int uVar1;
   U16 UVar2;
-  uchar *puVar3;
+  unsigned char *puVar3;
   int iVar4;
-  uint resize;
-  uint offset;
-  uint flen;
-  uchar *fptr;
-  uint rlen;
-  uchar *rptr;
-  uint rawlen_la;
-  uint rawlen;
-  uint rawsize;
-  uchar *rawbuf;
-  uchar fbuf [2];
-  uchar c;
+  unsigned int resize;
+  unsigned int offset;
+  unsigned int flen;
+  unsigned char *fptr;
+  unsigned int rlen;
+  unsigned char *rptr;
+  unsigned int rawlen_la;
+  unsigned int rawlen;
+  unsigned int rawsize;
+  unsigned char *rawbuf;
+  unsigned char fbuf [2];
+  unsigned char c;
   int frame;
   int inframe;
   bool escaped;
@@ -327,7 +327,7 @@ LAB_0807fd22:
         c = c ^ 0x20;
         escaped = false;
       }
-      if ((uint)rmax <= rlen) {
+      if ((unsigned int)rmax <= rlen) {
         if (resize == 0) {
           if (flen < 2) {
             *fptr = c;
@@ -389,12 +389,12 @@ int PPPDecodeReset(PPPDecodeState *ds)
 int PPPDecode(PPPDecodeState *ds, int c)
 {
   U16 UVar1;
-  uchar *csbuf;
+  unsigned char *csbuf;
   int cserr;
   int rval;
-  uchar c_;
+  unsigned char c_;
   
-  c_ = (uchar)c;
+  c_ = (unsigned char)c;
   if (ds->async_reset != 0) {
     ds->resync = 1;
     ds->inframe = 0;
@@ -463,8 +463,8 @@ int PPPDecode(PPPDecodeState *ds, int c)
         csbuf = NULL;
       }
       call_efcn((PPPInstance *)ds,rval,ds->obuf,ds->olen,csbuf,NULL,0);
-      ds->inframe = (uint)(c_ == 0x7e);
-      ds->resync = (uint)(c_ != 0x7e);
+      ds->inframe = (unsigned int)(c_ == 0x7e);
+      ds->resync = (unsigned int)(c_ != 0x7e);
       ds->optr = NULL;
       ds->fptr = NULL;
       return rval;

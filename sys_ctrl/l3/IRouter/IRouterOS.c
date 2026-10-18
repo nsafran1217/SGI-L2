@@ -72,7 +72,7 @@ int IRouterRequestOS(IRClient *client, IRIdent *id, IRAddress *toaddr, int opcod
   }
   else {
     if (seqnum != NULL) {
-      *seqnum = (uint)id->seqnum;
+      *seqnum = (unsigned int)id->seqnum;
     }
     pkt = IRouterMakePacket(id,toaddr,0,opcode,0,2,argcount,arglist);
     if (pkt == NULL) {
@@ -96,7 +96,7 @@ int IRouterResponseOS(IRClient *client, IRIdent *id, int errcode, IRPacket *reqp
     iVar1 = -0x12f;
   }
   else {
-    rsppkt = IRouterMakePacket(id,&reqpkt->_src,0,(uint)reqpkt->_opcode,1,(uint)reqpkt->_rev,
+    rsppkt = IRouterMakePacket(id,&reqpkt->_src,0,(unsigned int)reqpkt->_opcode,1,(unsigned int)reqpkt->_rev,
                                argcount,arglist);
     if (rsppkt == NULL) {
       iVar1 = -0x25c;
@@ -135,7 +135,7 @@ int IRouterEventOS(IRClient *client, IRIdent *id, int opcode, int argcount, IRAr
 
 int IRouterGetPacketOS(IRIdent *id, IRPacket **pkt, IRClient **client, int wait, int response)
 {
-  byte *pbVar1;
+  unsigned char *pbVar1;
   int fdmax;
   int iVar2;
   int status;
@@ -193,7 +193,7 @@ static int pipe_out(int fd, unsigned char *pptr, int plen)
   int iVar1;
   int rlen;
   int blen;
-  uchar buff [128];
+  unsigned char buff [128];
   IRPacket *p;
   
   iVar1 = plen;
@@ -201,7 +201,7 @@ static int pipe_out(int fd, unsigned char *pptr, int plen)
     iVar1 = -0x12f;
   }
   else {
-    buff[0] = (uchar)fd;
+    buff[0] = (unsigned char)fd;
     buff[1] = '\0';
     buff[2] = '\0';
     buff[3] = '\0';
@@ -214,8 +214,8 @@ static int pipe_out(int fd, unsigned char *pptr, int plen)
       buff[6] = '\x02';
       buff[7] = '\0';
     }
-    buff[8] = (uchar)((uint)plen >> 8);
-    buff[9] = (uchar)plen;
+    buff[8] = (unsigned char)((unsigned int)plen >> 8);
+    buff[9] = (unsigned char)plen;
     while (buff[5] = '0', plen != 0) {
       if (plen < 0x77) {
         blen = plen;
@@ -261,9 +261,9 @@ static int pipe_in(int fd, unsigned char **pptr, int plen)
   int subchan;
   int rlen;
   int blen;
-  uchar *bptr;
-  uint dlen;
-  uchar *dptr;
+  unsigned char *bptr;
+  unsigned int dlen;
+  unsigned char *dptr;
   
   bptr = *pptr + IR_FRAME_PREFIX;   /* wire frame starts at IRFrame._size */
   blen = 0;
@@ -274,7 +274,7 @@ static int pipe_in(int fd, unsigned char **pptr, int plen)
   else {
     do {
       iptr = ibuf;
-      ilen = rd(fd,(uchar *)&ibuf,0x80);
+      ilen = rd(fd,(unsigned char *)&ibuf,0x80);
       if (ilen < 1) {
         return -0x264;
       }
@@ -282,12 +282,12 @@ static int pipe_in(int fd, unsigned char **pptr, int plen)
       frame_size = (ibuf[ioff + 7] << 8) | ibuf[ioff + 8];
       iptr = iptr + ioff + 9;
       ilen = (ilen + -9) - ioff;
-      if ((uint)chunk_type < 0x3001) {
+      if ((unsigned int)chunk_type < 0x3001) {
 LAB_0805c072:
         syslog(6,"IRouterOS.c",0x1e6,0,"bad chunk type %d\n",chunk_type);
         return -0x272;
       }
-      if ((uint)chunk_type < 0x3003) {
+      if ((unsigned int)chunk_type < 0x3003) {
         if (blen != 0) {
           syslog(6,"IRouterOS.c",0x1b4,0,"frame data underflow");
           return -0x271;

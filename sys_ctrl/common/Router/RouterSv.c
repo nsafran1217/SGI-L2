@@ -190,7 +190,7 @@ int RouterGetIDClients(int process_id, RouterID **buf)
         pRVar2 = &client_ptr->id;
         pRVar3 = client_id_buf + i;
         for (iVar1 = 0x20; iVar1 != 0; iVar1 = iVar1 + -1) {
-          *(undefined4 *)pRVar3->hostname = *(undefined4 *)pRVar2->hostname;
+          *(uint32_t *)pRVar3->hostname = *(uint32_t *)pRVar2->hostname;
           pRVar2 = (RouterID *)(pRVar2->hostname + 4);
           pRVar3 = (RouterID *)(pRVar3->hostname + 4);
         }
@@ -438,13 +438,13 @@ static void RouterStartConnection(RouterClient *client, int class)
 
 static int RouterGetConResponse(RouterClient *client)
 {
-  byte bVar1;
+  unsigned char bVar1;
   int iVar2;
   int rvalue;
   int argcountin;
   char *func_name;
   
-  client->process_id = (uint)client->in_buf->opcode;
+  client->process_id = (unsigned int)client->in_buf->opcode;
   bVar1 = client->in_buf->clas;
   if (bVar1 == 2) {
     argcountin = RouterUnpack(client,client->in_buf);
@@ -497,7 +497,7 @@ static int RouterAcceptClient(RouterClient *client, int argcountin)
       LogError(-0x13f,"RouterAcceptClient",0,"");
       return -1;
     }
-    if ((uint)client->InArgList[2].size != ((client->groups).count + 7) >> 3) {
+    if ((unsigned int)client->InArgList[2].size != ((client->groups).count + 7) >> 3) {
       LogError(-0x140,"RouterAcceptClient",0,"");
       return -1;
     }
@@ -555,12 +555,12 @@ LAB_0807ab17:
 
 static void RouterSendConRequest(RouterClient *client, int class)
 {
-  uchar *__dest;
+  unsigned char *__dest;
   size_t sVar1;
-  uchar tbuf [128];
+  unsigned char tbuf [128];
   RouterArgument arglist;
   RouterID client_id;
-  uchar *tptr;
+  unsigned char *tptr;
   
   if (class == 4) {
     RouterSetClientID(&client_id);
@@ -576,10 +576,10 @@ static void RouterSendConRequest(RouterClient *client, int class)
     memcpy(__dest,client_id.fullname,sVar1 + 1);
     sVar1 = strlen(client_id.fullname);
     memcpy(__dest + sVar1 + 1,&client_id.ipaddr,4);
-    arglist.val = (ulong)tbuf;
+    arglist.val = (uintptr_t)tbuf;
     arglist.fre = 1;
     arglist.clas = 1;
-    arglist.size = (int)((__dest + sVar1 + 1 + 4) - (uchar *)tbuf);
+    arglist.size = (int)((__dest + sVar1 + 1 + 4) - (unsigned char *)tbuf);
     RouterDoOutput(client,ProcessID,4,1,&arglist,NULL,NULL,
                    NULL,NULL,0,NULL);
   }
@@ -592,27 +592,27 @@ static void RouterSendConRequest(RouterClient *client, int class)
 
 static int RouterGetClientArguments(RouterClient *client)
 {
-  uchar *__s;
-  byte bVar1;
-  byte bVar2;
-  byte bVar3;
-  ulong uVar4;
+  unsigned char *__s;
+  unsigned char bVar1;
+  unsigned char bVar2;
+  unsigned char bVar3;
+  uintptr_t uVar4;
   char *__s_00;
   size_t sVar5;
   int iVar6;
-  uint uVar7;
+  unsigned int uVar7;
   int idsize;
-  uchar *tptro;
+  unsigned char *tptro;
   RouterClientType client_type;
   char *func_name;
-  uchar *tptr;
+  unsigned char *tptr;
   
   if ((client->InArgList->clas == 1) && (client->InArgList[1].clas == 1)) {
     uVar4 = client->InArgList->val;
-    uVar7 = (uint)*(byte *)(uVar4 + 2) << 8;
-    bVar1 = *(byte *)(uVar4 + 5);
-    bVar2 = *(byte *)(uVar4 + 6);
-    bVar3 = *(byte *)(uVar4 + 7);
+    uVar7 = (unsigned int)*(unsigned char *)(uVar4 + 2) << 8;
+    bVar1 = *(unsigned char *)(uVar4 + 5);
+    bVar2 = *(unsigned char *)(uVar4 + 6);
+    bVar3 = *(unsigned char *)(uVar4 + 7);
     client->use = (client->use & 0x3000U) | (uVar7 & 0x4000);
     if ((uVar7 & 0x600) == 0x200) {
       client->use = client->use | 0x286;
@@ -625,7 +625,7 @@ static int RouterGetClientArguments(RouterClient *client)
     sVar5 = strlen(__s_00);
     memcpy((client->id).procname,__s_00,sVar5 + 1);
     sVar5 = strlen(__s_00);
-    tptr = (uchar *)(__s_00 + sVar5 + 1);
+    tptr = (unsigned char *)(__s_00 + sVar5 + 1);
     sVar5 = strlen((char *)tptr);
     memcpy((client->id).username,tptr,sVar5 + 1);
     sVar5 = strlen((char *)tptr);
@@ -633,10 +633,10 @@ static int RouterGetClientArguments(RouterClient *client)
     sVar5 = strlen((char *)__s);
     memcpy((client->id).fullname,__s,sVar5 + 1);
     sVar5 = strlen((char *)__s);
-    if ((int)((__s + sVar5 + 1) - (uchar *)__s_00) < iVar6) {
+    if ((int)((__s + sVar5 + 1) - (unsigned char *)__s_00) < iVar6) {
       memcpy(&(client->id).ipaddr,__s + sVar5 + 1,4);
     }
-    (client->groups).count = (uint)bVar1 << 0x10 | (uint)bVar2 << 8 | (uint)bVar3;
+    (client->groups).count = (unsigned int)bVar1 << 0x10 | (unsigned int)bVar2 << 8 | (unsigned int)bVar3;
     iVar6 = 0;
   }
   else {
@@ -648,19 +648,19 @@ static int RouterGetClientArguments(RouterClient *client)
 
 void RouterConfigure(RouterClient *client)
 {
-  uchar *tptr;
-  uchar tbuf [72];
+  unsigned char *tptr;
+  unsigned char tbuf [72];
   RouterArgument arglist;
   
-  tbuf[0] = (uchar)(RouterLocalConfig.rev >> 0x18);
-  tbuf[1] = (uchar)(RouterLocalConfig.rev >> 0x10);
-  tbuf[2] = (uchar)(RouterLocalConfig.rev >> 8);
-  tbuf[3] = (uchar)RouterLocalConfig.rev;
-  tbuf[4] = (uchar)(RouterLocalConfig.flags >> 0x18);
-  tbuf[5] = (uchar)(RouterLocalConfig.flags >> 0x10);
-  tbuf[6] = (uchar)(RouterLocalConfig.flags >> 8);
-  tbuf[7] = (uchar)RouterLocalConfig.flags;
-  arglist.val = (ulong)tbuf;
+  tbuf[0] = (unsigned char)(RouterLocalConfig.rev >> 0x18);
+  tbuf[1] = (unsigned char)(RouterLocalConfig.rev >> 0x10);
+  tbuf[2] = (unsigned char)(RouterLocalConfig.rev >> 8);
+  tbuf[3] = (unsigned char)RouterLocalConfig.rev;
+  tbuf[4] = (unsigned char)(RouterLocalConfig.flags >> 0x18);
+  tbuf[5] = (unsigned char)(RouterLocalConfig.flags >> 0x10);
+  tbuf[6] = (unsigned char)(RouterLocalConfig.flags >> 8);
+  tbuf[7] = (unsigned char)RouterLocalConfig.flags;
+  arglist.val = (uintptr_t)tbuf;
   arglist.fre = 1;
   arglist.clas = 1;
   arglist.size = 8;

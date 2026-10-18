@@ -245,9 +245,9 @@ static void *mmalloc(size_t size, void *caller)
 {
   size_t arena;
   void *ptr;
-  uint size_00;
+  unsigned int size_00;
   size_t usize;
-  uchar *cptr;
+  unsigned char *cptr;
   
   arena = get_arena();
   restore_malloc();
@@ -270,7 +270,7 @@ static void *mmalloc(size_t size, void *caller)
 static void *mrealloc(void *oldptr, size_t newsize, void *caller)
 {
   void *newptr;
-  uint size;
+  unsigned int size;
   int iVar1;
   size_t unewsize;
   size_t oldsize;
@@ -306,7 +306,7 @@ static void *mmemalign(size_t boundary, size_t size, void *caller)
 {
   size_t arena;
   void *ptr;
-  uint size_00;
+  unsigned int size_00;
   size_t usize;
   
   arena = get_arena();

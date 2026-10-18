@@ -137,7 +137,7 @@ void discover_response(void *cd, int sd)
   uint32_t uVar8;
   L2CfgNode *l2node;
   int iVar9;
-  undefined **ppuVar10;
+  unsigned char **ppuVar10;
   char **ppcVar11;
   struct sockaddr_in *__addr;
   socklen_t __addr_len;
@@ -425,7 +425,7 @@ void discover_response(void *cd, int sd)
 
 void discover_service(void)
 {
-  byte *pbVar1;
+  unsigned char *pbVar1;
   static struct timeval to;
   int iVar2;
   int __d1;

@@ -136,7 +136,7 @@ static RouterClient *RouterConnect(char *host, int port, int process_id, int use
 
 static int RouterGetConRequest(RouterClient *client)
 {
-  byte bVar1;
+  unsigned char bVar1;
   int iVar2;
   int rvalue;
   int argcountin;
@@ -181,21 +181,21 @@ LAB_08079687:
 static int RouterProcessAccept(RouterClient *client, int argcountin)
 {
   char *pcVar1;
-  uchar *__dest;
+  unsigned char *__dest;
   char *__s;
   int iVar2;
   size_t sVar3;
   int idsize;
-  uchar *tptro;
-  uchar tbuf_b [128];
-  uchar tbuf_a [8];
+  unsigned char *tptro;
+  unsigned char tbuf_b [128];
+  unsigned char tbuf_a [8];
   int argcount;
   RouterArgument *nullarglist;
   RouterArgument arglist [3];
   RouterID client_id;
   RouterID *server_id;
   char *func_name;
-  uchar *tptr;
+  unsigned char *tptr;
   
   if (argcountin == 1) {
     if (client->InArgList->clas == 1) {
@@ -218,13 +218,13 @@ static int RouterProcessAccept(RouterClient *client, int argcountin)
       RouterSetClientID(&client_id);
       tbuf_a[0] = '\0';
       tbuf_a[1] = '\0';
-      tbuf_a[2] = (byte)((uint)client->use >> 8) & 0x40;
+      tbuf_a[2] = (unsigned char)((unsigned int)client->use >> 8) & 0x40;
       tbuf_a[3] = '\0';
-      tbuf_a[4] = (uchar)((client->groups).count >> 0x18);
-      tbuf_a[5] = (uchar)((client->groups).count >> 0x10);
-      tbuf_a[6] = (uchar)((client->groups).count >> 8);
-      tbuf_a[7] = (uchar)(client->groups).count;
-      arglist[0].val = (ulong)tbuf_a;
+      tbuf_a[4] = (unsigned char)((client->groups).count >> 0x18);
+      tbuf_a[5] = (unsigned char)((client->groups).count >> 0x10);
+      tbuf_a[6] = (unsigned char)((client->groups).count >> 8);
+      tbuf_a[7] = (unsigned char)(client->groups).count;
+      arglist[0].val = (uintptr_t)tbuf_a;
       arglist[0].fre = 1;
       arglist[0].clas = 1;
       arglist[0].size = 8;
@@ -240,15 +240,15 @@ static int RouterProcessAccept(RouterClient *client, int argcountin)
       memcpy(__dest,client_id.fullname,sVar3 + 1);
       sVar3 = strlen(client_id.fullname);
       memcpy(__dest + sVar3 + 1,&client_id.ipaddr,4);
-      arglist[1].val = (ulong)tbuf_b;
+      arglist[1].val = (uintptr_t)tbuf_b;
       arglist[1].fre = 1;
       arglist[1].clas = 1;
-      arglist[1].size = (int)((__dest + sVar3 + 1 + 4) - (uchar *)tbuf_b);
+      arglist[1].size = (int)((__dest + sVar3 + 1 + 4) - (unsigned char *)tbuf_b);
       if ((client->groups).count == 0) {
         argcount = 2;
       }
       else {
-        arglist[2].val = (ulong)(client->groups).bits;
+        arglist[2].val = (uintptr_t)(client->groups).bits;
         arglist[2].fre = 1;
         arglist[2].clas = 1;
         arglist[2].size = ((client->groups).count + 7) >> 3;

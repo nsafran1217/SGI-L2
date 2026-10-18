@@ -118,7 +118,7 @@ void read_n_write(int *wfd, int rfd)
                 port);
         sleep(5);
       }
-    } while ((l2 < 0) && (bVar3 = (uint)count < retries, count = count + 1, bVar3));
+    } while ((l2 < 0) && (bVar3 = (unsigned int)count < retries, count = count + 1, bVar3));
     if (l2 < 0) {
       fprintf(stderr,"ERROR: can\'t reconnect to L2 %s:%d, giving up!\n",host,port);
                     /* WARNING: Subroutine does not return */
@@ -201,7 +201,7 @@ void tty_debug(void)
     fprintf(stderr,"ispeed:  %8d\n",termios.c_ispeed);
     fprintf(stderr,"ospeed:  %8d\n",termios.c_ospeed);
     for (i = 0; i < 8; i = i + 1) {
-      fprintf(stderr,"cc_c[%d]: %8o\n",i,(uint)termios.c_cc[i]);
+      fprintf(stderr,"cc_c[%d]: %8o\n",i,(unsigned int)termios.c_cc[i]);
     }
   }
   return;

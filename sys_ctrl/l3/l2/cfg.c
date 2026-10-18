@@ -320,7 +320,7 @@ void cfg_process_request(IRPacket *req_p)
   char *local_EAX_1156;
   size_t sVar3;
   IRPacket *rsp_p;
-  uint uVar4;
+  unsigned int uVar4;
   size_t sStack_f8b0;
   char *bptr;
   char buff [63489];
@@ -406,8 +406,8 @@ void cfg_process_request(IRPacket *req_p)
   argv[argc]._val = IR_PTR_VAL(evt);
   sVar3 = strlen(evt);
   argv[argc]._size = (short)sVar3 + 1;
-  rsp_p = IRouterMakePacket(&l2_cfg_id,&req_p->_src,(uint)(req_p->_pdata_auth >> 3),0,1,
-                            (uint)req_p->_rev,argc + 1,argv);
+  rsp_p = IRouterMakePacket(&l2_cfg_id,&req_p->_src,(unsigned int)(req_p->_pdata_auth >> 3),0,1,
+                            (unsigned int)req_p->_rev,argc + 1,argv);
   if (rsp_p == NULL) {
     fprintf(stderr,"ERROR: can\'t create packet for configuration response.\n");
   }
@@ -441,7 +441,7 @@ LAB_080532b0:
 void cfg_process_response(IRPacket *p)
 {
   uint8 *client_data;
-  uint uVar1;
+  unsigned int uVar1;
   char *pcVar2;
   int config_changed;
   FILE *stream;
@@ -525,7 +525,7 @@ void pp(IRPacket *p)
   int slen;
   int arg;
   
-  for (arg = 0; arg < (int)(uint)p->_argc; arg = arg + 1) {
+  for (arg = 0; arg < (int)(unsigned int)p->_argc; arg = arg + 1) {
     if ((p->_argv[arg]._clas & 7) == 1) {
       if ((p->_argv[arg]._clas & 7) == 0) {
         sptr = (char *)IR_VAL_PTR(p->_argv[arg]._val);
@@ -541,11 +541,11 @@ void pp(IRPacket *p)
 
 void cfg_process_event(IRPacket *p)
 {
-  ushort uVar1;
-  uint uVar2;
+  unsigned short uVar1;
+  unsigned int uVar2;
   L2CfgL1 *pLVar3;
   EventID EVar4;
-  uint uVar5;
+  unsigned int uVar5;
   L2CfgL1 *cfg;
   L2CfgPort *l2port;
   int ping_port;
@@ -613,8 +613,8 @@ void cfg_process_event(IRPacket *p)
         while ((l1 < L2CfgLocal.port_list[port].l1count && (ping_port < 0))) {
           pLVar3 = L2CfgLocal.port_list[port].l1cfg;
           if ((pLVar3[l1].configured != '\0') &&
-             (((uint)pLVar3[l1].rack == (uVar2 >> 0x12 & 0x3ff) &&
-              ((uint)pLVar3[l1].slot == (uVar2 >> 0xc & 0x3f))))) {
+             (((unsigned int)pLVar3[l1].rack == (uVar2 >> 0x12 & 0x3ff) &&
+              ((unsigned int)pLVar3[l1].slot == (uVar2 >> 0xc & 0x3f))))) {
             ping_port = port;
           }
           l1 = l1 + 1;
@@ -668,14 +668,14 @@ void cfg_console_subchannel(IRPacket *p)
 
 void cfg_console_enable(IRPacket *p)
 {
-  uint rack_00;
+  unsigned int rack_00;
   int slot;
   L2CfgL1 *cfg;
   int rack;
   uint8 uStack_11;
   
   if ((p->_argv[1]._clas & 7) == 0) {
-    rack_00 = (uint)p->_argv[1]._val;
+    rack_00 = (unsigned int)p->_argv[1]._val;
   }
   else {
     rack_00 = IRArg(p,1);
@@ -702,14 +702,14 @@ void cfg_console_enable(IRPacket *p)
 
 void cfg_power_state(IRPacket *p)
 {
-  uint rack_00;
+  unsigned int rack_00;
   int slot;
   L2CfgL1 *cfg;
   int rack;
   uint8 uStack_11;
   
   if ((p->_argv[1]._clas & 7) == 0) {
-    rack_00 = (uint)p->_argv[1]._val;
+    rack_00 = (unsigned int)p->_argv[1]._val;
   }
   else {
     rack_00 = IRArg(p,1);
@@ -736,14 +736,14 @@ void cfg_power_state(IRPacket *p)
 
 void cfg_margin_state(IRPacket *p)
 {
-  uint rack_00;
+  unsigned int rack_00;
   int slot;
   L2CfgL1 *cfg;
   int rack;
   uint8 uStack_11;
   
   if ((p->_argv[1]._clas & 7) == 0) {
-    rack_00 = (uint)p->_argv[1]._val;
+    rack_00 = (unsigned int)p->_argv[1]._val;
   }
   else {
     rack_00 = IRArg(p,1);
@@ -772,7 +772,7 @@ void cfg_partition(IRPacket *p)
 {
   int rack;
   int slot;
-  uint uVar1;
+  unsigned int uVar1;
   L2CfgL1 *cfg;
   int old_part;
   IRAddress addr;
@@ -1053,7 +1053,7 @@ void cfg_configcheck(int start_timer)
 
 void cfg_check_console_events(void)
 {
-  uint uVar1;
+  unsigned int uVar1;
   int iVar2;
   int p;
   L2CfgNode *node;
@@ -1245,7 +1245,7 @@ void cfg_l2ping(int start_timer)
     node = L2CfgLocal.net.next;
     while (node != NULL) {
       if ((node->client == NULL) &&
-         (node->heartbeat < (uint)cfg_ping_response_minimum)) {
+         (node->heartbeat < (unsigned int)cfg_ping_response_minimum)) {
         pcVar4 = inet_ntoa(*(struct in_addr *)&node->ip_addr);
         fprintf(stderr,"INFO: L2 %s failed to complete connection\n",pcVar4);
         p_Var1 = node->next;
@@ -1263,7 +1263,7 @@ void cfg_l2ping(int start_timer)
         }
       }
       else if ((node->client == NULL) ||
-              ((uint)cfg_ping_response_minimum <= node->heartbeat)) {
+              ((unsigned int)cfg_ping_response_minimum <= node->heartbeat)) {
         node->heartbeat = 0;
         node = node->next;
       }

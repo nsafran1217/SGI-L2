@@ -232,7 +232,7 @@ IRClient *sn1SCConnClient(sn1SCConn *conn)
 
 int sn1SCConnReq(sn1SCConn *conn, IRAddress *toaddr, int opcode, int argc, IRArgument *argv, uint32 *id)
 {
-  ushort uVar1;
+  unsigned short uVar1;
   IRClient *pIVar2;
   int rval;
   char *pcVar3;
@@ -253,7 +253,7 @@ int sn1SCConnReq(sn1SCConn *conn, IRAddress *toaddr, int opcode, int argc, IRArg
     rval = (*IRouterRequest)(conn->client,&conn->ir_id,toaddr,opcode,argc,argv,id);
     if (rval == 0) {
       if (ir_show != 0) {
-        pcVar3 = SCFmtPkt((uint)uVar1,0,argc,0,toaddr,&(conn->ir_id).addr,x);
+        pcVar3 = SCFmtPkt((unsigned int)uVar1,0,argc,0,toaddr,&(conn->ir_id).addr,x);
         fprintf(stderr,"%s\n",pcVar3);
       }
       rval = 0;
@@ -297,7 +297,7 @@ int sn1SCConnRsp(sn1SCConn *conn, IRPacket **pkt, uint32 *id, int wait)
           fprintf(stderr,"%s\n",pcVar2);
         }
         if (id != NULL) {
-          *id = (uint)CONCAT11((*pkt)->_seqnum1,(*pkt)->_seqnum0);
+          *id = (unsigned int)CONCAT11((*pkt)->_seqnum1,(*pkt)->_seqnum0);
         }
         rval = 0;
       }
@@ -360,7 +360,7 @@ int sn1SCConnPkt(sn1SCConn *conn, IRPacket **pkt, sn1SCConn **pktconn, int wait)
 
 int sn1SCConnSendRsp(sn1SCConn *conn, int errcode, IRPacket *reqpkt, int argc, IRArgument *argv)
 {
-  ushort uVar1;
+  unsigned short uVar1;
   IRClient *pIVar2;
   int rval;
   char *pcVar3;
@@ -382,7 +382,7 @@ int sn1SCConnSendRsp(sn1SCConn *conn, int errcode, IRPacket *reqpkt, int argc, I
     rval = (*IRouterResponse)(conn->client,&conn->ir_id,errcode,reqpkt,argc,argv);
     if (rval == 0) {
       if (ir_show != 0) {
-        pcVar3 = SCFmtPkt((uint)uVar1,1,argc,0,&reqpkt->_src,&(conn->ir_id).addr,x);
+        pcVar3 = SCFmtPkt((unsigned int)uVar1,1,argc,0,&reqpkt->_src,&(conn->ir_id).addr,x);
         fprintf(stderr,"%s\n",pcVar3);
       }
       rval = 0;
@@ -398,7 +398,7 @@ int sn1SCConnSendRsp(sn1SCConn *conn, int errcode, IRPacket *reqpkt, int argc, I
 int sn1SCConnCmd(sn1SCConn *conn, IRAddress *toaddr, int opcode, int argc, IRArgument *argv, IRPacket **rpkt, int wait)
 {
   char *pcVar1;
-  uint uVar2;
+  unsigned int uVar2;
   uint32 rspid;
   uint32 reqid;
   int rval;
@@ -507,7 +507,7 @@ int sn1SCConnCmdParallel(sn1SCConn *conn, IRAddress *toaddr, int ntargets, int o
 
 static char *get_password(IRClient *client)
 {
-  uchar uVar1;
+  unsigned char uVar1;
   char *__src;
   sn1SCConn *conn;
   char *pw;

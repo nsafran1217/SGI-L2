@@ -56,10 +56,10 @@ int irtr_debug;
 
 int IRouterSendTargetedPacket(IRIdent *id, IRPacket *pkt)
 {
-  undefined2 uVar1;
+  uint16_t uVar1;
   int iVar2;
   L2CfgNode *pLVar3;
-  uint uVar4;
+  unsigned int uVar4;
   uint32_t uVar5;
   IRAddress IVar6;
   RouterClient *pRVar7;
@@ -301,7 +301,7 @@ int IRouterSendTargetedPacket(IRIdent *id, IRPacket *pkt)
 
 int IRouterSendBroadcastPacket(IRIdent *id, IRPacket *pkt)
 {
-  undefined2 uVar1;
+  uint16_t uVar1;
   int fd;
   int type;
   int task;
@@ -309,7 +309,7 @@ int IRouterSendBroadcastPacket(IRIdent *id, IRPacket *pkt)
   L2CfgNode *pLVar3;
   void *pvVar4;
   int part;
-  uint uVar5;
+  unsigned int uVar5;
   int rack;
   int slot;
   uint32_t ip_addr;
@@ -350,7 +350,7 @@ int IRouterSendBroadcastPacket(IRIdent *id, IRPacket *pkt)
   }
   local = 0;
   bVar6 = false;
-  if (((uint)type < 0x10) && (0xd < (uint)type)) {
+  if (((unsigned int)type < 0x10) && (0xd < (unsigned int)type)) {
     client = NULL;
     ir_addr = 0;
     if (IRByteOrder == 1) {
@@ -365,7 +365,7 @@ int IRouterSendBroadcastPacket(IRIdent *id, IRPacket *pkt)
     }
   }
   else {
-    local = (byte)(pkt->_external ^ 1) & 1;
+    local = (unsigned char)(pkt->_external ^ 1) & 1;
     if ((type == 0) &&
        (((pLVar3 = L2CfgMFindBrickL2(&L2CfgLocal,src >> 0x12 & 0x3ff,src >> 0xc & 0x3f),
          pLVar3 != NULL && (L2CfgLocal.net.msmode == 2)) && (pLVar3->msmode == 1)))) {
@@ -403,7 +403,7 @@ LAB_08063c00:
             IRouterPacketToRouter(node->client,&l2_id,pkt);
           }
         }
-        else if ((uint)type < 2) {
+        else if ((unsigned int)type < 2) {
           if (type == 0) {
             if (task == 4) {
               uVar5 = node->events & 2;
@@ -453,7 +453,7 @@ code_r0x08063e97:
         }
       }
       else {
-        if (1 < (uint)type) {
+        if (1 < (unsigned int)type) {
           if (type == 7) {
             uVar5 = node->events & 0x10;
             goto joined_r0x08063e85;
@@ -488,12 +488,12 @@ LAB_08063ee6:
     }
   }
   if (type != 1) {
-    if ((uint)type < 2) {
+    if ((unsigned int)type < 2) {
       if (type == 0) {
         if (task == 4) {
           smp_process_event(pkt);
         }
-        else if ((uint)task < 5) {
+        else if ((unsigned int)task < 5) {
           if (task == 1) {
             smp_process_event(pkt);
           }
@@ -558,10 +558,10 @@ LAB_08063fc2:
 
 int IRouterSendBroadcastPacketToClients(IRIdent *id, IRPacket *pkt)
 {
-  undefined2 uVar1;
+  uint16_t uVar1;
   int type;
   int task;
-  uint uVar2;
+  unsigned int uVar2;
   char x [80];
   L2CfgNode *nlist;
   int nl;
@@ -613,7 +613,7 @@ joined_r0x0806441b:
           IRouterPacketToRouter(node->client,&l2_id,pkt);
         }
       }
-      else if ((uint)type < 2) {
+      else if ((unsigned int)type < 2) {
         if (type == 0) {
           if (task == 4) {
             uVar2 = node->events & 2;
@@ -641,7 +641,7 @@ int IRouterSendPacket(IRIdent *id, IRPacket *pkt)
   char x_ [80];
   char x [80];
   int rval;
-  byte clas;
+  unsigned char clas;
   
   clas = pkt->_clas;
   if (irtr_debug != 0) {
@@ -680,8 +680,8 @@ LAB_08064770:
       if (id == NULL) {
         pIStack_104 = &l2_id;
       }
-      rpkt = IRouterMakePacket(pIStack_104,&pkt->_src,(uint)(pkt->_pdata_auth >> 3),
-                               (uint)pkt->_opcode,1,(uint)pkt->_rev,0,NULL);
+      rpkt = IRouterMakePacket(pIStack_104,&pkt->_src,(unsigned int)(pkt->_pdata_auth >> 3),
+                               (unsigned int)pkt->_opcode,1,(unsigned int)pkt->_rev,0,NULL);
       if (rpkt == NULL) {
         IRouterFreePacket(pkt);
         return rval;

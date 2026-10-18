@@ -204,7 +204,7 @@ void power_process_request(void)
 void power_process_response(IRPacket *p)
 {
   char *rsp;
-  uint uVar1;
+  unsigned int uVar1;
   char *format;
   int err;
   
@@ -233,7 +233,7 @@ void power_process_response(IRPacket *p)
     IRouterFreePacket(p);
   }
   else {
-    rsp = IRFmtError((uint)p->_err);
+    rsp = IRFmtError((unsigned int)p->_err);
     sprintf(buff,"ERROR: auto power up error, %s\n",rsp);
     fprintf(stderr,buff);
     nvramLogInsert(buff);
@@ -244,7 +244,7 @@ void power_process_response(IRPacket *p)
 
 int power_status(int rack, int slot)
 {
-  uint uVar1;
+  unsigned int uVar1;
   L2CfgL1 *cfg;
   
   if (power_check == 0) {
@@ -253,7 +253,7 @@ int power_status(int rack, int slot)
       uVar1 = 0;
     }
     else {
-      uVar1 = (uint)cfg->power_state;
+      uVar1 = (unsigned int)cfg->power_state;
     }
   }
   else {

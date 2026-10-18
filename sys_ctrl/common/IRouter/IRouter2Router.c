@@ -83,15 +83,15 @@ static IRFrame *ir_frame_from_router(const uint8 *b, int size)
 
 int IRouterForwardPacket(IRClient *client, IRIdent *id, IRPacket *pkt)
 {
-  ushort uVar1;
-  uint uVar2;
+  unsigned short uVar1;
+  unsigned int uVar2;
   RouterArgument *arglist;
-  uint uVar3;
-  uint slot;
+  unsigned int uVar3;
+  unsigned int slot;
   IRAddress src_;
-  uint data;
+  unsigned int data;
   IRAddress src;
-  uchar priority;
+  unsigned char priority;
   IRPacket *pf;
   int argc;
   int rarg_size;
@@ -111,7 +111,7 @@ int IRouterForwardPacket(IRClient *client, IRIdent *id, IRPacket *pkt)
         uVar3 = uVar2 >> 0x18 & 0x3f;
       }
       if (uVar3 == 5) {
-        data = (uVar2 & 0xfffff01f) | (uint)(pkt->_pdata_auth >> 3) << 5;
+        data = (uVar2 & 0xfffff01f) | (unsigned int)(pkt->_pdata_auth >> 3) << 5;
         priority = '\n';
         goto LAB_0807d4aa;
       }
@@ -128,7 +128,7 @@ LAB_0807d4aa:
   }
   else {
     arglist->clas = 1;
-    arglist->val = (ulong)"IR";
+    arglist->val = (uintptr_t)"IR";
     arglist->fre = 0;
     arglist->size = 3;
     argc = 1;
@@ -139,10 +139,10 @@ LAB_0807d4aa:
       arglist[argc].fre = 0;
       arglist[argc].size = uVar1 + IR_ROUTER_PREFIX;
       /* data copied while the event is packed below */
-      arglist[argc].val = ir_native_layout() ? (ulong)pf : (ulong)ir_frame_to_router(pf, uVar1);
+      arglist[argc].val = ir_native_layout() ? (uintptr_t)pf : (uintptr_t)ir_frame_to_router(pf, uVar1);
       argc = argc + 1;
     }
-    RouterPriClientEventOut(client,0,argc,arglist,(uint)priority,(void *)(uintptr_t)data);
+    RouterPriClientEventOut(client,0,argc,arglist,(unsigned int)priority,(void *)(uintptr_t)data);
     if (!ir_native_layout()) {
       for (i = 1; i < argc; i++)
         free((void *)arglist[i].val);

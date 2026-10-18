@@ -170,7 +170,7 @@ void cmd_process_request(IRPacket *req)
       iVar2 = sVar1 + cmd_rsp.slen;
       cmd_rsp.slen = iVar2;
       sVar1 = strlen(rptr);
-      if ((uint)cmd_rsp.size <= sVar1 + iVar2 + 0x10) {
+      if ((unsigned int)cmd_rsp.size <= sVar1 + iVar2 + 0x10) {
         iVar2 = cmd_rsp.size + 0x200;
         sVar1 = strlen(rptr);
         cmd_rsp.size = sVar1 + iVar2;
@@ -224,7 +224,7 @@ void cmd_process_request(IRPacket *req)
     }
     argc = 2;
     addr = req->_src;
-    rsp = IRouterMakePacket(&l2_cmd_id,&addr,(uint)(req->_pdata_auth >> 3),0,1,(uint)req->_rev,2,
+    rsp = IRouterMakePacket(&l2_cmd_id,&addr,(unsigned int)(req->_pdata_auth >> 3),0,1,(unsigned int)req->_rev,2,
                             argv);
     if (rsp == NULL) {
       fprintf(stderr,"ERROR: can\'t create packet for command response.\n");
@@ -278,7 +278,7 @@ static void cmd_send_response(L2CMD *c, void *data, char *sptr, int rval)
     iVar1 = sVar3 + cmd_rsp.slen;
     cmd_rsp.slen = iVar1;
     sVar3 = strlen(sptr);
-    if ((uint)cmd_rsp.size <= sVar3 + iVar1 + 0x10) {
+    if ((unsigned int)cmd_rsp.size <= sVar3 + iVar1 + 0x10) {
       iVar1 = cmd_rsp.size + 0x200;
       sVar3 = strlen(sptr);
       cmd_rsp.size = sVar3 + iVar1;
@@ -327,7 +327,7 @@ static void cmd_send_response(L2CMD *c, void *data, char *sptr, int rval)
     }
     else {
       rsp->_seqnum0 = (uint8)cmd_src_seqn;
-      rsp->_seqnum1 = (uint8)((uint)cmd_src_seqn >> 8);
+      rsp->_seqnum1 = (uint8)((unsigned int)cmd_src_seqn >> 8);
       IRouterSendPacket(NULL,rsp);
     }
     cmd_argc = 0;
@@ -347,7 +347,7 @@ static void cmd_process_queue_int(L2CMD *c, cmd_packet_cb *pktcb, void *data, cm
   void *qe;
   IRPacket *rsp;
   IRAddress dest;
-  uint seqn;
+  unsigned int seqn;
   
   qe = NULL;
   rsplen = 0;
@@ -511,7 +511,7 @@ int cmd_process_packet_default(IRPacket *rsp, L2CMD *c, IRAddress *dest, int pkt
     pcVar1 = format_address(*dest);
     strcat(cmd_rsp->eptr,pcVar1);
     strcat(cmd_rsp->eptr,", ");
-    pcVar1 = IRFmtError((uint)rsp->_err);
+    pcVar1 = IRFmtError((unsigned int)rsp->_err);
     strcat(cmd_rsp->eptr,pcVar1);
     strcat(cmd_rsp->eptr,"\n");
     IRouterFreePacket(rsp);
@@ -523,7 +523,7 @@ int cmd_process_packet_args(IRPacket *rsp, L2CMD *c, IRAddress *dest, cmd_respon
 {
   char *pcVar1;
   size_t sVar2;
-  uint uVar3;
+  unsigned int uVar3;
   int iVar4;
   char *pcStack_c;
   int arg;
@@ -537,7 +537,7 @@ int cmd_process_packet_args(IRPacket *rsp, L2CMD *c, IRAddress *dest, cmd_respon
   if (uVar3 != 0) {
     cmd_rsp->status = -1;
   }
-  for (arg = 0; arg < (int)(uint)rsp->_argc; arg = arg + 1) {
+  for (arg = 0; arg < (int)(unsigned int)rsp->_argc; arg = arg + 1) {
     if ((rsp->_argv[arg]._clas & 7) == 2) {
       if ((print_source != 0) && (dest != NULL)) {
         pcVar1 = cmd_rsp->eptr;
@@ -581,7 +581,7 @@ int cmd_process_packet_args(IRPacket *rsp, L2CMD *c, IRAddress *dest, cmd_respon
         pcVar1 = (char *)IRArg(rsp,arg);
       }
       sVar2 = strlen(pcVar1);
-      if ((uint)cmd_rsp->size <= sVar2 + iVar4 + 0x10) {
+      if ((unsigned int)cmd_rsp->size <= sVar2 + iVar4 + 0x10) {
         iVar4 = cmd_rsp->size;
         if ((rsp->_argv[arg]._clas & 7) == 0) {
           pcStack_c = (char *)IR_VAL_PTR(rsp->_argv[arg]._val);
@@ -619,12 +619,12 @@ int cmd_estimate_packet_rsplen(IRPacket *rsp, L2CMD *c, IRAddress *dest, int pkt
     arglen = 100;
   }
   else if (rsp->_err == '\0') {
-    for (arg = 0; arg < (int)(uint)rsp->_argc; arg = arg + 1) {
+    for (arg = 0; arg < (int)(unsigned int)rsp->_argc; arg = arg + 1) {
       if ((rsp->_argv[arg]._clas & 7) == 2) {
         if ((c->q->rspq_max_length != 0) && (dest != NULL)) {
           arglen = arglen + 0x14;
         }
-        arglen = arglen + (uint)rsp->_argv[arg]._size;
+        arglen = arglen + (unsigned int)rsp->_argv[arg]._size;
       }
     }
   }

@@ -48,7 +48,7 @@ int IRouterConnectL3(char *cname, char *host, int port, IRClient **client, int e
   static RouterGroupSet partitions;
   int iVar1;
   RouterClient *pRVar2;
-  byte bVar3;
+  unsigned char bVar3;
   int partition;
   EventTimer cfg_timer;
   int server_process_id;
@@ -91,11 +91,11 @@ int IRouterConnectL3(char *cname, char *host, int port, IRClient **client, int e
       iVar1 = partition + 7;
     }
     bVar3 = partitions.bits[iVar1 >> 3];
-    if ((uint)partition < partitions.count) {
+    if ((unsigned int)partition < partitions.count) {
       if (false) {
         partition = partition + 7;
       }
-      bVar3 = bVar3 | (byte)(1 << (((char)((uint)events >> 0x10) + (char)(partition >> 3) * -8) &
+      bVar3 = bVar3 | (unsigned char)(1 << (((char)((unsigned int)events >> 0x10) + (char)(partition >> 3) * -8) &
                                   0x1fU));
     }
     partitions.bits[iVar1 >> 3] = bVar3;
@@ -165,7 +165,7 @@ int IRouterRequestL3(IRClient *client, IRIdent *id, IRAddress *toaddr, int opcod
   }
   else {
     if (seqnum != NULL) {
-      *seqnum = (uint)id->seqnum;
+      *seqnum = (unsigned int)id->seqnum;
     }
     pkt = IRouterMakePacket(id,toaddr,0,opcode,0,2,argcount,arglist);
     if (pkt == NULL) {
@@ -191,7 +191,7 @@ int IRouterResponseL3(IRClient *client, IRIdent *id, int errcode, IRPacket *reqp
     iVar2 = -0x12f;
   }
   else {
-    pkt = IRouterMakePacket(id,&reqpkt->_src,0,(uint)reqpkt->_opcode,1,(uint)reqpkt->_rev,argcount,
+    pkt = IRouterMakePacket(id,&reqpkt->_src,0,(unsigned int)reqpkt->_opcode,1,(unsigned int)reqpkt->_rev,argcount,
                             arglist);
     if (pkt == NULL) {
       iVar2 = -0x25c;
@@ -232,7 +232,7 @@ int IRouterEventL3(IRClient *client, IRIdent *id, int opcode, int argcount, IRAr
 
 int IRouterGetPacketL3(IRIdent *id, IRPacket **pkt, IRClient **client, int wait, int response)
 {
-  byte *pbVar1;
+  unsigned char *pbVar1;
   bool bVar2;
   RouterClient *pRVar3;
   int iVar4;
@@ -370,7 +370,7 @@ int rtr_connected(RouterClient *client, int opcode, RouterArgument **arglistout)
     }
     if (pw != NULL) {
       pwarg[0].clas = 1;
-      pwarg[0].val = (ulong)strdup(pw);
+      pwarg[0].val = (uintptr_t)strdup(pw);
       pwarg[0].fre = 1;
       pwarg[0].size = strlen(pw) + 1;
     }

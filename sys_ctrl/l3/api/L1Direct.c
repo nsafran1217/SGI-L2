@@ -213,7 +213,7 @@ int L1DirectRequest(IRIdent *id, IRAddress *toaddr, int opcode, int argcount, IR
   int rval;
   
   if (seqnum != NULL) {
-    *seqnum = (uint)id->seqnum;
+    *seqnum = (unsigned int)id->seqnum;
   }
   pkt = IRouterMakePacket(id,toaddr,0,opcode,0,2,argcount,arglist);
   if (pkt == NULL) {
@@ -237,7 +237,7 @@ int L1DirectResponse(IRIdent *id, int errcode, IRPacket *reqpkt, int argcount, I
   if (id == NULL) {
     pIStack_10 = (IRIdent *)&reqpkt->_dest;
   }
-  pkt = IRouterMakePacket(id,&pIStack_10->addr,0,(uint)reqpkt->_opcode,1,(uint)reqpkt->_rev,argcount
+  pkt = IRouterMakePacket(id,&pIStack_10->addr,0,(unsigned int)reqpkt->_opcode,1,(unsigned int)reqpkt->_rev,argcount
                           ,arglist);
   if (pkt == NULL) {
     iVar1 = -0x25c;
@@ -404,7 +404,7 @@ int l1d_open(int connect)
   int *piVar2;
   int iVar3;
   char echo [1];
-  uchar prevchar;
+  unsigned char prevchar;
   int initialized;
   int status;
   
@@ -436,7 +436,7 @@ int l1d_open(int connect)
               fprintf(stderr,"l1d_open() waiting\n");
             }
             if (l1d_conn_direct == 0) {
-              status = SocketRead(l1d_fd,(uchar *)echo,1);
+              status = SocketRead(l1d_fd,(unsigned char *)echo,1);
             }
             else {
               status = read(l1d_fd,echo,1);
@@ -545,7 +545,7 @@ void l1d_tty_debug(int td)
     fprintf(stderr,"ispeed:  %8d\n",termios.c_ispeed);
     fprintf(stderr,"ospeed:  %8d\n",termios.c_ospeed);
     for (i = 0; i < 8; i = i + 1) {
-      fprintf(stderr,"cc_c[%d]: %8o\n",i,(uint)termios.c_cc[i]);
+      fprintf(stderr,"cc_c[%d]: %8o\n",i,(unsigned int)termios.c_cc[i]);
     }
   }
   return;
@@ -661,7 +661,7 @@ void l1d_read_packet(int port, int fd)
     lastcnt = 0;
     lasterr = 0;
     if (p->_err != 0) {
-      pcVar1 = IRFmtError((uint)p->_err);
+      pcVar1 = IRFmtError((unsigned int)p->_err);
       pcVar2 = format_address(p->_src);
       fprintf(stderr,"WARNING: packet error %s - %s\n",pcVar2,pcVar1);
     }
@@ -766,7 +766,7 @@ static void pkt_timeout(EventData client_data)
 static char *format_address(IRAddress addr)
 {
   static char buff[80];
-  uint uVar1;
+  unsigned int uVar1;
   int slot;
   int rack;
   
@@ -817,7 +817,7 @@ static void dmp(char *s, unsigned char *bptr, int blen, int newline)
     fprintf(stderr,"\n%s %x\n",s,bptr);
   }
   for (n = 0; n < blen; n = n + 1) {
-    fprintf(stderr,"%02x ",(uint)bptr[n]);
+    fprintf(stderr,"%02x ",(unsigned int)bptr[n]);
     if ((newline != 0) && (((n + 1U) & 7) == 0)) {
       fprintf(stderr,"\n");
     }

@@ -188,36 +188,36 @@ static char *l1_usb_path_str(sgil1_cfg_t *cfg, int format)
 {
   static char path[80];
   size_t sVar1;
-  uint uVar2;
+  unsigned int uVar2;
   char *pcVar3;
   int i;
   
   if (format == 0) {
-    sprintf((char *)&path,"b%u;p",(uint)cfg->bus);
+    sprintf((char *)&path,"b%u;p",(unsigned int)cfg->bus);
   }
   if (format == 1) {
-    sprintf((char *)&path,"  bus: %u  path: ",(uint)cfg->bus);
+    sprintf((char *)&path,"  bus: %u  path: ",(unsigned int)cfg->bus);
   }
   if (format == 2) {
-    sprintf((char *)&path,"b%u;p",(uint)cfg->bus);
+    sprintf((char *)&path,"b%u;p",(unsigned int)cfg->bus);
   }
-  for (i = 0; i < (int)(uint)cfg->level; i = i + 1) {
+  for (i = 0; i < (int)(unsigned int)cfg->level; i = i + 1) {
     if (i != 0) {
       strcat((char *)&path,"/");
     }
-    uVar2 = (uint)cfg->path[i];
+    uVar2 = (unsigned int)cfg->path[i];
     pcVar3 = "%d";
     sVar1 = strlen((char *)&path);
     sprintf(path + sVar1,pcVar3,uVar2);
   }
   if (format == 0) {
-    uVar2 = (uint)cfg->dev;
+    uVar2 = (unsigned int)cfg->dev;
     pcVar3 = ";d%d";
     sVar1 = strlen((char *)&path);
     sprintf((char *)&path + sVar1,pcVar3,uVar2);
   }
   if (format == 1) {
-    uVar2 = (uint)cfg->dev;
+    uVar2 = (unsigned int)cfg->dev;
     pcVar3 = "  dev: %d";
     sVar1 = strlen((char *)&path);
     sprintf(path + sVar1,pcVar3,uVar2);
@@ -248,7 +248,7 @@ int l1_open_usb_device(int device)
     fprintf(stderr,"l1_open_usb_device(%d) in\n",device);
   }
   if ((l1_usbpath_count != 0) && (1 < sgil1_rev)) {
-    cfg.dev = (uchar)device;
+    cfg.dev = (unsigned char)device;
     fd = ioctl(l2_l1_control,0xc0095307,&cfg);
     if (fd != 0) {
       piVar1 = __errno_location();
@@ -622,7 +622,7 @@ void l1_open(void)
         status = read(l2_l1_ports[0].fd,echo,1);
       }
       else if (l2_l1_conn_mode == 4) {
-        status = SocketRead(l2_l1_ports[0].fd,(uchar *)echo,1);
+        status = SocketRead(l2_l1_ports[0].fd,(unsigned char *)echo,1);
       }
       if (status < 1) {
         piVar1 = __errno_location();
@@ -722,7 +722,7 @@ void l1_tty_debug(int td)
     fprintf(stderr,"ispeed:  %8d\n",termios.c_ispeed);
     fprintf(stderr,"ospeed:  %8d\n",termios.c_ospeed);
     for (i = 0; i < 0x20; i = i + 1) {
-      fprintf(stderr,"cc_c[0x%2x]: 0x%04x\n",i,(uint)termios.c_cc[i]);
+      fprintf(stderr,"cc_c[0x%2x]: 0x%04x\n",i,(unsigned int)termios.c_cc[i]);
     }
   }
   return;
@@ -811,7 +811,7 @@ int l1_read_usb(int fd, unsigned char **bptr, int blen)
   char *pcVar2;
   int iVar3;
   int dev_still_open;
-  undefined4 uVar4;
+  uint32_t uVar4;
   
   uVar4 = 0;
   dev_still_open = 1;
@@ -938,11 +938,11 @@ int l1_read_ppp(int fd, unsigned char **bptr, int32 blen)
 
 int l1_read_l1net(int fd, unsigned char **pbptr, int blen)
 {
-  uchar *puVar1;
+  unsigned char *puVar1;
   uint16_t uVar2;
   int *piVar3;
   int status;
-  uchar *bptr;
+  unsigned char *bptr;
   
   puVar1 = *pbptr;
   bptr = puVar1 + IR_FRAME_PREFIX;

@@ -72,7 +72,7 @@ LpbkSession Lpbk[16];
 
 void lpbk(int session, IRAddress addr, int length, int count, SMP *smp)
 {
-  uchar *puVar1;
+  unsigned char *puVar1;
   int iVar2;
   IRAddress IVar3;
   int n;
@@ -96,7 +96,7 @@ void lpbk(int session, IRAddress addr, int length, int count, SMP *smp)
     Lpbk[session].bptr = puVar1;
     for (n = 0; n < length; n = n + 1) {
       iVar2 = rand();
-      Lpbk[session].bptr[n] = (uchar)iVar2;
+      Lpbk[session].bptr[n] = (unsigned char)iVar2;
     }
     gettimeofday((struct timeval *)&Lpbk[session].start_time,NULL);
     lpbk_process_request(session);
@@ -128,8 +128,8 @@ static void lpbk_process_request(int session)
 void lpbk_process_response(IRPacket *p)
 {
   float fVar1;
-  uint session;
-  uchar *arg;
+  unsigned int session;
+  unsigned char *arg;
   int iVar2;
   size_t sVar3;
   struct timeval tdiff;
@@ -152,10 +152,10 @@ void lpbk_process_response(IRPacket *p)
       session = IRArg(p,0);
     }
     if ((p->_argv[1]._clas & 7) == 0) {
-      arg = (uchar *)IR_VAL_PTR(p->_argv[1]._val);
+      arg = (unsigned char *)IR_VAL_PTR(p->_argv[1]._val);
     }
     else {
-      arg = (uchar *)IRArg(p,1);
+      arg = (unsigned char *)IRArg(p,1);
     }
     iVar2 = memcmp(arg,Lpbk[session].bptr,Lpbk[session].blen);
     if (iVar2 != 0) {

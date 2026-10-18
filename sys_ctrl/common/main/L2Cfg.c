@@ -182,7 +182,7 @@ int L2CfgMAddL2(L2Cfg *head, uint32 ip_addr, uint32 port, RouterClient *client, 
 {
   uint32_t uVar1;
   L2CfgNode *newl2;
-  uint uVar2;
+  unsigned int uVar2;
   L2CfgNode *oldl2;
   IRAddress ir_addr;
   
@@ -273,7 +273,7 @@ int L2CfgMAddL3(L2Cfg *head, uint32 ip_addr, RouterClient *client)
   newl3->events = 0;
   for (bit = 0; (client->process_id != 0 && (bit < 0x10)); bit = bit + 1) {
     if (true) {
-      switch(1 << ((byte)bit & 0x1f) & client->process_id) {
+      switch(1 << ((unsigned char)bit & 0x1f) & client->process_id) {
       case 1:
         newl3->events = newl3->events | 1;
         break;
@@ -375,7 +375,7 @@ static int match_node(L2CfgNode *n, uint32 ip_addr, IRAddress ir_addr, RouterCli
 {
   uint32_t uVar1;
   uint32_t uVar2;
-  uint uVar3;
+  unsigned int uVar3;
   bool bVar4;
   int match_id_ip;
   int match_node_ip;
@@ -520,7 +520,7 @@ L2CfgNode *L2CfgMFindNodeLocal(L2Cfg *head, uint32 ip_addr)
 
 L2CfgNode *L2CfgMFindNode(L2Cfg *head, uint32 ip_addr, IRAddress ir_addr, RouterClient *client)
 {
-  uint uVar1;
+  unsigned int uVar1;
   int tsk;
   IRAddress ir_addr_00;
   L2CfgNode *n;
@@ -633,8 +633,8 @@ char *L2CfgMDeviceName(L2Cfg *head, int fd)
         }
       }
       else if (iVar1 == 2) {
-        pcVar2 = L2CfgMAddrStr(head,((uint)l2port->l1cfg->rack << 6 |
-                                    (uint)(l2port->l1cfg->slot & 0x3f)) << 0xc,0);
+        pcVar2 = L2CfgMAddrStr(head,((unsigned int)l2port->l1cfg->rack << 6 |
+                                    (unsigned int)(l2port->l1cfg->slot & 0x3f)) << 0xc,0);
         sprintf((char *)&buff,"connection to %s",pcVar2);
         return (char *)&buff;
       }
@@ -776,16 +776,16 @@ void FmtBrick(char *bptr, int rack, int type, int slot)
 
 static void format_l1(char *rptr, L2CfgNode *l2node, int port, int l1, int mode)
 {
-  byte bVar1;
+  unsigned char bVar1;
   int iVar2;
   char *pcVar3;
   size_t sVar4;
-  uint uVar5;
+  unsigned int uVar5;
   L2CfgPort *l2port;
   char *sp;
   
   iVar2 = port * 0x1c;
-  uVar5 = (uint)L2CFG_OF(l2node)->port_list[port].l1cfg[l1].index;
+  uVar5 = (unsigned int)L2CFG_OF(l2node)->port_list[port].l1cfg[l1].index;
   pcVar3 = SocketAddrStr(l2node->ip_addr);
   sprintf(rptr,"L1 %s:%d:%d           ",pcVar3,port,uVar5);
   rptr[0x19] = '\0';
@@ -808,16 +808,16 @@ static void format_l1(char *rptr, L2CfgNode *l2node, int port, int l1, int mode)
     strcat(rptr," not configured\n");
     return;
   }
-  FmtBrick(rptr,(uint)L2CFG_OF(l2node)->port_list[port].l1cfg[l1].rack,
-           (uint)L2CFG_OF(l2node)->port_list[port].l1cfg[l1].type,
-           (uint)L2CFG_OF(l2node)->port_list[port].l1cfg[l1].slot);
+  FmtBrick(rptr,(unsigned int)L2CFG_OF(l2node)->port_list[port].l1cfg[l1].rack,
+           (unsigned int)L2CFG_OF(l2node)->port_list[port].l1cfg[l1].type,
+           (unsigned int)L2CFG_OF(l2node)->port_list[port].l1cfg[l1].slot);
   bVar1 = L2CFG_OF(l2node)->port_list[port].l1cfg[l1].type;
   if (bVar1 != 0x44) {
     if (bVar1 < 0x45) {
       if (bVar1 != 0x2d) {
 LAB_08069ef0:
         if (L2CFG_OF(l2node)->port_list[port].l1cfg[l1].partition != '\0') {
-          uVar5 = (uint)L2CFG_OF(l2node)->port_list[port].l1cfg[l1].partition;
+          uVar5 = (unsigned int)L2CFG_OF(l2node)->port_list[port].l1cfg[l1].partition;
           pcVar3 = ".%-3d";
           sVar4 = strlen(rptr);
           rptr = rptr + sVar4;
@@ -899,14 +899,14 @@ static void format_l2(char *rptr, L2CfgNode *l2node, L2Cfg *head, int mode, int 
       if ((L2CFG_OF(l2node)->port_list[port].state != 0) &&
          (L2CFG_OF(l2node)->port_list[port].l1cfg != 0)) {
         if (L2CFG_OF(l2node)->port_list[port].state == 2) {
-          rackslot = (uint)L2CFG_OF(l2node)->port_list[port].l1cfg->rack << 0x10 |
-                     (uint)L2CFG_OF(l2node)->port_list[port].l1cfg->slot;
+          rackslot = (unsigned int)L2CFG_OF(l2node)->port_list[port].l1cfg->rack << 0x10 |
+                     (unsigned int)L2CFG_OF(l2node)->port_list[port].l1cfg->slot;
         }
         i = 0;
         while ((i < l1cnt &&
                (rackslot <=
-                ((uint)L2CFG_OF(l2node)->port_list[l1list[i]].l1cfg->rack << 0x10
-                | (uint)L2CFG_OF(l2node)->port_list[l1list[i]].l1cfg->slot)))) {
+                ((unsigned int)L2CFG_OF(l2node)->port_list[l1list[i]].l1cfg->rack << 0x10
+                | (unsigned int)L2CFG_OF(l2node)->port_list[l1list[i]].l1cfg->slot)))) {
           i = i + 1;
         }
         if (i != l1cnt) {
@@ -1287,7 +1287,7 @@ void L2CfgMPrintX(L2Cfg *head, char **rrptr)
         for (l1 = 0; l1 < L2CFG_OF(l2node)->port_list[port].l1count; l1 = l1 + 1) {
           l1c = &L2CFG_OF(l2node)->port_list[port].l1cfg[l1];
           if ((l1c->configured != '\0') || (l1c->conn_state != '\0')) {
-            rs = (uint)l1c->slot + (uint)l1c->rack * 100;
+            rs = (unsigned int)l1c->slot + (unsigned int)l1c->rack * 100;
             found = false;
             for (n = 0; (!found && (n < count)); n = n + 1) {
               if (list[n].rs == rs) {
@@ -1300,16 +1300,16 @@ void L2CfgMPrintX(L2Cfg *head, char **rrptr)
                 if (list[n].rs < rs) {
                   memmove(list + n + 1,list + n,(count - n) * 0x10);
                   list[n].rs = rs;
-                  list[n].type = (uint)l1c->type;
-                  list[n].part = (uint)l1c->partition;
+                  list[n].type = (unsigned int)l1c->type;
+                  list[n].part = (unsigned int)l1c->partition;
                   list[n].l2 = L2CFG_OF(l2node)->rack;
                   found = true;
                 }
               }
               if (!found) {
                 list[count].rs = rs;
-                list[count].type = (uint)l1c->type;
-                list[count].part = (uint)l1c->partition;
+                list[count].type = (unsigned int)l1c->type;
+                list[count].part = (unsigned int)l1c->partition;
                 list[count].l2 = L2CFG_OF(l2node)->rack;
               }
               count = count + 1;
@@ -1373,7 +1373,7 @@ void L2CfgMPrintY(L2Cfg *head, char **rrptr)
   L2CfgNode *l2node;
   char *rptr;
   RouterClient *c;
-  uint rsl [1024 * 3];   /* (rack*100+slot, type, partition) per L1; Ghidra split it in two */
+  unsigned int rsl [1024 * 3];   /* (rack*100+slot, type, partition) per L1; Ghidra split it in two */
   int rs;
   bool found;
   
@@ -1386,10 +1386,10 @@ void L2CfgMPrintY(L2Cfg *head, char **rrptr)
         for (l1 = 0; l1 < L2CFG_OF(l2node)->port_list[port].l1count; l1 = l1 + 1) {
           l1c = &L2CFG_OF(l2node)->port_list[port].l1cfg[l1];
           if ((l1c->configured != '\0') || (l1c->conn_state != '\0')) {
-            rs = (uint)l1c->slot + (uint)l1c->rack * 100;
+            rs = (unsigned int)l1c->slot + (unsigned int)l1c->rack * 100;
             found = false;
             for (n = 0; (!found && (n < count)); n = n + 1) {
-              if (rsl[n * 3] == (uint)rs) {
+              if (rsl[n * 3] == (unsigned int)rs) {
                 found = true;
               }
             }
@@ -1399,15 +1399,15 @@ void L2CfgMPrintY(L2Cfg *head, char **rrptr)
                 if ((int)rsl[n * 3] < rs) {
                   memmove(rsl + (n + 1) * 3,rsl + n * 3,(count - n) * 3 * sizeof(*rsl));
                   rsl[n * 3] = rs;
-                  rsl[n * 3 + 1] = (uint)l1c->type;
-                  rsl[n * 3 + 2] = (uint)l1c->partition;
+                  rsl[n * 3 + 1] = (unsigned int)l1c->type;
+                  rsl[n * 3 + 2] = (unsigned int)l1c->partition;
                   found = true;
                 }
               }
               if (!found) {
                 rsl[count * 3] = rs;
-                rsl[count * 3 + 1] = (uint)l1c->type;
-                rsl[count * 3 + 2] = (uint)l1c->partition;
+                rsl[count * 3 + 1] = (unsigned int)l1c->type;
+                rsl[count * 3 + 2] = (unsigned int)l1c->partition;
               }
               count = count + 1;
             }
@@ -1523,7 +1523,7 @@ void L2CfgMCfgL2_rev1(L2Cfg *head, IRPacket *pkt)
   L2CfgL1 *l1cfg;
   int l1;
   L2Cfg *l2;
-  uchar local_ip [4];
+  unsigned char local_ip [4];
   int port;
   int l2i;
   int rev;
@@ -1593,14 +1593,14 @@ void L2CfgMCfgL2(L2Cfg *head, IRPacket *p)
   L2CfgNode *peer;
   L2CfgNode *next_peer;
   int *piVar1;
-  byte bVar2;
+  unsigned char bVar2;
   int rev;
   char *pcVar3;
   char *pcVar4;
   char *pcVar5;
   int iVar6;
-  uint ip;
-  ulong uVar7;
+  unsigned int ip;
+  unsigned long uVar7;
   in_addr_t iVar8;
   L2CfgNode *pLVar9;
   size_t sVar10;
@@ -1616,8 +1616,8 @@ void L2CfgMCfgL2(L2Cfg *head, IRPacket *p)
   int rack;
   IRAddress addr;
   int part;
-  uint l1;
-  uint port;
+  unsigned int l1;
+  unsigned int port;
   char *vptr;
   char *aptr;
   char *avptr;
@@ -1643,7 +1643,7 @@ void L2CfgMCfgL2(L2Cfg *head, IRPacket *p)
   }
   else {
     clen = 0;
-    for (a = 2; a < (int)(uint)bVar2; a = a + 1) {
+    for (a = 2; a < (int)(unsigned int)bVar2; a = a + 1) {
       if ((p->_argv[a]._clas & 7) == 0) {
         pcVar3 = (char *)IR_VAL_PTR(p->_argv[a]._val);
       }
@@ -1658,7 +1658,7 @@ void L2CfgMCfgL2(L2Cfg *head, IRPacket *p)
     pcVar3 = malloc(clen + 1);
     memset(pcVar3,0,clen + 1);
     cptr = pcVar3;
-    for (a = 2; pcVar4 = pcVar3, a < (int)(uint)bVar2; a = a + 1) {
+    for (a = 2; pcVar4 = pcVar3, a < (int)(unsigned int)bVar2; a = a + 1) {
       if ((p->_argv[a]._clas & 7) == 0) {
         pcVar4 = (char *)IR_VAL_PTR(p->_argv[a]._val);
       }
@@ -2116,7 +2116,7 @@ static int l1l2(L2CfgPort *l2port, int l1, int index, char *cfgp, int size)
   L2CfgL1 l2_l1cfg;
   L1CfgL1 l1_l1cfg;
   
-  if (0x70 < (uint)size) {
+  if (0x70 < (unsigned int)size) {
     size = 0x70;
   }
   memset(&l1_l1cfg,0,sizeof(L1CfgL1));
@@ -2190,13 +2190,13 @@ static int l1l2(L2CfgPort *l2port, int l1, int index, char *cfgp, int size)
 int L2CfgMCfgPort(L2Cfg *head, int port, IRPacket *p)
 {
   L2CfgPort *l2port_00;
-  ushort uVar1;
+  unsigned short uVar1;
   static int cvt[4] = { 0, 1, 5, 6 };
   char *cfgp;
   int count;
   int rsp;
   char *idxp;
-  uint uVar2;
+  unsigned int uVar2;
   int iVar3;
   char *cfgp_;
   int size_;
@@ -2250,7 +2250,7 @@ int L2CfgMCfgPort(L2Cfg *head, int port, IRPacket *p)
         else {
           cfgp = (char *)IRArg(p,l1 + 1);
         }
-        l1l2(l2port_00,l1,((int *)&cvt)[l1],cfgp,(uint)uVar1);
+        l1l2(l2port_00,l1,((int *)&cvt)[l1],cfgp,(unsigned int)uVar1);
       }
     }
     else if (uVar2 == 7) {
@@ -2320,8 +2320,8 @@ int L2CfgMFindBrickRS(L2Cfg *head, int ip, int port, int index, int *rack, int *
       }
       for (l1 = 0; l1 < l2port->l1count; l1 = l1 + 1) {
         if ((l2port->l1cfg[l1].index == index) && (l2port->l1cfg[l1].configured != '\0')) {
-          *rack = (uint)L2CFG_OF(l2node)->port_list[port].l1cfg[l1].rack;
-          *slot = (uint)L2CFG_OF(l2node)->port_list[port].l1cfg[l1].slot;
+          *rack = (unsigned int)L2CFG_OF(l2node)->port_list[port].l1cfg[l1].rack;
+          *slot = (unsigned int)L2CFG_OF(l2node)->port_list[port].l1cfg[l1].slot;
           return 0;
         }
       }
@@ -2347,10 +2347,10 @@ int L2CfgMFindBrickIP(L2Cfg *head, int rack, int slot, int *ip, int *p, int *l)
         for (l1 = 0; l1 < l2port->l1count; l1 = l1 + 1) {
           if ((((l2port->l1cfg[l1].configured != '\0') && (l2port->l1cfg[l1].rack == rack)) &&
               (l2port->l1cfg[l1].slot == slot)) &&
-             ((*l == -1 || ((int)(uint)l2port->l1cfg[l1].index < *l)))) {
+             ((*l == -1 || ((int)(unsigned int)l2port->l1cfg[l1].index < *l)))) {
             *ip = l2node->ip_addr;
             *p = port;
-            *l = (uint)l2port->l1cfg[l1].index;
+            *l = (unsigned int)l2port->l1cfg[l1].index;
           }
         }
       }
@@ -2434,7 +2434,7 @@ int L2CfgMFindBrickType(L2Cfg *head, int rack, int slot)
       if (l2port->state == 2) {
         for (l1 = 0; l1 < l2port->l1count; l1 = l1 + 1) {
           if ((l2port->l1cfg[l1].rack == rack) && (l2port->l1cfg[l1].slot == slot)) {
-            return (uint)l2port->l1cfg[l1].type;
+            return (unsigned int)l2port->l1cfg[l1].type;
           }
         }
       }
@@ -2445,11 +2445,11 @@ int L2CfgMFindBrickType(L2Cfg *head, int rack, int slot)
 
 char *L2CfgMQuery(L2Cfg *head, int mode, int format)
 {
-  uint uVar1;
+  unsigned int uVar1;
   int block;
   size_t sVar2;
   char *pcVar3;
-  undefined *puVar4;
+  unsigned char *puVar4;
   L2CfgPort *port;
   int iVar5;
   char sel [1024];
@@ -2469,7 +2469,7 @@ char *L2CfgMQuery(L2Cfg *head, int mode, int format)
   l2_index = 0;
   for (l2node = &head->net; l2node != NULL; l2node = l2node->next) {
     block = strlen(cbuf);
-    if ((uint)clen < block + 0x2000U) {
+    if ((unsigned int)clen < block + 0x2000U) {
       clen = clen + 0x2000;
       cbuf = realloc(cbuf,clen);
       sVar2 = strlen(cbuf);
@@ -2591,7 +2591,7 @@ char *L2CfgMQuery(L2Cfg *head, int mode, int format)
                   else {
                     puVar4 = "RACK";
                   }
-                  sprintf(cptr,"%s:%u,",puVar4,(uint)port->l1cfg[l1_index].rack);
+                  sprintf(cptr,"%s:%u,",puVar4,(unsigned int)port->l1cfg[l1_index].rack);
                   sVar2 = strlen(cptr);
                   cptr = cptr + sVar2;
                   if (l1_index == 0) {
@@ -2600,7 +2600,7 @@ char *L2CfgMQuery(L2Cfg *head, int mode, int format)
                   else {
                     puVar4 = "SLOT";
                   }
-                  sprintf(cptr,"%s:%u,",puVar4,(uint)port->l1cfg[l1_index].slot);
+                  sprintf(cptr,"%s:%u,",puVar4,(unsigned int)port->l1cfg[l1_index].slot);
                   sVar2 = strlen(cptr);
                   cptr = cptr + sVar2;
                   if (l1_index == 0) {
@@ -2609,7 +2609,7 @@ char *L2CfgMQuery(L2Cfg *head, int mode, int format)
                   else {
                     puVar4 = "TYPE";
                   }
-                  sprintf(cptr,"%s:%u,",puVar4,(uint)port->l1cfg[l1_index].type);
+                  sprintf(cptr,"%s:%u,",puVar4,(unsigned int)port->l1cfg[l1_index].type);
                   sVar2 = strlen(cptr);
                   cptr = cptr + sVar2;
                   if (port->l1cfg[l1_index].console_enabled != '\0') {
@@ -2619,7 +2619,7 @@ char *L2CfgMQuery(L2Cfg *head, int mode, int format)
                     else {
                       pcVar3 = "CONENA";
                     }
-                    sprintf(cptr,"%s:%u,",pcVar3,(uint)port->l1cfg[l1_index].console_enabled);
+                    sprintf(cptr,"%s:%u,",pcVar3,(unsigned int)port->l1cfg[l1_index].console_enabled);
                     sVar2 = strlen(cptr);
                     cptr = cptr + sVar2;
                   }
@@ -2641,7 +2641,7 @@ char *L2CfgMQuery(L2Cfg *head, int mode, int format)
                     else {
                       pcVar3 = "RTYPE";
                     }
-                    sprintf(cptr,"%s:%u,",pcVar3,(uint)port->l1cfg[l1_index].router_type);
+                    sprintf(cptr,"%s:%u,",pcVar3,(unsigned int)port->l1cfg[l1_index].router_type);
                     sVar2 = strlen(cptr);
                     cptr = cptr + sVar2;
                   }
@@ -2652,7 +2652,7 @@ char *L2CfgMQuery(L2Cfg *head, int mode, int format)
                     else {
                       pcVar3 = "SH_AMODE";
                     }
-                    sprintf(cptr,"%s:%u,",pcVar3,(uint)port->l1cfg[l1_index].shub_addrmode);
+                    sprintf(cptr,"%s:%u,",pcVar3,(unsigned int)port->l1cfg[l1_index].shub_addrmode);
                     sVar2 = strlen(cptr);
                     cptr = cptr + sVar2;
                   }
@@ -2663,7 +2663,7 @@ char *L2CfgMQuery(L2Cfg *head, int mode, int format)
                     else {
                       pcVar3 = "SH_SHRMODE";
                     }
-                    sprintf(cptr,"%s:%u,",pcVar3,(uint)port->l1cfg[l1_index].shub_shrmode);
+                    sprintf(cptr,"%s:%u,",pcVar3,(unsigned int)port->l1cfg[l1_index].shub_shrmode);
                     sVar2 = strlen(cptr);
                     cptr = cptr + sVar2;
                   }
@@ -2674,7 +2674,7 @@ char *L2CfgMQuery(L2Cfg *head, int mode, int format)
                     else {
                       pcVar3 = "PSTATE";
                     }
-                    sprintf(cptr,"%s:%u,",pcVar3,(uint)port->l1cfg[l1_index].power_state);
+                    sprintf(cptr,"%s:%u,",pcVar3,(unsigned int)port->l1cfg[l1_index].power_state);
                     sVar2 = strlen(cptr);
                     cptr = cptr + sVar2;
                   }
@@ -2685,7 +2685,7 @@ char *L2CfgMQuery(L2Cfg *head, int mode, int format)
                     else {
                       pcVar3 = "MSTATE";
                     }
-                    sprintf(cptr,"%s:%u,",pcVar3,(uint)port->l1cfg[l1_index].margin_state);
+                    sprintf(cptr,"%s:%u,",pcVar3,(unsigned int)port->l1cfg[l1_index].margin_state);
                     sVar2 = strlen(cptr);
                     cptr = cptr + sVar2;
                   }
@@ -2707,7 +2707,7 @@ char *L2CfgMQuery(L2Cfg *head, int mode, int format)
                     else {
                       pcVar3 = "CSTATE";
                     }
-                    sprintf(cptr,"%s:%u,",pcVar3,(uint)port->l1cfg[l1_index].conn_state);
+                    sprintf(cptr,"%s:%u,",pcVar3,(unsigned int)port->l1cfg[l1_index].conn_state);
                     sVar2 = strlen(cptr);
                     cptr = cptr + sVar2;
                   }
@@ -2718,7 +2718,7 @@ char *L2CfgMQuery(L2Cfg *head, int mode, int format)
                     else {
                       puVar4 = "PART";
                     }
-                    sprintf(cptr,"%s:%u,",puVar4,(uint)port->l1cfg[l1_index].partition);
+                    sprintf(cptr,"%s:%u,",puVar4,(unsigned int)port->l1cfg[l1_index].partition);
                     sVar2 = strlen(cptr);
                     cptr = cptr + sVar2;
                   }
@@ -2790,7 +2790,7 @@ char *L2CfgMAddrStr(L2Cfg *head, IRAddress addr, int verbose)
   char brick;
   int type;
   size_t sVar2;
-  uint type_00;
+  unsigned int type_00;
   L2CfgNode *pLVar3;
   char *pcVar4;
   uint32_t uVar5;
@@ -2913,7 +2913,7 @@ IRAddress L2CfgMGetConsole(L2Cfg *head, int partition)
   int rack;
   int slot;
   int type;
-  uint uVar1;
+  unsigned int uVar1;
   IRAddress IVar2;
   int part;
   int l1;
@@ -2941,7 +2941,7 @@ IRAddress L2CfgMGetConsole(L2Cfg *head, int partition)
                 slot = (int)l2port->l1cfg[l1].slot;
                 type = (int)l2port->l1cfg[l1].type;
                 subc = BRICK_TASKNUM_SUBCHAN(type,l2port->l1cfg[l1].console_subchannel);
-                uVar1 = (uint)l2port->l1cfg[l1].partition;
+                uVar1 = (unsigned int)l2port->l1cfg[l1].partition;
                 if ((((rack != 0) && (slot != 0)) &&
                     (((((type == 0x43 ||
                         (((((type == 0x33 || (type == 0x35)) || (type == 0x34)) ||
@@ -2952,7 +2952,7 @@ IRAddress L2CfgMGetConsole(L2Cfg *head, int partition)
                        ((type == 0x4c || ((type == 0x4d || (type == 0x24)))))))) ||
                      ((type == 0x2c || (((type == 0x7d || (type == 0x2e)) || (type == 0x7b))))))))
                    && ((partition == -1 || ((int)uVar1 == partition)))) {
-                  if (((uint)rack <= rack0[uVar1]) && (((uint)slot <= slot0[uVar1] && (subc == 4))))
+                  if (((unsigned int)rack <= rack0[uVar1]) && (((unsigned int)slot <= slot0[uVar1] && (subc == 4))))
                   {
                     rack0[uVar1] = rack;
                     slot0[uVar1] = slot;
@@ -2971,7 +2971,7 @@ IRAddress L2CfgMGetConsole(L2Cfg *head, int partition)
                     }
                     addr0[uVar1] = IVar2;
                   }
-                  if (((uint)rack <= rack1[uVar1]) && ((uint)slot <= slot1[uVar1])) {
+                  if (((unsigned int)rack <= rack1[uVar1]) && ((unsigned int)slot <= slot1[uVar1])) {
                     rack1[uVar1] = rack;
                     slot1[uVar1] = slot;
                     addr1[uVar1] = (rack << 6 | (slot & 0x3fU)) << 0xc;
