@@ -18,9 +18,8 @@
 #include "l1.h"
 #include "irtr.h"
 
-#define L2_CMD_TASK     3       /* an L2's (and an L1's) command task */
 /* the L1 at the far end of an L1 port: rack and slot all ones */
-#define L1_LOCAL_CMD    IR_ADDR_MAKE(IR_ADDR_L1,0x3ff,0x3f,0,L2_CMD_TASK)
+#define L1_LOCAL_CMD    IR_ADDR_MAKE(IR_ADDR_L1,0x3ff,0x3f,0,L2_TASK_CMD)
 
 int target_response_timeout = 10;
 
@@ -66,7 +65,7 @@ int target_l2(L2CMD *c, char **results, int ip, char *cptr, int response, int de
     return -1;
   if ((L2Cfg *)node == &L2CfgLocal)
     return l2cmd_process(c,cptr,results,NULL);
-  addr = IR_ADDR_WITH_TASK(IR_ADDR_FROM_IP(ip),L2_CMD_TASK);
+  addr = IR_ADDR_WITH_TASK(IR_ADDR_FROM_IP(ip),L2_TASK_CMD);
   p = command_packet(c,&addr,cptr,response);
   IRouterSendPacket(NULL,p);
   sent(c,delay,final);

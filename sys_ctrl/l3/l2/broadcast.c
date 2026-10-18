@@ -3,435 +3,221 @@
  *
  * Reconstructed from the STABS debug info and Ghidra decompilation of l2.
  * Original: /data/cf/sysco/scs123.patch/sys_ctrl/l3/l2/broadcast.c
+ *
+ * Sending one command to many targets: broadcast_l1() and broadcast_l2()
+ * queue a request per brick or L2 of the command's destination, with
+ * markers between groups; broadcast() then sends them. A marker with delay
+ * -1 waits for the group's responses (broadcast() returns, and is called
+ * again once they are in), a positive delay pauses that many milliseconds.
  */
 
-#include "irtr.h"   /* needed by the reconstruction */
-#include "smp.h"   /* needed by the reconstruction */
-#include "l2.h"
 #include <stdio.h>
-#include <stddef.h>
-#include <stdarg.h>
 #include <stdlib.h>
-#include <sys/types.h>
-#include <time.h>
-#include <fcntl.h>
-#include <errno.h>
-#include <signal.h>
-#include <termios.h>
-#include <unistd.h>
-#include <getopt.h>
 #include <string.h>
-#include "../../common/Router/Socket.h"
-#include "../../common/Router/Event.h"
-#include <sys/time.h>
-#include "../../common/IRouter/IRouter.h"
-#include "../../common/sys/sysctl_types.h"
-#include <netinet/in.h>
-#include <limits.h>
-#include <syslimits.h>
-#include <linux/limits.h>
-#include <stdint.h>
-#include "../../common/sys/sysutils.h"
-#include <pthread.h>
-#include <sched.h>
-#include "../../common/sys/Logger.h"
-#include "../sys/LoggerMsg.h"
-#include "../../common/IRouter/IRouter2Router.h"
-#include "../../common/Router/Router.h"
-#include "../../common/sys/PPP.h"
-#include "../../common/sys/brick_types.h"
-#include "../../common/main/EnetServer.h"
-#include "../../common/main/L2Cfg.h"
-#include "../../common/main/L1Cfg.h"
-#include "l2_rev.h"
-#include "l2cmd.h"
-#include "reqrspq.h"
-#include "dest.h"
-#include "../../common/sys/Cmd.h"
+#include <unistd.h>
+#include "l2.h"
 #include "broadcast.h"
-#include "decomp.h"     /* Ghidra types/macros; remove once the file is cleaned up */
+#include "irtr.h"
 
-int broadcast_debug;
+#define WAIT_RESPONSES  -1      /* the marker's delay that waits */
+
+int broadcast_debug;            /* 1 the sending, 2 the groups, 4 the bricks */
 int broadcast_response_timeout = 15;
 
+/*
+ * Send q's requests up to the next wait for responses. Returns -1 while
+ * responses are awaited, 0 when the queue is done. (A call while it is
+ * sleeping between requests returns -1 at once.)
+ */
 int broadcast(REQRSPQ *q, IRIdent *id)
 {
   static int active;
-  static int pcount;
-  int iVar1;
-  int delay;
-  int response;
-  IRPacket *pkt;
-  
-  pkt = NULL;
-  response = 0;
-  delay = 0;
-  if (active == 0) {
-    pcount = 0;
-    active = 1;
-    do {
-      while( true ) {
-        do {
-          iVar1 = reqq_get(q,&pkt,&response,&delay);
-          if (iVar1 != 0) {
-            if ((broadcast_debug & 1U) != 0) {
-              fprintf(stderr,"broadcast returning (3)\n");
-            }
-            active = 0;
-            return 0;
-          }
-          if (pkt != NULL) {
-            if ((broadcast_debug & 1U) != 0) {
-              fprintf(stderr,"%d.%d ",pkt->_dest >> 0x12 & 0x3ff,pkt->_dest >> 0xc & 0x3f);
-            }
-            if (response != 0) {
-              rspq_put(q,(unsigned int)IR_SEQNUM(pkt),pkt->_dest);
-              rspq_timeout_set(q,broadcast_response_timeout);
-            }
-            pcount = pcount + 1;
-            IRouterSendPacket(id,pkt);
-          }
-        } while (delay == 0);
-        if (delay == -1) break;
-        if ((broadcast_debug & 1U) != 0) {
-          fprintf(stderr,"sleep %d ",delay);
-        }
-        usleep(delay * 1000);
-        pcount = 0;
-      }
-    } while (q->rspq_pending == 0);
-    if ((broadcast_debug & 1U) != 0) {
-      fprintf(stderr,"broadcast returning (2)\n");
-    }
-    active = 0;
-  }
-  else {
-    if ((broadcast_debug & 1U) != 0) {
+  static int pcount;            /* requests sent since the last pause */
+  IRPacket *pkt = NULL;
+  int response = 0;
+  int delay = 0;
+
+  if (active) {
+    if (broadcast_debug & 1)
       fprintf(stderr,"broadcast returning (1)\n");
-    }
-    pcount = pcount + -1;
+    pcount--;
+    return -1;
   }
-  return -1;
+  pcount = 0;
+  active = 1;
+  for (;;) {
+    if (reqq_get(q,&pkt,&response,&delay) != 0) {
+      if (broadcast_debug & 1)
+        fprintf(stderr,"broadcast returning (3)\n");
+      active = 0;
+      return 0;
+    }
+    if (pkt != NULL) {
+      if (broadcast_debug & 1)
+        fprintf(stderr,"%d.%d ",IR_ADDR_RACK(pkt->_dest),IR_ADDR_SLOT(pkt->_dest));
+      if (response) {
+        rspq_put(q,IR_SEQNUM(pkt),pkt->_dest);
+        rspq_timeout_set(q,broadcast_response_timeout);
+      }
+      pcount++;
+      IRouterSendPacket(id,pkt);
+    }
+    if (delay == 0)
+      continue;
+    if (delay == WAIT_RESPONSES) {
+      if (q->rspq_pending == 0)
+        continue;
+      if (broadcast_debug & 1)
+        fprintf(stderr,"broadcast returning (2)\n");
+      active = 0;
+      return -1;
+    }
+    if (broadcast_debug & 1)
+      fprintf(stderr,"sleep %d ",delay);
+    usleep(delay * 1000);
+    pcount = 0;
+  }
 }
 
+/* a request for cmd (a copy, freed once sent) to addr's command task */
+static IRPacket *command_packet(L2CMD *c, IRAddress addr, const char *cmd)
+{
+  IRArgument argv[2];
+  char *copy = strdup(cmd);
+
+  addr = IR_ADDR_WITH_TASK(addr,L2_TASK_CMD);
+  argv[0]._clas = IR_ARG_VALUE;
+  argv[0]._frame = 0;
+  argv[0]._val = 0;
+  argv[0]._size = 0;
+  argv[1]._clas = IR_ARG_STRING | IR_ARG_FREE;
+  argv[1]._frame = 0;
+  argv[1]._val = IR_PTR_VAL(copy);
+  argv[1]._size = strlen(copy) + 1;
+  return IRouterMakePacket(c->id,&addr,0,0,IR_REQ,2,2,argv);
+}
+
+/*
+ * cmd to every L2 of c's destination, last first; the final call of a
+ * command starts sending. A final command for this L2 alone runs at once,
+ * into results.
+ */
 int broadcast_l2(L2CMD *c, char **results, char *cmd, int response, int delay, int final)
 {
-  L2Cfg *pLVar1;
-  int iVar2;
-  size_t sVar3;
-  uint32_t ip_addr;
-  IRAddress ir_addr;
-  RouterClient *client;
-  char *cptr;
-  IRAddress l2_addr;
-  int addr;
-  IRPacket *p;
-  IRArgument argv [2];
-  
-  if ((final != 0) && (c->dest->count == 1)) {
-    client = NULL;
-    ir_addr = 0;
-    if (IRByteOrder == 1) {
-      ip_addr = c->dest->list[0] & 0xffffff;
-    }
-    else {
-      ip_addr = htonl(c->dest->list[0] & 0xffffff);
-    }
-    pLVar1 = (L2Cfg *)L2CfgMFindNode(&L2CfgLocal,ip_addr,ir_addr,client);
-    if (pLVar1 == &L2CfgLocal) {
-      iVar2 = l2cmd_process(NULL,cmd,results,NULL);
-      return iVar2;
-    }
+  L2CfgNode *node;
+  int i;
+
+  if (final && c->dest->count == 1) {
+    node = L2CfgMFindNode(&L2CfgLocal,IR_ADDR_TO_IP(c->dest->list[0]),0,NULL);
+    if ((L2Cfg *)node == &L2CfgLocal)
+      return l2cmd_process(NULL,cmd,results,NULL);
   }
-  iVar2 = c->dest->count;
-  while (addr = iVar2 + -1, -1 < addr) {
-    l2_addr = c->dest->list[iVar2 + -1];
-    argv[1]._val = IR_PTR_VAL(strdup(cmd));
-    l2_addr = (l2_addr & 0xc0ffffff) | 0x3000000;
-    argv[0]._clas = '\0';
-    argv[0]._frame = '\0';
-    argv[0]._val = 0;
-    argv[0]._size = 0;
-    argv[1]._clas = '\n';
-    argv[1]._frame = '\0';
-    sVar3 = strlen((char *)IR_VAL_PTR(argv[1]._val));
-    argv[1]._size = (short)sVar3 + 1;
-    p = IRouterMakePacket(c->id,&l2_addr,0,0,0,2,2,argv);
-    reqq_put(c->q,p,response,0);
-    iVar2 = addr;
-  }
-  if (response != 0) {
-    reqq_put(c->q,NULL,0,-1);
-    if (final == 0) {
+  for (i = c->dest->count - 1; i >= 0; i--)
+    reqq_put(c->q,command_packet(c,c->dest->list[i],cmd),response,0);
+  if (response) {
+    reqq_put(c->q,NULL,0,WAIT_RESPONSES);
+    if (!final)
       reqq_put(c->q,NULL,0,delay);
-    }
-    c->busy = c->busy | 1;
+    c->busy |= 1;
   }
-  if (final != 0) {
+  if (final) {
     rspq_timeout_set(c->q,broadcast_response_timeout);
     broadcast(c->q,c->id);
   }
   return 0;
 }
 
+/* a brick type's BCAST_ class */
+static int brick_class(int type)
+{
+  switch (type) {
+  case '-': case 'D': case 'R':
+    return BCAST_ROUTER;
+  case '#': case '&': case '=': case 'E': case 'G': case 'I':
+  case 'N': case 'P': case 'V': case 'X': case 'Y':
+    return BCAST_IO;
+  default:
+    return brickIsCompute(type) ? BCAST_COMPUTE : BCAST_OTHER;
+  }
+}
+
+/* queue cmd for the brick at addr if it is of class and its power state
+ * is wanted; counts it in *pcount */
+static void queue_brick(L2CMD *c, IRAddress addr, int class, int type, int method, char *cmd,
+                        int response, int delay, int *pcount)
+{
+  int rack = IR_ADDR_RACK(addr);
+  int slot = IR_ADDR_SLOT(addr);
+  L2CfgL1 *l1;
+  IRPacket *p;
+
+  l1 = L2CfgMFindBrickCfg(&L2CfgLocal,rack,slot,0);
+  if (l1 == NULL || !(brick_class(l1->type) & class) ||
+      ((type & BCAST_POWER_OFF) && l1->power_state != 0) ||
+      ((type & BCAST_POWER_ON) && l1->power_state == 0))
+    return;
+  p = command_packet(c,addr,cmd);
+  if ((broadcast_debug & 2) && *pcount == 0)
+    fprintf(stderr,"sending \'%s\' %s, %d\n",cmd,method == BCAST_SERIAL ? "serial" : "parallel",
+            class);
+  (*pcount)++;
+  if (broadcast_debug & 4)
+    fprintf(stderr,"%d.%d ",rack,slot);
+  reqq_put(c->q,p,response,0);
+  if (response) {
+    c->busy |= 1;
+    if (method == BCAST_SERIAL) {       /* each brick's response before the next */
+      reqq_put(c->q,NULL,0,WAIT_RESPONSES);
+      reqq_put(c->q,NULL,0,delay);
+      if (broadcast_debug & 2)
+        fprintf(stderr,"serial %d\n",delay);
+    }
+  }
+}
+
+/*
+ * cmd to the bricks of c's destination of the classes in type (BCAST_ALL:
+ * each class in turn) and power states it names; with slots (a list ending
+ * in -1), only bricks in those slots, slot by slot. BCAST_SERIAL waits for
+ * each brick's response, BCAST_PARALLEL for all of them; then the pause
+ * delay unless final. The final call of a command starts sending.
+ */
 int broadcast_l1(L2CMD *c, int method, char *cmd, int response, int delay, int type, int *slots, int final)
 {
-  int iVar1;
-  L2CfgL1 *l1;
-  size_t sVar2;
-  char *pcVar3;
-  L2CfgL1 *pLVar4;
-  int brick_rack;
-  int brick_slot;
-  unsigned int rack;
-  unsigned int slot_00;
-  L2CfgL1 *l1_;
-  int flags;
-  char *cptr;
-  int last_type;
-  int first_type;
-  int brick_type;
-  IRAddress brick_addr;
+  int first_class;
+  int last_class;
+  int class;
+  int pcount = 0;
   int slot;
-  int addr;
-  int pcount;
-  IRPacket *p;
-  IRArgument argv [2];
-  
-  iVar1 = type;
-  pcount = 0;
-  type = type & 0xffff;
-  if (type == 0xff) {
-    first_type = 1;
-    last_type = 0x80;
+  int i;
+
+  if ((type & 0xffff) == BCAST_ALL) {
+    first_class = BCAST_ROUTER;
+    last_class = BCAST_OTHER;
   }
-  else {
-    first_type = type;
-    last_type = type;
-  }
-  if (slots == NULL) {
-    for (type = first_type; type <= last_type; type = type << 1) {
-      for (addr = 0; addr < c->dest->count; addr = addr + 1) {
-        brick_addr = c->dest->list[addr];
-        rack = brick_addr >> 0x12 & 0x3ff;
-        slot_00 = brick_addr >> 0xc & 0x3f;
-        pLVar4 = L2CfgMFindBrickCfg(&L2CfgLocal,rack,slot_00,0);
-        if (pLVar4 != NULL) {
-          if (false) {
-switchD_0805f8b9_caseD_25:
-            brick_type = 0x80;
-          }
-          else {
-            switch(pLVar4->type) {
-            case '#':
-            case '&':
-            case '=':
-            case 'E':
-            case 'G':
-            case 'I':
-            case 'N':
-            case 'P':
-            case 'V':
-            case 'X':
-            case 'Y':
-              brick_type = 2;
-              break;
-            case '$':
-            case ',':
-            case '.':
-            case '0':
-            case '3':
-            case '4':
-            case '5':
-            case '6':
-            case '7':
-            case '8':
-            case '9':
-            case '@':
-            case 'A':
-            case 'B':
-            case 'C':
-            case 'F':
-            case 'L':
-            case 'M':
-            case 'O':
-            case 'Q':
-            case '{':
-            case '}':
-              brick_type = 4;
-              break;
-            default:
-              goto switchD_0805f8b9_caseD_25;
-            case '-':
-            case 'D':
-            case 'R':
-              brick_type = 1;
-            }
-          }
-          if ((((brick_type & type) != 0) &&
-              (((iVar1 & 0x10000U) == 0 || (pLVar4->power_state == '\0')))) &&
-             (((iVar1 & 0x20000U) == 0 || (pLVar4->power_state != '\0')))) {
-            argv[1]._val = IR_PTR_VAL(strdup(cmd));
-            if ((brick_addr & 0x80000000) == 0) {
-              brick_addr = (brick_addr & 0xffffffe0) | 3;
-            }
-            else {
-              brick_addr = (brick_addr & 0xc0ffffff) | 0x3000000;
-            }
-            argv[0]._clas = '\0';
-            argv[0]._frame = '\0';
-            argv[0]._val = 0;
-            argv[0]._size = 0;
-            argv[1]._clas = '\n';
-            argv[1]._frame = '\0';
-            sVar2 = strlen((char *)IR_VAL_PTR(argv[1]._val));
-            argv[1]._size = (short)sVar2 + 1;
-            p = IRouterMakePacket(c->id,&brick_addr,0,0,0,2,2,argv);
-            if (((broadcast_debug & 2U) != 0) && (pcount == 0)) {
-              if (method == 2) {
-                pcVar3 = "serial";
-              }
-              else {
-                pcVar3 = "parallel";
-              }
-              fprintf(stderr,"sending \'%s\' %s, %d\n",cmd,pcVar3,type);
-            }
-            pcount = pcount + 1;
-            if ((broadcast_debug & 4U) != 0) {
-              fprintf(stderr,"%d.%d ",rack,slot_00);
-            }
-            reqq_put(c->q,p,response,0);
-            if ((response != 0) && (c->busy = c->busy | 1, method == 2)) {
-              reqq_put(c->q,NULL,0,-1);
-              reqq_put(c->q,NULL,0,delay);
-              if ((broadcast_debug & 2U) != 0) {
-                fprintf(stderr,"serial %d\n",delay);
-              }
-            }
-          }
-        }
-      }
+  else
+    first_class = last_class = type & 0xffff;
+  for (class = first_class; class <= last_class; class <<= 1) {
+    if (slots == NULL) {
+      for (i = 0; i < c->dest->count; i++)
+        queue_brick(c,c->dest->list[i],class,type,method,cmd,response,delay,&pcount);
+      continue;
     }
+    for (slot = 0; slots[slot] != -1; slot++)
+      for (i = 0; i < c->dest->count; i++)
+        if (IR_ADDR_SLOT(c->dest->list[i]) == slots[slot])
+          queue_brick(c,c->dest->list[i],class,type,method,cmd,response,delay,&pcount);
   }
-  else {
-    for (type = first_type; type <= last_type; type = type << 1) {
-      for (slot = 0; slots[slot] != -1; slot = slot + 1) {
-        for (addr = 0; addr < c->dest->count; addr = addr + 1) {
-          brick_addr = c->dest->list[addr];
-          brick_rack = brick_addr >> 0x12 & 0x3ff;
-          brick_slot = brick_addr >> 0xc & 0x3f;
-          if ((brick_slot == slots[slot]) &&
-             (l1 = L2CfgMFindBrickCfg(&L2CfgLocal,brick_rack,brick_slot,0), l1 != NULL)) {
-            if (false) {
-switchD_0805f5b6_caseD_25:
-              brick_type = 0x80;
-            }
-            else {
-              switch(l1->type) {
-              case '#':
-              case '&':
-              case '=':
-              case 'E':
-              case 'G':
-              case 'I':
-              case 'N':
-              case 'P':
-              case 'V':
-              case 'X':
-              case 'Y':
-                brick_type = 2;
-                break;
-              case '$':
-              case ',':
-              case '.':
-              case '0':
-              case '3':
-              case '4':
-              case '5':
-              case '6':
-              case '7':
-              case '8':
-              case '9':
-              case '@':
-              case 'A':
-              case 'B':
-              case 'C':
-              case 'F':
-              case 'L':
-              case 'M':
-              case 'O':
-              case 'Q':
-              case '{':
-              case '}':
-                brick_type = 4;
-                break;
-              default:
-                goto switchD_0805f5b6_caseD_25;
-              case '-':
-              case 'D':
-              case 'R':
-                brick_type = 1;
-              }
-            }
-            if ((((brick_type & type) != 0) &&
-                (((iVar1 & 0x10000U) == 0 || (l1->power_state == '\0')))) &&
-               (((iVar1 & 0x20000U) == 0 || (l1->power_state != '\0')))) {
-              argv[1]._val = IR_PTR_VAL(strdup(cmd));
-              if ((brick_addr & 0x80000000) == 0) {
-                brick_addr = (brick_addr & 0xffffffe0) | 3;
-              }
-              else {
-                brick_addr = (brick_addr & 0xc0ffffff) | 0x3000000;
-              }
-              argv[0]._clas = '\0';
-              argv[0]._frame = '\0';
-              argv[0]._val = 0;
-              argv[0]._size = 0;
-              argv[1]._clas = '\n';
-              argv[1]._frame = '\0';
-              sVar2 = strlen((char *)IR_VAL_PTR(argv[1]._val));
-              argv[1]._size = (short)sVar2 + 1;
-              p = IRouterMakePacket(c->id,&brick_addr,0,0,0,2,2,argv);
-              if (((broadcast_debug & 2U) != 0) && (pcount == 0)) {
-                if (method == 2) {
-                  pcVar3 = "serial";
-                }
-                else {
-                  pcVar3 = "parallel";
-                }
-                fprintf(stderr,"sending \'%s\' %s, %d\n",cmd,pcVar3,type);
-              }
-              pcount = pcount + 1;
-              if ((broadcast_debug & 4U) != 0) {
-                fprintf(stderr,"%d.%d ",brick_rack,brick_slot);
-              }
-              reqq_put(c->q,p,response,0);
-              if ((response != 0) && (c->busy = c->busy | 1, method == 2)) {
-                reqq_put(c->q,NULL,0,-1);
-                reqq_put(c->q,NULL,0,delay);
-                if ((broadcast_debug & 2U) != 0) {
-                  fprintf(stderr,"serial %d\n",delay);
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-  if (((pcount != 0) && (response != 0)) && (method == 1)) {
-    reqq_put(c->q,NULL,0,-1);
-    if (final == 0) {
+  if (pcount != 0 && response && method == BCAST_PARALLEL) {
+    reqq_put(c->q,NULL,0,WAIT_RESPONSES);
+    if (!final)
       reqq_put(c->q,NULL,0,delay);
-    }
-    if ((broadcast_debug & 2U) != 0) {
+    if (broadcast_debug & 2)
       fprintf(stderr,"parallel %d\n",delay);
-    }
   }
-  if (final != 0) {
-    if ((broadcast_debug & 1U) != 0) {
+  if (final) {
+    if (broadcast_debug & 1)
       fprintf(stderr,"starting broadcast\n");
-    }
     rspq_timeout_set(c->q,broadcast_response_timeout);
     broadcast(c->q,c->id);
   }

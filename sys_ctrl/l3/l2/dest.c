@@ -3,56 +3,22 @@
  *
  * Reconstructed from the STABS debug info and Ghidra decompilation of l2.
  * Original: /data/cf/sysco/scs123.patch/sys_ctrl/l3/l2/dest.c
+ *
+ * Destinations: which bricks (or L2s) a console command goes to. A DEST
+ * keeps a default selection (the "destination" command) as Cmd range lists
+ * of racks and slots, or of partitions, and the addresses it last resolved.
  */
 
-#include "l2.h"
 #include <stdio.h>
-#include <stddef.h>
-#include <stdarg.h>
 #include <stdlib.h>
-#include <sys/types.h>
-#include <time.h>
-#include <fcntl.h>
-#include <errno.h>
-#include <signal.h>
-#include <termios.h>
-#include <unistd.h>
-#include <getopt.h>
 #include <string.h>
-#include "../../common/Router/Socket.h"
-#include "../../common/Router/Event.h"
-#include <sys/time.h>
-#include "../../common/IRouter/IRouter.h"
-#include "../../common/sys/sysctl_types.h"
-#include <netinet/in.h>
-#include <limits.h>
-#include <syslimits.h>
-#include <linux/limits.h>
-#include <stdint.h>
-#include "../../common/sys/sysutils.h"
-#include <pthread.h>
-#include <sched.h>
-#include "../../common/sys/Logger.h"
-#include "../sys/LoggerMsg.h"
-#include "../../common/IRouter/IRouter2Router.h"
-#include "../../common/Router/Router.h"
-#include "../../common/sys/PPP.h"
-#include "../../common/sys/brick_types.h"
-#include "../../common/main/EnetServer.h"
-#include "../../common/main/L2Cfg.h"
-#include "../../common/main/L1Cfg.h"
-#include "l2_rev.h"
+#include "l2.h"
 #include "dest.h"
-#include "../../common/sys/Cmd.h"
-#include "decomp.h"     /* Ghidra types/macros; remove once the file is cleaned up */
-
-static int pop(char *s, int slen);
-static int expand_range(char *dptr, int dlen, char *sptr);
 
 DEST *dest_init(void)
 {
   DEST *d;
-  
+
   d = malloc(sizeof(DEST));
   dest_reset(d);
   return d;
@@ -61,47 +27,54 @@ DEST *dest_init(void)
 void dest_free(DEST *d)
 {
   free(d);
-  return;
 }
 
+/* the default: every rack and slot */
 void dest_reset(DEST *d)
 {
   memset(d,0,sizeof(DEST));
-  memset(d->rlist,1,0x100);
-  memset(d->slist,1,0x40);
-  return;
+  memset(d->rlist,1,sizeof(d->rlist));
+  memset(d->slist,1,sizeof(d->slist));
 }
 
+/* make the command's selection the default */
 void dest_default(DEST *d, CmdData *cptr)
 {
-  memcpy(d,cptr->plist,0x40);
-  memcpy(d->rlist,cptr->rlist,0x100);
-  memcpy(d->slist,cptr->slist,0x40);
-  return;
+  memcpy(d->plist,cptr->plist,sizeof(d->plist));
+  memcpy(d->rlist,cptr->rlist,sizeof(d->rlist));
+  memcpy(d->slist,cptr->slist,sizeof(d->slist));
 }
 
+/* the number of entries selected */
+static int pop(const char *s, int slen)
+{
+  int c = 0;
+
+  while (slen-- > 0)
+    if (*s++ != 0)
+      c++;
+  return c;
+}
+
+/* the L1s (bricks) that cptr's selection names, or the default's if it
+ * names none, into d->list: compute bricks in the order found, the others
+ * (routers, I/O) ahead of them, last found first. Returns how many. */
 int dest_l1(DEST *d, CmdData *cptr)
 {
-  char cVar1;
-  int iVar2;
-  int rack;
-  int slot;
-  L2CfgPort *l2port;
-  IRAddress addr;
-  bool found;
-  int index;
-  int part;
-  char *plist;
-  char *slist;
-  char *rlist;
-  int l1;
-  int port;
   L2CfgNode *l2node;
-  uint8 type;
-  
-  if ((cptr == NULL) ||
-     (((iVar2 = pop(cptr->plist,0x40), iVar2 == 0 && (iVar2 = pop(cptr->rlist,0x100), iVar2 == 0))
-      && (iVar2 = pop(cptr->slist,0x40), iVar2 == 0)))) {
+  L2CfgPort *l2port;
+  L2CfgL1 *l1cfg;
+  const char *plist;
+  const char *rlist;
+  const char *slist;
+  IRAddress addr;
+  int port;
+  int index;
+  int l1;
+
+  if (cptr == NULL || (pop(cptr->plist,sizeof(cptr->plist)) == 0 &&
+                       pop(cptr->rlist,sizeof(cptr->rlist)) == 0 &&
+                       pop(cptr->slist,sizeof(cptr->slist)) == 0)) {
     plist = d->plist;
     rlist = d->rlist;
     slist = d->slist;
@@ -112,254 +85,146 @@ int dest_l1(DEST *d, CmdData *cptr)
     slist = cptr->slist;
   }
   d->count = 0;
-  iVar2 = pop(plist,0x40);
-  if (iVar2 == 0) {
-    iVar2 = 1;
-  }
-  else {
-    iVar2 = 2;
-  }
-  d->type = iVar2;
-  l2node = &L2CfgLocal.net;
-  do {
-    if (l2node == NULL) {
-      return d->count;
-    }
-    for (port = 0; port < 0x28; port = port + 1) {
-      l2port = &L2CFG_OF(l2node)->port_list[port];
-      if (l2port->state == 2) {
-        l1 = l2port->l1count;
-LAB_08060f80:
-        l1 = l1 + -1;
-        if (-1 < l1) {
-          if (l2port->l1cfg[l1].configured != '\0') {
-            rack = (int)l2port->l1cfg[l1].rack;
-            slot = (int)l2port->l1cfg[l1].slot;
-            type = l2port->l1cfg[l1].type;
-            if (((rack != 0) && (slot != 0)) && (((unsigned int)rack < 0x100 && ((unsigned int)slot < 0x40)))) {
-              if (d->type == 2) {
-                if (*plist != 5) {
-                  if (((type != 'R') && (type != 'D')) && (type != '-')) {
-                    cVar1 = plist[l2port->l1cfg[l1].partition];
-                    goto joined_r0x080610aa;
-                  }
-                  goto LAB_08060f80;
-                }
-              }
-              else {
-                if (rlist[rack] == '\0') goto LAB_08060f80;
-                cVar1 = slist[slot];
-joined_r0x080610aa:
-                if (cVar1 == '\0') goto LAB_08060f80;
-              }
-              addr = (rack << 6 | (slot & 0x3fU)) << 0xc;
-              found = false;
-              for (index = 0; (!found && (index < d->count)); index = index + 1) {
-                found = d->list[index] == addr;
-              }
-              if (!found) {
-                if ((((l2port->l1cfg[l1].type == 'C') || (l2port->l1cfg[l1].type == '3')) ||
-                    (l2port->l1cfg[l1].type == '5')) ||
-                   (((((l2port->l1cfg[l1].type == '4' || (l2port->l1cfg[l1].type == 'A')) ||
-                      ((l2port->l1cfg[l1].type == '6' ||
-                       ((l2port->l1cfg[l1].type == '9' || (l2port->l1cfg[l1].type == '7')))))) ||
-                     ((l2port->l1cfg[l1].type == '8' ||
-                      ((((l2port->l1cfg[l1].type == '0' || (l2port->l1cfg[l1].type == 'Q')) ||
-                        (l2port->l1cfg[l1].type == '@')) ||
-                       ((l2port->l1cfg[l1].type == 'O' || (l2port->l1cfg[l1].type == 'B')))))))) ||
-                    ((((l2port->l1cfg[l1].type == 'F' ||
-                       ((l2port->l1cfg[l1].type == 'L' || (l2port->l1cfg[l1].type == 'M')))) ||
-                      (l2port->l1cfg[l1].type == '$')) ||
-                     ((((l2port->l1cfg[l1].type == ',' || (l2port->l1cfg[l1].type == '}')) ||
-                       (l2port->l1cfg[l1].type == '.')) || (l2port->l1cfg[l1].type == '{')))))))) {
-                  d->list[d->count] = addr;
-                  d->count = d->count + 1;
-                }
-                else {
-                  memmove(d->list + 1,d->list,d->count * 4);
-                  d->list[0] = addr;
-                  d->count = d->count + 1;
-                }
-              }
-            }
-          }
-          goto LAB_08060f80;
-        }
-      }
-    }
-    l2node = l2node->next;
-  } while( true );
-}
-
-int dest_l2(DEST *d, CmdData *cptr)
-{
-  int iVar1;
-  IRAddress addr;
-  int slot;
-  int rack;
-  char *slist;
-  char *rlist;
-  char all_slist [64];
-  char all_rlist [256];
-  L2CfgNode *l2node;
-  
-  if ((cptr == NULL) || (iVar1 = pop(cptr->rlist,0x100), iVar1 == 0)) {
-    iVar1 = pop(d->rlist,0x100);
-    if (iVar1 == 0) {
-      memset(all_rlist,1,0x100);
-      rlist = all_rlist;
-      memset(all_slist,1,0x40);
-    }
-    else {
-      rlist = d->rlist;
-    }
-  }
-  else {
-    rlist = cptr->rlist;
-  }
-  d->count = 0;
-  d->type = 1;
+  d->type = pop(plist,sizeof(d->plist)) == 0 ? 1 : 2;     /* racks/slots, or partitions */
   for (l2node = &L2CfgLocal.net; l2node != NULL; l2node = l2node->next) {
-    if ((L2CFG_OF(l2node)->rack < 0x100) && (rlist[L2CFG_OF(l2node)->rack] != '\0')) {
-      if (IRByteOrder == 1) {
-        addr = l2node->ip_addr;
+    for (port = 0; port < L2CFG_PORTS; port++) {
+      l2port = &L2CFG_OF(l2node)->port_list[port];
+      if (l2port->state != L2CFG_PORT_CONFIGURED)
+        continue;
+      for (l1 = l2port->l1count - 1; l1 >= 0; l1--) {
+        l1cfg = &l2port->l1cfg[l1];
+        if (!l1cfg->configured || l1cfg->rack == 0 || l1cfg->slot == 0 ||
+            l1cfg->slot >= sizeof(d->slist))
+          continue;
+        if (d->type == 2) {
+          /* "partition *" takes every brick; a partition list takes the
+           * bricks in those partitions, routers being in none. (The
+           * original indexed plist with partitions past its 64 entries.) */
+          if (plist[0] != CMD_RANGE_ALL &&
+              (l1cfg->type == 'R' || l1cfg->type == 'D' || l1cfg->type == '-' ||
+               l1cfg->partition >= sizeof(d->plist) || plist[l1cfg->partition] == 0))
+            continue;
+        }
+        else if (rlist[l1cfg->rack] == 0 || slist[l1cfg->slot] == 0)
+          continue;
+        addr = IR_ADDR_MAKE(IR_ADDR_L1,l1cfg->rack,l1cfg->slot,0,0);
+        for (index = 0; index < d->count && d->list[index] != addr; index++)
+          ;
+        if (index < d->count)
+          continue;
+        if (d->count == (int)(sizeof(d->list) / sizeof(d->list[0])))
+          return d->count;          /* (the original wrote past the list) */
+        if (brickIsCompute(l1cfg->type))
+          d->list[d->count] = addr;
+        else {
+          memmove(d->list + 1,d->list,d->count * sizeof(d->list[0]));
+          d->list[0] = addr;
+        }
+        d->count++;
       }
-      else {
-        addr = ntohl(l2node->ip_addr);
-      }
-      d->list[d->count] = (addr & 0xffffff) | 0x83000000;
-      d->count = d->count + 1;
     }
   }
   return d->count;
 }
 
-static int pop(char *s, int slen)
+/* the L2s in the racks cptr's selection names, or the default's, or all,
+ * into d->list as their command tasks. Returns how many. */
+int dest_l2(DEST *d, CmdData *cptr)
 {
-  char *pcVar1;
-  char cVar2;
-  int c;
-  
-  c = 0;
-  while (slen = slen + -1, slen != -1) {
-    pcVar1 = s + 1;
-    cVar2 = *s;
-    s = pcVar1;
-    if (cVar2 != '\0') {
-      c = c + 1;
-    }
+  char all_rlist[256];
+  L2CfgNode *l2node;
+  const char *rlist;
+  int rack;
+
+  if (cptr != NULL && pop(cptr->rlist,sizeof(cptr->rlist)) != 0)
+    rlist = cptr->rlist;
+  else if (pop(d->rlist,sizeof(d->rlist)) != 0)
+    rlist = d->rlist;
+  else {
+    memset(all_rlist,1,sizeof(all_rlist));
+    rlist = all_rlist;
   }
-  return c;
+  d->count = 0;
+  d->type = 1;
+  for (l2node = &L2CfgLocal.net; l2node != NULL; l2node = l2node->next) {
+    rack = L2CFG_OF(l2node)->rack;
+    /* (the original also took negative racks, indexing before rlist) */
+    if (rack < 0 || rack >= (int)sizeof(d->rlist) || rlist[rack] == 0)
+      continue;
+    if (d->count == (int)(sizeof(d->list) / sizeof(d->list[0])))
+      break;
+    d->list[d->count++] = IR_ADDR_WITH_TASK(IR_ADDR_FROM_IP(l2node->ip_addr),L2_TASK_CMD);
+  }
+  return d->count;
 }
 
-static int expand_range(char *dptr, int dlen, char *sptr)
+/* append a range list to sptr: "all", or the selected numbers */
+static void expand_range(const char *dptr, int dlen, char *sptr)
 {
-  size_t sVar1;
-  char *__format;
-  int iVar2;
   int n;
-  bool all;
-  
-  all = true;
-  for (n = 0; (all && (n < dlen)); n = n + 1) {
-    if (dptr[n] == '\0') {
-      all = false;
-    }
-  }
-  if (all) {
+
+  if (pop(dptr,dlen) == dlen) {
     strcat(sptr,"all");
+    return;
   }
-  else {
-    for (n = 0; n < dlen; n = n + 1) {
-      if (dptr[n] != '\0') {
-        sVar1 = strlen(sptr);
-        if (sVar1 != 0) {
-          strcat(sptr,",");
-        }
-        __format = "%d";
-        iVar2 = n;
-        sVar1 = strlen(sptr);
-        sprintf(sptr + sVar1,__format,iVar2);
-      }
+  for (n = 0; n < dlen; n++) {
+    if (dptr[n] == 0)
+      continue;
+    if (*sptr != '\0')
+      strcat(sptr,",");
+    sprintf(sptr + strlen(sptr),"%d",n);
+  }
+}
+
+/*
+ * Whether a command without an explicit target may go to the default
+ * destination (or, given "**"-style all-current lists, to the current
+ * one): 0 if its bricks are all in one partition, else -1 with a message
+ * in rptr. An explicit target always passes.
+ */
+int dest_pcheck(DEST *d, CmdData *cptr, char *rptr)
+{
+  L2CfgL1 *cfg;
+  int partition = -1;
+  int all_current = 0;
+  int i;
+
+  if (pop(cptr->rlist,sizeof(cptr->rlist)) != 0 || pop(cptr->slist,sizeof(cptr->slist)) != 0 ||
+      pop(cptr->plist,sizeof(cptr->plist)) != 0) {
+    if ((cptr->rlist[0] != CMD_RANGE_ALL && cptr->rlist[0] != CMD_RANGE_ANY) ||
+        (cptr->slist[0] != CMD_RANGE_ALL && cptr->slist[0] != CMD_RANGE_ANY))
+      return 0;
+    all_current = 1;
+  }
+  dest_l1(d,all_current ? cptr : NULL);
+  for (i = 0; i < d->count; i++) {
+    cfg = L2CfgMFindBrickCfg(&L2CfgLocal,IR_ADDR_RACK(d->list[i]),IR_ADDR_SLOT(d->list[i]),0);
+    if (cfg == NULL)
+      continue;
+    if (partition == -1)
+      partition = cfg->partition;
+    else if (cfg->partition != partition) {
+      if (rptr != NULL)
+        strcpy(rptr,all_current ? "current destination spans partitions, explicit target required.\n"
+                                : "default destination spans partitions, explicit target required.\n");
+      return -1;
     }
   }
   return 0;
 }
 
-int dest_pcheck(DEST *d, CmdData *cptr, char *rptr)
-{
-  int iVar1;
-  L2CfgL1 *cfg;
-  int partition;
-  int brick_slot;
-  int brick_rack;
-  int brick_addr;
-  int addr;
-  bool all_current;
-  
-  partition = -1;
-  all_current = false;
-  iVar1 = pop(cptr->rlist,0x100);
-  if (((iVar1 != 0) || (iVar1 = pop(cptr->slist,0x40), iVar1 != 0)) ||
-     (iVar1 = pop(cptr->plist,0x40), iVar1 != 0)) {
-    if (((cptr->rlist[0] != 5) && (cptr->rlist[0] != 6)) ||
-       ((cptr->slist[0] != 5 && (cptr->slist[0] != 6)))) {
-      return 0;
-    }
-    all_current = true;
-  }
-  if (!all_current) {
-    cptr = NULL;
-  }
-  dest_l1(d,cptr);
-  addr = 0;
-  do {
-    if (d->count <= addr) {
-      return 0;
-    }
-    cfg = L2CfgMFindBrickCfg(&L2CfgLocal,(int)d->list[addr] >> 0x12 & 0x3ff,
-                             (int)d->list[addr] >> 0xc & 0x3f,0);
-    if (cfg != NULL) {
-      if (partition == -1) {
-        partition = (int)cfg->partition;
-      }
-      else if (cfg->partition != partition) {
-        if (rptr != NULL) {
-          if (all_current) {
-            strcpy(rptr,"current destination spans partitions, explicit target required.\n");
-          }
-          else {
-            strcpy(rptr,"default destination spans partitions, explicit target required.\n");
-          }
-        }
-        return -1;
-      }
-    }
-    addr = addr + 1;
-  } while( true );
-}
-
+/* the default selection as text: "rack <list> slot <list>" or
+ * "partition <list>" */
 void dest_print(DEST *d, char *sptr)
 {
-  char *__dest;
-  int iVar1;
-  size_t sVar2;
-  
-  iVar1 = pop(d->plist,0x40);
-  if (iVar1 == 0) {
-    strcpy(sptr,"rack ");
-    sVar2 = strlen(sptr);
-    expand_range(d->rlist,0x100,sptr + sVar2);
-    sVar2 = strlen(sptr);
-    __dest = sptr + sVar2;
-    strcat(__dest," slot ");
-    sVar2 = strlen(__dest);
-    expand_range(d->slist,0x40,__dest + sVar2);
-  }
-  else {
+  if (pop(d->plist,sizeof(d->plist)) != 0) {
     strcpy(sptr,"partition ");
-    sVar2 = strlen(sptr);
-    expand_range(d->plist,0x40,sptr + sVar2);
+    expand_range(d->plist,sizeof(d->plist),sptr + strlen(sptr));
+    return;
   }
-  return;
+  strcpy(sptr,"rack ");
+  expand_range(d->rlist,sizeof(d->rlist),sptr + strlen(sptr));
+  sptr += strlen(sptr);
+  strcat(sptr," slot ");
+  expand_range(d->slist,sizeof(d->slist),sptr + strlen(sptr));
 }

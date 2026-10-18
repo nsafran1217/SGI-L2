@@ -3,55 +3,23 @@
  *
  * Reconstructed from the STABS debug info and Ghidra decompilation of l2.
  * Original: /data/cf/sysco/scs123.patch/sys_ctrl/l3/l2/reqrspq.c
+ *
+ * A command's queues (l2cmd.c): requests waiting to be sent, and the
+ * responses it awaits. Awaited responses are kept sorted by rack and slot
+ * (by rack for other L2s) so that output comes in that order; a timer
+ * (rspq_timeout_set()) calls the owner back if some never arrive, and a
+ * "response wait" reply from a slow target extends it.
  */
 
-#include "smp.h"   /* needed by the reconstruction */
-#include "l2.h"
-#include <stdio.h>
-#include <stddef.h>
-#include <stdarg.h>
 #include <stdlib.h>
-#include <sys/types.h>
-#include <time.h>
-#include <fcntl.h>
-#include <errno.h>
-#include <signal.h>
-#include <termios.h>
-#include <unistd.h>
-#include <getopt.h>
 #include <string.h>
-#include "../../common/Router/Socket.h"
-#include "../../common/Router/Event.h"
-#include <sys/time.h>
-#include "../../common/IRouter/IRouter.h"
-#include "../../common/sys/sysctl_types.h"
-#include <netinet/in.h>
-#include <limits.h>
-#include <syslimits.h>
-#include <linux/limits.h>
-#include <stdint.h>
-#include "../../common/sys/sysutils.h"
-#include <pthread.h>
-#include <sched.h>
-#include "../../common/sys/Logger.h"
-#include "../sys/LoggerMsg.h"
-#include "../../common/IRouter/IRouter2Router.h"
-#include "../../common/Router/Router.h"
-#include "../../common/sys/PPP.h"
-#include "../../common/sys/brick_types.h"
-#include "../../common/main/EnetServer.h"
-#include "../../common/main/L2Cfg.h"
-#include "../../common/main/L1Cfg.h"
-#include "l2_rev.h"
+#include "l2.h"
 #include "reqrspq.h"
-#include "decomp.h"     /* Ghidra types/macros; remove once the file is cleaned up */
-
-static void rspq_timeout(REQRSPQ *q);
 
 REQRSPQ *reqrspq_init(void (*tofunc)(), void (*etofunc)(), void *todata)
 {
   REQRSPQ *q;
-  
+
   q = malloc(sizeof(REQRSPQ));
   memset(q,0,sizeof(REQRSPQ));
   q->rspq_tofunc = tofunc;
@@ -64,283 +32,206 @@ void reqrspq_reset(REQRSPQ *q)
 {
   reqq_reset(q);
   rspq_reset(q);
-  return;
 }
 
 void reqrspq_free(REQRSPQ *q)
 {
   reqrspq_reset(q);
   free(q);
-  return;
 }
 
+/* --- requests --- */
+
+/* queue a request: pkt, whether a response is expected, and the pause
+ * (ms) after sending it */
 void reqq_put(REQRSPQ *q, IRPacket *pkt, int response, int delay)
 {
   REQQ *qe;
-  
+
   qe = malloc(sizeof(REQQ));
   qe->pkt = pkt;
   qe->response = response;
   qe->delay = delay;
-  if (q->reqq_head == NULL) {
+  qe->next = NULL;
+  qe->prev = q->reqq_tail;
+  if (q->reqq_head == NULL)
     q->reqq_head = qe;
-    q->reqq_tail = qe;
-    qe->prev = NULL;
-    qe->next = NULL;
-  }
-  else {
+  else
     q->reqq_tail->next = qe;
-    qe->prev = q->reqq_tail;
-    qe->next = NULL;
-    q->reqq_tail = qe;
-  }
-  q->reqq_length = q->reqq_length + 1;
-  return;
+  q->reqq_tail = qe;
+  q->reqq_length++;
 }
 
+/* take the first request; -1 if there is none */
 int reqq_get(REQRSPQ *q, IRPacket **pkt, int *response, int *delay)
 {
-  struct REQQ_s *pRVar1;
-  int iVar2;
-  REQQ *qe;
-  
-  qe = q->reqq_head;
-  if (qe == NULL) {
-    iVar2 = -1;
-  }
-  else {
-    pRVar1 = qe->next;
-    q->reqq_head = pRVar1;
-    if (pRVar1 == NULL) {
-      q->reqq_tail = NULL;
-    }
-    else {
-      q->reqq_head->prev = NULL;
-    }
-    *pkt = qe->pkt;
-    *response = qe->response;
-    *delay = qe->delay;
-    free(qe);
-    q->reqq_length = q->reqq_length + -1;
-    iVar2 = 0;
-  }
-  return iVar2;
+  REQQ *qe = q->reqq_head;
+
+  if (qe == NULL)
+    return -1;
+  q->reqq_head = qe->next;
+  if (q->reqq_head == NULL)
+    q->reqq_tail = NULL;
+  else
+    q->reqq_head->prev = NULL;
+  *pkt = qe->pkt;
+  *response = qe->response;
+  *delay = qe->delay;
+  free(qe);
+  q->reqq_length--;
+  return 0;
 }
 
 int reqq_empty(REQRSPQ *q)
 {
-  return (unsigned int)(q->reqq_length == 0);
+  return q->reqq_length == 0;
 }
 
 void reqq_reset(REQRSPQ *q)
 {
-  REQQ *__ptr;
   REQQ *qe;
-  
-  while (q->reqq_head != NULL) {
-    __ptr = q->reqq_head;
-    q->reqq_head = __ptr->next;
-    if (__ptr->pkt != NULL) {
-      IRouterFreePacket(__ptr->pkt);
-    }
-    free(__ptr);
+
+  while ((qe = q->reqq_head) != NULL) {
+    q->reqq_head = qe->next;
+    if (qe->pkt != NULL)
+      IRouterFreePacket(qe->pkt);
+    free(qe);
   }
   q->reqq_tail = NULL;
-  q->reqq_head = NULL;
   q->reqq_length = 0;
-  return;
 }
 
+/* --- responses --- */
+
+/* await the response to request seqn sent to dest */
 void rspq_put(REQRSPQ *q, unsigned int seqn, IRAddress dest)
 {
-  RSPQ *qe;
-  unsigned int uVar1;
   L2CfgNode *node;
-  uint32_t ip_addr;
-  IRAddress ir_addr;
-  RouterClient *client;
+  unsigned int sort = 0;
+  RSPQ *qe;
   RSPQ *qp;
-  unsigned int sort;
-  
-  sort = 0;
+
   qe = malloc(sizeof(RSPQ));
   qe->seqn = seqn;
   qe->dest = dest;
   qe->next = NULL;
   qe->prev = NULL;
   qe->pkt = NULL;
-  if ((dest & 0x80000000) == 0) {
-    uVar1 = dest >> 0x1c;
-  }
-  else if (dest >> 0x1e == 2) {
-    uVar1 = 0xe;
-  }
-  else {
-    uVar1 = 0xf;
-  }
-  if ((uVar1 < 0x10) && (0xd < uVar1)) {
-    client = NULL;
-    ir_addr = 0;
-    if (IRByteOrder == 1) {
-      ip_addr = dest & 0xffffff;
-    }
-    else {
-      ip_addr = htonl(dest & 0xffffff);
-    }
-    node = L2CfgMFindNode(&L2CfgLocal,ip_addr,ir_addr,client);
-    if (node != NULL) {
+  if (IR_ADDR_IS_IP(dest)) {
+    /* another L2: by its rack */
+    node = L2CfgMFindNode(&L2CfgLocal,IR_ADDR_TO_IP(dest),0,NULL);
+    if (node != NULL)
       sort = L2CFG_OF(node)->rack;
-    }
   }
-  else {
-    sort = dest >> 0xc;
-  }
+  else
+    sort = dest >> 12;          /* type, rack, slot */
   qe->sort = sort;
-  if (q->rspq_head == NULL) {
-    q->rspq_head = qe;
+  /* ahead of the first entry that sorts the same or later */
+  for (qp = q->rspq_head; qp != NULL && qp->sort < sort; qp = qp->next)
+    ;
+  if (qp == NULL) {
+    qe->prev = q->rspq_tail;
+    if (q->rspq_tail == NULL)
+      q->rspq_head = qe;
+    else
+      q->rspq_tail->next = qe;
     q->rspq_tail = qe;
   }
   else {
-    for (qp = q->rspq_head; (qp != NULL && (qp->sort < sort)); qp = qp->next) {
-    }
-    if (qp == q->rspq_head) {
-      qe->next = q->rspq_head;
-      q->rspq_head->prev = qe;
+    qe->next = qp;
+    qe->prev = qp->prev;
+    if (qp->prev == NULL)
       q->rspq_head = qe;
-    }
-    else if (qp == NULL) {
-      qe->prev = q->rspq_tail;
-      q->rspq_tail->next = qe;
-      q->rspq_tail = qe;
-    }
-    else {
+    else
       qp->prev->next = qe;
-      qe->prev = qp->prev;
-      qp->prev = qe;
-      qe->next = qp;
-    }
+    qp->prev = qe;
   }
-  q->rspq_length = q->rspq_length + 1;
-  q->rspq_max_length = q->rspq_max_length + 1;
-  q->rspq_pending = q->rspq_pending + 1;
-  return;
+  q->rspq_length++;
+  q->rspq_max_length++;
+  q->rspq_pending++;
 }
 
+/*
+ * A response arrived: file it with its request. Returns how many are still
+ * pending, or -1 if it was not awaited (the caller frees it). A "response
+ * wait" (IRERR_RESPONSE_WAIT: the target needs <arg 0>/100 seconds) is
+ * consumed, and extends the timeout if that is longer than any before.
+ */
 int rspq_update(REQRSPQ *q, IRPacket *pkt)
 {
-  unsigned int uVar1;
-  int iVar2;
-  void *pvVar3;
-  unsigned int uStack_14;
-  int timeout;
+  unsigned int seqn;
+  int wait;
   RSPQ *qe;
-  int rev;
-  
-  qe = q->rspq_head;
-  if (pkt->_err == 19) {
-    uVar1 = IRArg(pkt,0);
-    uVar1 = uVar1 / 100;
-    if (q->rspq_etimeout < (int)uVar1) {
+
+  if (pkt->_err == IRERR_RESPONSE_WAIT) {
+    wait = IRArg(pkt,0) / 100;
+    if (q->rspq_etimeout < wait) {
       rspq_timeout_clr(q);
-      q->rspq_etimeout = uVar1;
-      rspq_timeout_set(q,uVar1);
-      if (q->rspq_etofunc != NULL) {
-        pvVar3 = q->rspq_todata;
-        if (pkt->_argc == 1) {
-          uStack_14 = 0;
-        }
-        else {
-          uStack_14 = IRArg(pkt,1);
-        }
-        (*q->rspq_etofunc)(uStack_14,pvVar3);
-      }
+      q->rspq_etimeout = wait;
+      rspq_timeout_set(q,wait);
+      if (q->rspq_etofunc != NULL)
+        q->rspq_etofunc(pkt->_argc == 1 ? 0 : (unsigned int)IRArg(pkt,1),q->rspq_todata);
     }
     IRouterFreePacket(pkt);
-    iVar2 = q->rspq_pending;
+    return q->rspq_pending;
   }
-  else {
-    for (; qe != NULL; qe = qe->next) {
-      if (pkt->_rev == '\0') {
-        uVar1 = qe->seqn & 0xff;
-      }
-      else {
-        uVar1 = qe->seqn & 0xffff;
-      }
-      if (uVar1 == IR_SEQNUM(pkt)) {
-        qe->pkt = pkt;
-        q->rspq_pending = q->rspq_pending + -1;
-        return q->rspq_pending;
-      }
+  for (qe = q->rspq_head; qe != NULL; qe = qe->next) {
+    /* (the original also took a second response for an answered request,
+     * dropping the first and counting it twice) */
+    if (qe->pkt != NULL)
+      continue;
+    seqn = pkt->_rev == 0 ? qe->seqn & 0xff : qe->seqn & 0xffff;   /* revision 0: 8-bit */
+    if (seqn == IR_SEQNUM(pkt)) {
+      qe->pkt = pkt;
+      return --q->rspq_pending;
     }
-    iVar2 = -1;
   }
-  return iVar2;
+  return -1;
 }
 
 void rspq_reset(REQRSPQ *q)
 {
-  RSPQ *__ptr;
   RSPQ *qe;
-  
-  while (q->rspq_head != NULL) {
-    __ptr = q->rspq_head;
-    q->rspq_head = __ptr->next;
-    if (__ptr->pkt != NULL) {
-      IRouterFreePacket(__ptr->pkt);
-    }
-    free(__ptr);
+
+  while ((qe = q->rspq_head) != NULL) {
+    q->rspq_head = qe->next;
+    if (qe->pkt != NULL)
+      IRouterFreePacket(qe->pkt);
+    free(qe);
   }
   q->rspq_tail = NULL;
-  q->rspq_head = NULL;
   q->rspq_length = 0;
   q->rspq_max_length = 0;
   q->rspq_pending = 0;
-  if (q->rspq_timer != 0) {
-    EventRemoveTimeOut(q->rspq_timer);
-  }
-  q->rspq_timer = 0;
+  rspq_timeout_clr(q);
   q->rspq_timeout = 0;
   q->rspq_etimeout = 0;
-  return;
 }
 
+/* take the first entry (its response, or NULL if none came); returns how
+ * many are left, or -1 if there was none */
 int rspq_get(REQRSPQ *q, unsigned int *seqn, IRAddress *dest, IRPacket **pkt)
 {
-  struct RSPQ_s *pRVar1;
-  int iVar2;
-  RSPQ *qe;
-  
-  qe = q->rspq_head;
-  if (qe == NULL) {
-    iVar2 = -1;
-  }
-  else {
-    pRVar1 = qe->next;
-    q->rspq_head = pRVar1;
-    if (pRVar1 == NULL) {
-      q->rspq_tail = NULL;
-    }
-    else {
-      q->rspq_head->prev = NULL;
-    }
-    *dest = qe->dest;
-    *seqn = qe->seqn;
-    *pkt = qe->pkt;
-    free(qe);
-    q->rspq_length = q->rspq_length + -1;
-    iVar2 = q->rspq_length;
-  }
-  return iVar2;
+  RSPQ *qe = q->rspq_head;
+
+  if (qe == NULL)
+    return -1;
+  q->rspq_head = qe->next;
+  if (q->rspq_head == NULL)
+    q->rspq_tail = NULL;
+  else
+    q->rspq_head->prev = NULL;
+  *dest = qe->dest;
+  *seqn = qe->seqn;
+  *pkt = qe->pkt;
+  free(qe);
+  return --q->rspq_length;
 }
 
+/* the entry after qe (the first if qe is NULL), without taking it */
 RSPQ *rspq_peek(REQRSPQ *q, RSPQ *qe, unsigned int *seqn, IRAddress *dest, IRPacket **pkt)
 {
-  if (qe == NULL) {
-    qe = q->rspq_head;
-  }
-  else {
-    qe = qe->next;
-  }
+  qe = qe == NULL ? q->rspq_head : qe->next;
   if (qe != NULL) {
     *dest = qe->dest;
     *seqn = qe->seqn;
@@ -351,44 +242,32 @@ RSPQ *rspq_peek(REQRSPQ *q, RSPQ *qe, unsigned int *seqn, IRAddress *dest, IRPac
 
 int rspq_empty(REQRSPQ *q)
 {
-  return (unsigned int)(q->rspq_length == 0);
+  return q->rspq_length == 0;
 }
 
+/* the timer: done if nothing is pending, else tell the owner how long it
+ * waited */
 static void rspq_timeout(REQRSPQ *q)
 {
-  int iVar1;
-  
   q->rspq_timer = 0;
-  if ((q->rspq_pending == 0) || (q->rspq_tofunc == NULL)) {
+  if (q->rspq_pending == 0 || q->rspq_tofunc == NULL) {
     reqrspq_reset(q);
+    return;
   }
-  else {
-    iVar1 = q->rspq_etimeout;
-    if (q->rspq_etimeout == 0) {
-      iVar1 = q->rspq_timeout;
-    }
-    (*q->rspq_tofunc)(iVar1,q->rspq_todata);
-  }
-  return;
+  q->rspq_tofunc(q->rspq_etimeout != 0 ? q->rspq_etimeout : q->rspq_timeout,q->rspq_todata);
 }
 
+/* start the timer (to seconds) unless it runs */
 void rspq_timeout_set(REQRSPQ *q, int to)
 {
-  EventID EVar1;
-  
-  if (q->rspq_timer == 0) {
-    EVar1 = EventAddTimeOut(to,0,rspq_timeout,(EventData)q,"rspq_timeout_set");
-    q->rspq_timer = EVar1;
-  }
+  if (q->rspq_timer == 0)
+    q->rspq_timer = EventAddTimeOut(to,0,rspq_timeout,(EventData)q,"rspq_timeout_set");
   q->rspq_timeout = to;
-  return;
 }
 
 void rspq_timeout_clr(REQRSPQ *q)
 {
-  if (q->rspq_timer != 0) {
+  if (q->rspq_timer != 0)
     EventRemoveTimeOut(q->rspq_timer);
-  }
   q->rspq_timer = 0;
-  return;
 }

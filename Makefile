@@ -174,7 +174,12 @@ CLEAN_SRCS := \
 	sys_ctrl/l3/l2/lpbk.c \
 	sys_ctrl/l3/l2/l1net.c \
 	sys_ctrl/l3/l2/l1sim.c \
-	sys_ctrl/l3/l2/target.c
+	sys_ctrl/l3/l2/target.c \
+	sys_ctrl/l3/l2/power.c \
+	sys_ctrl/l3/l2/dest.c \
+	sys_ctrl/l3/l2/reqrspq.c \
+	sys_ctrl/l3/l2/broadcast.c \
+	sys_ctrl/l3/l2/l2.c
 $(CLEAN_SRCS:%.c=$(B)/%.o): CFLAGS += -Wunused-variable -Wunused-but-set-variable \
 	-Wunused-label -Wpointer-sign
 
@@ -255,6 +260,7 @@ check: all
 	NEW_BIN=$(CHECK_BIN) tests/l1net_test.py
 	NEW_BIN=$(CHECK_BIN) tests/l1_test.py
 	NEW_BIN=$(CHECK_BIN) tests/options_test.sh
+	NEW_BIN=$(CHECK_BIN) tests/l2_options_test.py
 	NEW_BIN=$(CHECK_BIN) tests/l1direct_test.py
 	$(if $(filter l2gui,$(TOOLS)),NEW_BIN=$(CHECK_BIN) tests/l2gui_test.py)
 
