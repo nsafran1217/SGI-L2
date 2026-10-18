@@ -160,7 +160,10 @@ CLEAN_SRCS := \
 	sys_ctrl/l3/api/SCapiConn.c \
 	sys_ctrl/l3/api/SCapiL2.c \
 	sys_ctrl/l3/api/SCapi.c \
-	sys_ctrl/l3/api/L1Direct.c
+	sys_ctrl/l3/api/L1Direct.c \
+	sys_ctrl/l3/IRouter/IRouterOS.c \
+	sys_ctrl/l3/sys/syslogLib.c \
+	sys_ctrl/l3/IRouter/IRouterL3.c
 $(CLEAN_SRCS:%.c=$(B)/%.o): CFLAGS += -Wunused-variable -Wunused-but-set-variable \
 	-Wunused-label -Wpointer-sign
 
