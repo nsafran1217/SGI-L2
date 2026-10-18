@@ -39,9 +39,10 @@ int mainwin_init(void)
   SocketGetAddr(myhost, &my_ip);
   firmware_version[0] = '\0';
   mainwin = make_mainwin();
+  l2gui_add(mainwin);
   current_dest->label(current_dest_label);
   mainwin_update_config();
-  mainwin->show();
+  l2gui_show(mainwin);
   mainwin_actions(0);
   return 0;
 }

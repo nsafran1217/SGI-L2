@@ -67,7 +67,7 @@ Function {make_mainwin()} {open
       xywh {0 0 242 64} type Multiline box FLAT_BOX selection_color 7 align 0
     }
     Fl_Button {} {
-      callback {l2gui_show(logowin, 0, 0);}
+      callback {l2gui_show(logowin);}
       image {images/sgilogo_tiny.xpm} xywh {242 0 80 64} box FLAT_BOX down_box FLAT_BOX color 7 selection_color 7 labelcolor 7
     }
   }

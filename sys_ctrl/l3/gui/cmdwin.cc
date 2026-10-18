@@ -35,13 +35,20 @@ static void ok_button_done_cb(Fl_Button *btn, void *data);
 int cmdwin_init(void)
 {
   cmdwin = make_cmdwin();
+  l2gui_add(cmdwin);
+  /* FLTK only honours modal top-level windows; the main window is
+   * deactivated while this one is up, which has the same effect */
+  cmdwin->clear_modal_states();
   return 0;
 }
 
 int cmdwin_do_command(char *command, char *dest)
 {
-  if (cmdwin == NULL)
+  if (cmdwin == NULL) {
     cmdwin = make_cmdwin();
+    l2gui_add(cmdwin);
+    cmdwin->clear_modal_states();
+  }
   strcpy(current_command, dest);
   strcat(current_command, " ");
   strcat(current_command, command);
@@ -54,7 +61,7 @@ static void cmdwin_show(void)
   cancel_button->activate();
   mainwin->deactivate();
   mainwin->redraw();
-  l2gui_show(cmdwin, 0, 64);
+  l2gui_show(cmdwin);
 }
 
 static void cmdwin_hide(void)

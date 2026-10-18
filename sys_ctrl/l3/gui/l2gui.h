@@ -21,6 +21,7 @@ extern Fl_Window *destwin;
 extern Fl_Window *graphwin;
 extern Fl_Window *cmdwin;
 extern char *myname;
-void l2gui_show(Fl_Window *w, int x, int y);
+void l2gui_add(Fl_Window *w);
+void l2gui_show(Fl_Window *w);
 
 #endif /* SYS_CTRL_L3_GUI_L2GUI_H */

@@ -57,11 +57,35 @@ int main(int argc, char **argv)
   return Fl::run();
 }
 
-/* Show a window at (x, y) in the main window. The original placed windows on
- * the screen, which on the L2's 320x240 panel was the main window. */
-void l2gui_show(Fl_Window *w, int x, int y)
+/* The original's windows were Nano-X windows on a 320x240 screen (the L2's
+ * panel, or one X window on a workstation). Here that screen is a top-level
+ * window and each l2gui window is a subwindow of it, at the same coordinates. */
+static Fl_Window *screen;
+
+static void screen_cb(Fl_Widget *w, void *data)
 {
-  w->position(mainwin->x() + x, mainwin->y() + y);
+  if (Fl::event() == FL_SHORTCUT && Fl::event_key() == FL_Escape)
+    mainwin->do_callback();     /* as when the main window was a top-level window */
+  else
+    exit(0);                    /* closed: the original lost its X connection */
+}
+
+void l2gui_add(Fl_Window *w)
+{
+  if (screen == NULL) {
+    screen = new Fl_Window(320, 240, "L2 Controller GUI");
+    screen->end();
+    screen->callback(screen_cb);
+  }
+  screen->add(w);
+}
+
+/* Show a window on top of the others. FLTK offers a click to the screen's
+ * subwindows from the last child back, so the window shown last must be the
+ * last child, as it is the topmost window drawn. */
+void l2gui_show(Fl_Window *w)
+{
+  screen->add(w);
   w->show();
 }
 
@@ -72,5 +96,6 @@ static int gui_init(void)
   graphwin_init();
   cmdwin_init();
   mainwin_init();
+  screen->show();
   return 0;
 }

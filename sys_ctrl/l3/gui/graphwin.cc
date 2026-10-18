@@ -33,6 +33,7 @@ int graphwin_init(void)
   int i;
 
   graphwin = make_graphwin();
+  l2gui_add(graphwin);
   graph = new Fl_Chart(10, 10, 300, 180);
   graph->type(FL_BAR_CHART);
   graph->autosize(1);
@@ -62,7 +63,7 @@ void graphwin_update_data(void *data)
 void graphwin_show(void)
 {
   Fl::add_timeout(0.25, graphwin_update_data, NULL);
-  l2gui_show(graphwin, 0, 0);
+  l2gui_show(graphwin);
 }
 
 void graphwin_hide(void)

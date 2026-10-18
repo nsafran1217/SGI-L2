@@ -13,6 +13,7 @@
 int logowin_init(void)
 {
   logowin = make_logowin();
+  l2gui_add(logowin);
   logowin->hide();
   return 0;
 }

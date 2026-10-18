@@ -83,6 +83,7 @@ int destwin_init(void)
   int i;
 
   destwin = make_destwin();
+  l2gui_add(destwin);
   for (i = 0; i < NRACKBTN; i++)
     (*rack_buttons[i])->label(rack_labels[i]);
   for (i = 0; i < NSLOTBTN; i++)
@@ -99,7 +100,7 @@ int destwin_show(int cmd)
   set_dest(config_command_dest());
   if (config_changed)
     update_dest();
-  l2gui_show(destwin, 0, 0);
+  l2gui_show(destwin);
   reset_btn->deactivate();
   return 0;
 }
