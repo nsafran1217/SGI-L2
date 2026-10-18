@@ -250,10 +250,7 @@ int BuffUncompress(unsigned char *ibuf, unsigned int ilen, unsigned char **obuf,
 
 int BuffFree(unsigned char *buff)
 {
-  int extraout_EAX;
-  
-  if ((buff != NULL) && (free(buff), extraout_EAX != 0)) {
-    return -1;
-  }
+  /* the original returned -1 if free() left a nonzero EAX (no caller checks) */
+  free(buff);
   return 0;
 }

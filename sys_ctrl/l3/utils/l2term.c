@@ -285,7 +285,6 @@ int main(int argc, char **argv, char **envp)
   L2CfgNode *l2node;
   char *pcVar2;
   size_t __n;
-  int extraout_EAX;
   int rack;
   int slot;
   uint32 addr;
@@ -409,8 +408,8 @@ int main(int argc, char **argv, char **envp)
     }
     EventAddInput(0,read_n_write,(EventData)&l2,NULL);
     EventStart();
-    cleanup();
-    return extraout_EAX;
+    cleanup();          /* exits */
+    return 0;
   }
   fprintf(stderr,"ERROR: can\'t connection to %s:%d\n",host,port);
                     /* WARNING: Subroutine does not return */

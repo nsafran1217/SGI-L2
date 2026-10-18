@@ -32,7 +32,6 @@
 #include "IRouterOS.h"
 #include "decomp.h"     /* Ghidra types/macros; remove once the file is cleaned up */
 
-static void tty_debug(int fd);
 static int wr(int fd, unsigned char *bptr, int blen);
 static int pipe_out(int fd, unsigned char *pptr, int plen);
 static int rd(int fd, unsigned char *bptr, int blen);
@@ -40,40 +39,6 @@ static int pipe_in(int fd, unsigned char **pptr, int plen);
 
 static int sd = -1;
 static RouterClient rtr_conn_server;
-
-static void tty_debug(int fd)
-{
-  int iVar1;
-  int *piVar2;
-  char index [8];
-  struct termios termios;
-  int i;
-  
-  iVar1 = isatty(fd);
-  if (iVar1 == 0) {
-    fprintf(stderr,"not a tty!\n");
-  }
-  else {
-    iVar1 = tcgetattr(fd,(struct termios *)&termios);
-    if (iVar1 == -1) {
-      piVar2 = __errno_location();
-      fprintf(stderr,"WARNING: can\'t get termios, errno: %d\n",*piVar2);
-    }
-    else {
-      fprintf(stderr,"---\niflag:  %011o\n",termios.c_iflag);
-      fprintf(stderr,"oflag:  %011o\n",termios.c_oflag);
-      fprintf(stderr,"cflag:  %011o\n",termios.c_cflag);
-      fprintf(stderr,"lflag:  %011o\n",termios.c_lflag);
-      fprintf(stderr,"ispeed: %011o\n",termios.c_ispeed);
-      fprintf(stderr,"ospeed: %011o\n",termios.c_ospeed);
-      for (i = 0; i < 0x20; i = i + 1) {
-        sprintf(index,"0x%02x",i);
-        fprintf(stderr,"%2d cc_c[%-8s]: %011o\n",fd,index,(uint)termios.c_cc[i]);
-      }
-    }
-  }
-  return;
-}
 
 int IRouterConnectOS(char *cname, char *device, int port, IRClient **client, int events, char *(*pw_cb)())
 {

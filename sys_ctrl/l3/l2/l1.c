@@ -829,7 +829,7 @@ int l1_read_usb(int fd, unsigned char **bptr, int blen)
       l2_l1_ports[dev].rd_errcnt = l2_l1_ports[dev].rd_errcnt + 1;
       if (2 < l2_l1_ports[dev].rd_errcnt) {
         pcVar2 = L2CfgMDeviceName(&L2CfgLocal,fd);
-        fprintf(NULL,"WARNING: closing %s after multiple read errors\n",pcVar2);
+        l2_console_printf("WARNING: closing %s after multiple read errors\n",pcVar2);
         l1_flush_usb_device(fd,1);
         l1_close_usb_device(dev,1,"[rd error]");
         dev_still_open = 0;
@@ -1082,7 +1082,7 @@ int l1_write_usb(int fd, unsigned char *bptr, int blen)
       l2_l1_ports[dev].wr_errcnt = l2_l1_ports[dev].wr_errcnt + 1;
       if (2 < l2_l1_ports[dev].wr_errcnt) {
         pcVar2 = L2CfgMDeviceName(&L2CfgLocal,fd);
-        fprintf(NULL,"WARNING: closing %s after multiple write errors\n",pcVar2);
+        l2_console_printf("WARNING: closing %s after multiple write errors\n",pcVar2);
         l1_flush_usb_device(fd,1);
         l1_close_usb_device(dev,1,"[wr error]");
         dev_still_open = 0;
@@ -1223,7 +1223,7 @@ void l1_write_packet(int fd, IRPacket *p)
   if ((status != 0) && (status != -0x26e)) {
     pcVar1 = LoggerDefaultMessage(status);
     pcVar2 = L2CfgMDeviceName(&L2CfgLocal,fd);
-    fprintf(NULL,"WARNING: can\'t write to %s [0x%08x]:   %s\n",pcVar2,IVar3,pcVar1);
+    l2_console_printf("WARNING: can\'t write to %s [0x%08x]:   %s\n",pcVar2,IVar3,pcVar1);
   }
   if (l2_debug != 0) {
     fprintf(stderr,"l1_write_packet() out\n");

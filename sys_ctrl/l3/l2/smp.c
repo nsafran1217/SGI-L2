@@ -1938,46 +1938,53 @@ static void smp_event(int opcode, int group, char *bptr)
   return;
 }
 
-/* Replaces libc's fprintf in l2: all output goes to connected SMP clients
- * (or stderr when there are none). */
-int fprintf(FILE *restrict stream, const char *restrict format, ...)
+/* All of l2's printed output goes to the connected SMP clients (or stderr
+ * when there are none); console_event marks text that is also an event for
+ * the consoles (opcode 4) rather than plain output (opcode 2). */
+static int smp_vprintf(int console_event, const char *format, va_list ap)
 {
   static int active;
-  int iVar1;
-  size_t sVar2;
-  int opcode;
-  SMP *smp;
-  va_list ap;
   int rval;
-  
-  va_start(ap,format);
-  if (active == 0) {
-    active = 1;
-    iVar1 = vsprintf(vbuf,format,ap);
-    if ((smp_list == NULL) && (enet_only == 0)) {
-      sVar2 = strlen(vbuf);
-      write(2,vbuf,sVar2);
-    }
-    else {
-      /* (via a volatile copy: glibc declares stream nonnull, which would let
-       * the compiler drop this test) */
-      if (*(FILE *volatile *)&stream == NULL) {
-        opcode = 4;
-      }
-      else {
-        opcode = 2;
-      }
-      smp_event(opcode,-1,vbuf);
-      for (smp = smp_list; smp != NULL; smp = smp->next) {
-        sVar2 = strlen(vbuf);
-        smp_write(smp,vbuf,sVar2);
-      }
-    }
-    active = 0;
+  SMP *smp;
+
+  if (active)
+    return 0;
+  active = 1;
+  rval = vsprintf(vbuf,format,ap);
+  if ((smp_list == NULL) && (enet_only == 0)) {
+    write(2,vbuf,strlen(vbuf));
   }
   else {
-    iVar1 = 0;
+    smp_event(console_event ? 4 : 2,-1,vbuf);
+    for (smp = smp_list; smp != NULL; smp = smp->next) {
+      smp_write(smp,vbuf,strlen(vbuf));
+    }
   }
+  active = 0;
+  return rval;
+}
+
+/* Replaces libc's fprintf in l2. SGI's code passes a NULL stream for console
+ * events; l2_console_printf() says so by name. (The volatile read: glibc
+ * declares stream nonnull, which would let the compiler drop the test.) */
+int fprintf(FILE *restrict stream, const char *restrict format, ...)
+{
+  va_list ap;
+  int rval;
+
+  va_start(ap,format);
+  rval = smp_vprintf(*(FILE *volatile *)&stream == NULL,format,ap);
   va_end(ap);
-  return iVar1;
+  return rval;
+}
+
+int l2_console_printf(const char *format, ...)
+{
+  va_list ap;
+  int rval;
+
+  va_start(ap,format);
+  rval = smp_vprintf(1,format,ap);
+  va_end(ap);
+  return rval;
 }

@@ -37,7 +37,6 @@
 #include "decomp.h"     /* Ghidra types/macros; remove once the file is cleaned up */
 
 static void nvramInitIUA(void);
-static void nvramInitPIA(void);
 static void nvramInitCH(void);
 static void nvramNormalizePointers(ipmiCommonHeader *nvbuf, uint32 old_base, uint32 new_base);
 static int nvramLoad(uint8 *buf, int size);
@@ -193,11 +192,6 @@ static void nvramInitIUA(void)
   nvramIUA->multisys = 1;
   uVar2 = ipmiCalcCSum((uint8 *)nvramIUA,0x82c);
   nvramIUA->checksum = uVar2;
-  return;
-}
-
-static void nvramInitPIA(void)
-{
   return;
 }
 

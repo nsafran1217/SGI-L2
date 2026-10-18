@@ -943,7 +943,6 @@ static int l2cmd_l2dbg(CmdData *cptr, char **results)
     sVar3 = strlen(pcVar2);
     if (l2_misc_debug != 0) {
       sprintf(pcVar2 + sVar3,"L2 misc. debug flag 0x%08x\n",l2_misc_debug);
-      strlen(pcVar2 + sVar3);
     }
   }
   return 0;
@@ -1890,7 +1889,6 @@ int pbay_rsp(IRPacket *rsp, L2CMD *c, IRAddress *dest, int pktsleft, cmd_respons
   pd = (__typeof__(pd))data;   /* Ghidra merged pd into data */
   emsg[0] = '\0';
   memset(emsg + 1,0,99);
-  strlen(cmd_rsp->sptr);
   if (pd->snlist == 0) {
     pvVar2 = calloc(pktsleft + 1,sizeof(*pd->snlist));
     pd->snlist = pvVar2;
@@ -1996,7 +1994,6 @@ LAB_08059522:
         iVar8 = cmd_rsp->slen;
         sprintf(pcVar4 + iVar8,
                 "WARNING: ERRORS while reading PowerBay serial numbers from L1 Controllers:\n");
-        strlen(pcVar4 + iVar8);
       }
       pd->errcnt = pd->errcnt + 1;
       pcVar4 = cmd_rsp->eptr;
@@ -2019,7 +2016,6 @@ LAB_08059522:
       pcVar4 = cmd_rsp->sptr + cmd_rsp->slen;
       strcat(pcVar4,"    ");
       strcat(pcVar4,emsg);
-      strlen(pcVar4);
     }
   }
   else {
@@ -2075,7 +2071,6 @@ LAB_08059522:
       rptr = cmd_rsp->sptr + cmd_rsp->slen;
       strcat(rptr,emsg);
     }
-    strlen(rptr);
   }
   if (pktsleft == 0) {
     pcVar4 = cmd_rsp->eptr;
@@ -2884,7 +2879,6 @@ static int l2cmd_ip(CmdData *cptr, char **results)
       iVar1 = inet_aton(cptr->str_stack[0],(struct in_addr *)&ip_gateway);
       if (iVar1 < 0) {
         sprintf(rptr,"ERROR: \'%s\' is not a valid IP address\n",cptr->str_stack[0]);
-        strlen(rptr);
       }
       else {
         nvramSet(0x19,ip_gateway);
@@ -3020,7 +3014,6 @@ static int l2cmd_select(CmdData *cptr, char **results, L2CMD *c)
       IVar1 = smp_get_conaddr(c->data,&conaddr,NULL);
       if (IVar1 == 0) {
         strcpy(*results,"ERROR: no system console address defined\n");
-        strlen(rptr);
         return -1;
       }
       cfg = L2CfgMFindBrickCfg(&L2CfgLocal,conaddr >> 0x12 & 0x3ff,conaddr >> 0xc & 0x3f,0);
@@ -3046,7 +3039,6 @@ static int l2cmd_select(CmdData *cptr, char **results, L2CMD *c)
       IVar1 = smp_get_conaddr(c->data,&conaddr,NULL);
       if (IVar1 == 0) {
         strcpy(*results,"ERROR: no system console address defined\n");
-        strlen(rptr);
         return -1;
       }
       cfg = L2CfgMFindBrickCfg(&L2CfgLocal,conaddr >> 0x12 & 0x3ff,conaddr >> 0xc & 0x3f,0);
@@ -3073,7 +3065,6 @@ static int l2cmd_select(CmdData *cptr, char **results, L2CMD *c)
       IVar1 = smp_get_conaddr(c->data,&conaddr,NULL);
       if (IVar1 == 0) {
         strcpy(*results,"ERROR: no system console address defined\n");
-        strlen(rptr);
         return -1;
       }
       cfg = L2CfgMFindBrickCfg(&L2CfgLocal,conaddr >> 0x12 & 0x3ff,conaddr >> 0xc & 0x3f,0);
@@ -3099,7 +3090,6 @@ static int l2cmd_select(CmdData *cptr, char **results, L2CMD *c)
       IVar1 = smp_get_conaddr(c->data,&conaddr,NULL);
       if (IVar1 == 0) {
         strcpy(*results,"ERROR: no system console address defined\n");
-        strlen(rptr);
         return -1;
       }
       cfg = L2CfgMFindBrickCfg(&L2CfgLocal,conaddr >> 0x12 & 0x3ff,conaddr >> 0xc & 0x3f,0);
@@ -3595,7 +3585,6 @@ static int ver_summary_rsp(IRPacket *rsp, L2CMD *c, IRAddress *dest, int pktslef
   }
   if (pktsleft == 0) {
     print_errcnt = false;
-    strlen(cmd_rsp->sptr);
     pcVar6 = cmd_rsp->eptr;
     if (cmd_rsp->eptr == NULL) {
       pcVar6 = "";

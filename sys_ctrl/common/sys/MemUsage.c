@@ -16,21 +16,23 @@
 char *MemUsageBuf(void)
 {
   static char buf[400];
-  struct mallinfo info;
   char *bptr;
-
-  info = mallinfo();
+#if defined(__GLIBC__) && (__GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 33))
+  struct mallinfo2 info = mallinfo2();     /* mallinfo() is deprecated since glibc 2.33 */
+#else
+  struct mallinfo info = mallinfo();
+#endif
   bptr = buf;
-  bptr += sprintf(bptr, "\narena:        %d\n", info.arena);
-  bptr += sprintf(bptr, "ordblks:      %d\n", info.ordblks);
-  bptr += sprintf(bptr, "smblks:       %d\n", info.smblks);
-  bptr += sprintf(bptr, "hblks:        %d\n", info.hblks);
-  bptr += sprintf(bptr, "hblkhd:       %d\n", info.hblkhd);
-  bptr += sprintf(bptr, "usmblks:      %d\n", info.usmblks);
-  bptr += sprintf(bptr, "fsmblks:      %d\n", info.fsmblks);
-  bptr += sprintf(bptr, "uordblks:     %d\n", info.uordblks);
-  bptr += sprintf(bptr, "fordblks:     %d\n", info.fordblks);
-  bptr += sprintf(bptr, "keepcost:     %d\n", info.keepcost);
+  bptr += sprintf(bptr, "\narena:        %d\n", (int)info.arena);
+  bptr += sprintf(bptr, "ordblks:      %d\n", (int)info.ordblks);
+  bptr += sprintf(bptr, "smblks:       %d\n", (int)info.smblks);
+  bptr += sprintf(bptr, "hblks:        %d\n", (int)info.hblks);
+  bptr += sprintf(bptr, "hblkhd:       %d\n", (int)info.hblkhd);
+  bptr += sprintf(bptr, "usmblks:      %d\n", (int)info.usmblks);
+  bptr += sprintf(bptr, "fsmblks:      %d\n", (int)info.fsmblks);
+  bptr += sprintf(bptr, "uordblks:     %d\n", (int)info.uordblks);
+  bptr += sprintf(bptr, "fordblks:     %d\n", (int)info.fordblks);
+  bptr += sprintf(bptr, "keepcost:     %d\n", (int)info.keepcost);
   sprintf(bptr, "\n");
   return buf;
 }

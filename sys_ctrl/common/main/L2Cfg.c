@@ -89,7 +89,6 @@ static int match_node(L2CfgNode *n, uint32 ip_addr, IRAddress ir_addr, RouterCli
 static void format_l1(char *rptr, L2CfgNode *l2node, int port, int l1, int mode);
 static void format_l2(char *rptr, L2CfgNode *l2node, L2Cfg *head, int mode, int show_l1);
 static int l1l2(L2CfgPort *l2port, int l1, int index, char *cfgp, int size);
-static int attached_io_type(L2CfgPort *port, int index);
 
 int L2CfgDebug;
 int L2CfgDebugX;
@@ -807,7 +806,6 @@ static void format_l1(char *rptr, L2CfgNode *l2node, int port, int l1, int mode)
       strcat(rptr,"C or I/O brick (422 connection)");
     }
     strcat(rptr," not configured\n");
-    strlen(rptr);
     return;
   }
   FmtBrick(rptr,(uint)L2CFG_OF(l2node)->port_list[port].l1cfg[l1].rack,
@@ -1159,7 +1157,6 @@ LAB_0806a7f0:
       }
       if (others != 0) {
         sprintf(rptr,"  Other:    %d\n",others);
-        strlen(rptr);
       }
     }
   }
@@ -2905,21 +2902,6 @@ switchD_0806fc1f_caseD_6:
     }
   }
   return buff;
-}
-
-static int attached_io_type(L2CfgPort *port, int index)
-{
-  int l1;
-  
-  l1 = 0;
-  while( true ) {
-    if (port->l1count <= l1) {
-      return 0x3f;
-    }
-    if (((uint)port->l1cfg[l1].index == index) && (port->l1cfg[l1].configured != '\0')) break;
-    l1 = l1 + 1;
-  }
-  return (uint)port->l1cfg[l1].type;
 }
 
 IRAddress L2CfgMGetConsole(L2Cfg *head, int partition)

@@ -52,9 +52,7 @@ static void override_free(void);
 static void restore(void);
 static void override(void);
 static void list_insert(char *addr, size_t usize, size_t size, void *caller, char *who);
-static void minit(void);
 static int get_arena(void);
-static void chk_arena(void *caller, char *who, size_t arena, void *addr, size_t size);
 static void *mmalloc(size_t size, void *caller);
 static void *mrealloc(void *oldptr, size_t newsize, void *caller);
 static void *mmemalign(size_t boundary, size_t size, void *caller);
@@ -234,67 +232,13 @@ int list_delete(char *addr, char *who)
   return iVar1;
 }
 
-static void minit(void)
-{
-  if (initialized == 0) {
-    initialized = 1;
-    omalloc = __malloc_hook;
-    orealloc = __realloc_hook;
-    omemalign = __memalign_hook;
-    ofree = __free_hook;
-    override();
-  }
-  return;
-}
-
 static int get_arena(void)
 {
-  struct mallinfo info;
-  
-  info = mallinfo();
-  return info.arena;
-}
-
-static void chk_arena(void *caller, char *who, size_t arena, void *addr, size_t size)
-{
-  struct LIST_S *pLVar1;
-  size_t sVar2;
-  size_t holesize;
-  int holecount;
-  size_t holemin;
-  size_t holemax;
-  LIST *next;
-  LIST *curr;
-  struct mallinfo info;
-  
-  info = mallinfo();
-  holecount = 0;
-  holemax = 0;
-  holemin = 0;
-  for (curr = head; curr != NULL; curr = curr->next) {
-    pLVar1 = curr->next;
-    if ((pLVar1 != NULL) && ((void *)((char *)curr->addr + curr->size) < pLVar1->addr)) {
-      holesize = (int)((char *)pLVar1->addr - ((char *)curr->addr + curr->size));
-      sVar2 = holemin;
-      if ((size <= holesize) &&
-         ((sVar2 = holesize, holemin != 0 && (sVar2 = holesize, holemin <= holesize)))) {
-        sVar2 = holemin;
-      }
-      holemin = sVar2;
-      if (size <= holesize) {
-        holecount = holecount + 1;
-      }
-      if (holemax < holesize) {
-        holemax = holesize;
-      }
-    }
-  }
-  if ((arena < (uint)info.arena) &&
-     (nvramLogFinsert(">>>>> 0x%x %s more core: %d -> %d (%d@%x)\n",caller,who,arena,info.arena,size,addr),
-      holecount != 0)) {
-    nvramLogFinsert(">>>>> %d holes where found (%d:%d)\n",holecount,holemin,holemax);
-  }
-  return;
+#if defined(__GLIBC__) && (__GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 33))
+  return (int)mallinfo2().arena;   /* mallinfo() is deprecated since glibc 2.33 */
+#else
+  return mallinfo().arena;
+#endif
 }
 
 static void *mmalloc(size_t size, void *caller)

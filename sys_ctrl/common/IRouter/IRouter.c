@@ -788,7 +788,6 @@ switchD_0807d0e6_caseD_7:
   }
   sVar1 = strlen(bptr);
   sprintf(bptr + sVar1,"%4d.%2d,%2d,%3d ",addr >> 0x12 & 0x3ff,addr >> 0xc & 0x3f,num,task);
-  strlen(bptr + sVar1);
   return bptr;
 }
 

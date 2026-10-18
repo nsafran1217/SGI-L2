@@ -533,7 +533,6 @@ void pp(IRPacket *p)
       else {
         sptr = (char *)IRArg(p,arg);
       }
-      strlen(sptr);
       fprintf(stderr,"%s\n",sptr);
     }
   }

@@ -144,7 +144,7 @@ static int is_os(void)
   char scdev [64];
   
   {
-    /* original: "/bin/ls -1 /dev/snsc/*c*" (SGI_L3_DEV_DIR overrides /dev) */
+    /* original: "/bin/ls -1 /dev/snsc/" "*c*" (SGI_L3_DEV_DIR overrides /dev) */
     char lscmd[600];
     snprintf(lscmd,sizeof(lscmd),"/bin/ls -1 %s/snsc/*c* 2>/dev/null",l3path_dev_dir());
     fp = (FILE *)popen(lscmd,"r");
@@ -475,7 +475,7 @@ void sn1SCUseSCDevice(char *dev)
   serial_direct = 0;
   if ((dev == NULL) || (*dev == '\0')) {
     {
-    /* original: "/bin/ls -1 /dev/snsc/*c*" (SGI_L3_DEV_DIR overrides /dev) */
+    /* original: "/bin/ls -1 /dev/snsc/" "*c*" (SGI_L3_DEV_DIR overrides /dev) */
     char lscmd[600];
     snprintf(lscmd,sizeof(lscmd),"/bin/ls -1 %s/snsc/*c* 2>/dev/null",l3path_dev_dir());
     fp = (FILE *)popen(lscmd,"r");

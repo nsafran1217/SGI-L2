@@ -37,7 +37,6 @@
 #include "decomp.h"     /* Ghidra types/macros; remove once the file is cleaned up */
 
 static char **find_interfaces(uint32 **addrlist_ptr);
-static char *ip_str(uint8 *ip);
 
 static uint32 *addrlist;
 
@@ -569,12 +568,4 @@ static char **find_interfaces(uint32 **addrlist_ptr)
     }
   }
   return ppcVar3;
-}
-
-static char *ip_str(uint8 *ip)
-{
-  static char str[20];
-  
-  sprintf((char *)&str,"%d.%d.%d.%d",(uint)*ip,(uint)ip[1],(uint)ip[2],(uint)ip[3]);
-  return str;
 }

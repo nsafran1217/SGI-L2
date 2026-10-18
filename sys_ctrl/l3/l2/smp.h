@@ -86,6 +86,7 @@ void q(SMP *smp);
 void smp_process_response(IRPacket *p);
 void smp_read(SMP *smp);
 void smp_write(SMP *smp, char *ibptr, int iblen);
+int l2_console_printf(const char *format, ...);   /* SGI code writes fprintf(NULL, ...) */
 void smp_echo(SMP *smp);
 void smp_console(SMP *smp, IRAddress conaddr, int reenter);
 void smp_tty_config(int fd, int baud);
