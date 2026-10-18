@@ -52,8 +52,8 @@ REQRSPQ *reqrspq_init(void (*tofunc)(), void (*etofunc)(), void *todata)
 {
   REQRSPQ *q;
   
-  q = malloc(0x38);
-  memset(q,0,0x38);
+  q = malloc(sizeof(REQRSPQ));
+  memset(q,0,sizeof(REQRSPQ));
   q->rspq_tofunc = tofunc;
   q->rspq_etofunc = etofunc;
   q->rspq_todata = todata;
@@ -78,7 +78,7 @@ void reqq_put(REQRSPQ *q, IRPacket *pkt, int response, int delay)
 {
   REQQ *qe;
   
-  qe = malloc(0x14);
+  qe = malloc(sizeof(REQQ));
   qe->pkt = pkt;
   qe->response = response;
   qe->delay = delay;

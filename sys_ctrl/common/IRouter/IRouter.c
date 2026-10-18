@@ -454,7 +454,7 @@ int IRouterReadPacket(IRIdent *id, int (*rfcn)(), void *fd, IRPacket **pkt)
       }
       return -0x25c;
     }
-    memset(currframe,0,0x2c);
+    memset(currframe,0,sizeof(IRFrame));
     status = (*rfcn)(fd,&currframe,0x400);
     if (status < 1) break;
     IRouterSetFrameByteOrder(currframe,IRByteOrder);

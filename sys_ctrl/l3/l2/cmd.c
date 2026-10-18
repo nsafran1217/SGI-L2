@@ -83,12 +83,12 @@ void cmd_init(void)
   cmd_l2cmd = l2cmd_init(&l2_cmd_id,cmd_timeout,cmd_etimeout,cmd_send_response,NULL);
   cmd_l2cmd_usr =
        l2cmd_init(&l2_cmdusr_id,cmd_timeout,NULL,NULL,NULL);
-  memset(&cmd_rsp,0,0x14);
+  memset(&cmd_rsp,0,sizeof(cmd_response));
   cmd_rsp.size = 0x400;
   cmd_rsp.sptr = malloc(0x400);
   cmd_rsp.eptr = cmd_rsp.sptr;
   *cmd_rsp.sptr = '\0';
-  memset(&cmd_rsp_usr,0,0x14);
+  memset(&cmd_rsp_usr,0,sizeof(cmd_response));
   cmd_rsp_usr.size = 0x400;
   cmd_rsp_usr.sptr = malloc(0x400);
   cmd_rsp_usr.eptr = cmd_rsp_usr.sptr;

@@ -98,7 +98,7 @@ LAB_08070f46:
           *l2_cnt = *l2_cnt + 1;
           if (*l2_cnt == l2_list_size) {
             l2_list_size = l2_list_size + 10;
-            l2_list = realloc(l2_list,l2_list_size * 0x124);
+            l2_list = realloc(l2_list, l2_list_size * sizeof(sn1SC_L2));
             if (l2_list == NULL) {
               return -1;
             }
@@ -198,7 +198,7 @@ int sn1SCDiscoverL2Start(int sd, char *dev, char *client_info)
     if (*nlptr == NULL) {
       return sd;
     }
-    memset(&ifr,0,0x20);
+    memset(&ifr,0,sizeof(struct ifreq));
     strcpy((char *)&ifr,*nlptr);
     strcpy((char *)&ifr,*nlptr);
                     /* WARNING: Ignoring partial resolution of indirect */

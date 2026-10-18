@@ -57,6 +57,13 @@ static uint8 nvramTempCopy[16384];
 static char nvram_save_path[100];
 static char nvram_file[1024];   /* original: 40; paths are configurable now */
 
+/* The NVRAM image is the file's bytes: its layout must not depend on the host. */
+_Static_assert(sizeof(nvramInternalUseArea) == 2092, "NVRAM internal use area layout");
+
+/* log_* fields are offsets into the NVRAM image (see nvram.h) */
+#define LOGPTR(off) ((nvramLog *)(nvramTempCopy + (off)))
+#define LOGOFF(p)   ((uint32)((uint8 *)(p) - nvramTempCopy))
+
 int nvramInit(int mode)
 {
   nvramInternalUseArea *pnVar1;
@@ -112,14 +119,12 @@ int nvramInit(int mode)
     }
     nvramLogStart = (nvramLog *)(nvramIUA + 1);
     nvramLogEnd = (nvramLog *)(nvramTempCopy + 0x3ff8);
-    if (((((nvramInternalUseArea *)nvramIUA->log_start != (nvramInternalUseArea *)nvramLogStart) ||
-         ((uint8 *)nvramIUA->log_end != nvramTempCopy + 0x3ff8)) ||
-        (nvramIUA->log_head < nvramIUA->log_start)) ||
-       (((nvramIUA->log_end <= nvramIUA->log_head || (nvramIUA->log_tail < nvramIUA->log_start)) ||
-        (nvramIUA->log_end <= nvramIUA->log_tail)))) {
+    if (nvramIUA->log_start != LOGOFF(nvramLogStart) || nvramIUA->log_end != 0x3ff8 ||
+        nvramIUA->log_head < nvramIUA->log_start || nvramIUA->log_end <= nvramIUA->log_head ||
+        nvramIUA->log_tail < nvramIUA->log_start || nvramIUA->log_end <= nvramIUA->log_tail) {
       bad_log = true;
-      nvramIUA->log_start = nvramLogStart;
-      nvramIUA->log_end = nvramLogEnd;
+      nvramIUA->log_start = LOGOFF(nvramLogStart);
+      nvramIUA->log_end = LOGOFF(nvramLogEnd);
       nvramLogReset();
     }
     if (bad_ch) {
@@ -160,7 +165,7 @@ static void nvramInitIUA(void)
   nvramInternalUseArea *pnVar1;
   uint8 uVar2;
   
-  memset(nvramIUA,0,0x82c);
+  memset(nvramIUA,0,sizeof(nvramInternalUseArea));
   pnVar1 = nvramIUA;
   nvramIUA->version = 0;
   *(byte *)pnVar1 = *(byte *)pnVar1 | 0x20;
@@ -181,7 +186,7 @@ static void nvramInitCH(void)
   ipmiCommonHeader *piVar1;
   byte bVar2;
   
-  memset(nvramCH,0,8);
+  memset(nvramCH,0,sizeof(ipmiCommonHeader));
   piVar1 = nvramCH;
   nvramCH->version = 0;
   *(byte *)piVar1 = *(byte *)piVar1 | 0x10;
@@ -193,7 +198,7 @@ static void nvramInitCH(void)
   return;
 }
 
-void nvramSet(int32 location, uint32 value)
+void nvramSet(int32 location, uintptr_t value)   /* original: uint32 value; string fields pass a pointer */
 {
   nvramInternalUseArea *pnVar1;
   uint8 uVar2;
@@ -412,84 +417,57 @@ void nvramLogReset(void)
   return;
 }
 
+static void nvramLogPut(nvramInternalUseArea *iua, char c)
+{
+  *LOGPTR(iua->log_tail) = c;
+  iua->log_tail++;
+  if (iua->log_end <= iua->log_tail) {
+    iua->log_tail = iua->log_start;
+  }
+}
+
+/* Append a message to the NVRAM log ring: 0xf0, the time as 4 little-endian
+ * bytes, the text, and a newline if it has none. Oldest messages are dropped
+ * to make room. Same bytes as the original on any host. */
 void nvramLogInsert(char *message)
 {
-  nvramLog **ppnVar1;
-  int iVar2;
-  char cVar3;
-  char *pcVar4;
-  nvramInternalUseArea *pnVar5;
-  uint8 uVar6;
+  nvramInternalUseArea *iua = nvramIUA;
+  uint32 tval = (uint32)time(NULL);
+  int32 size = strlen(message);
+  int add_newline = message[size - 1] != '\n';     /* as the original: no check for "" */
   int32 fre;
-  int8 add_newline;
-  int32 size;
-  int tssize;
-  char *tp;
-  time_t tval;
-  int32 status;
-  
-  tval = time(NULL);
-  tp = (char *)&tval;
-  tssize = 5;
-  size = strlen(message);
-  fre = (int)nvramIUA->log_end - (int)nvramIUA->log_start;
-  cVar3 = message[size - 1];
-  if (nvramIUA->log_head < nvramIUA->log_tail) {
-    fre = (int32)(nvramIUA->log_head +
-                 (int)(nvramIUA->log_end + (-(int)nvramIUA->log_tail - (int)nvramIUA->log_start)));
+  int i;
+
+  fre = iua->log_end - iua->log_start;
+  if (iua->log_head < iua->log_tail) {
+    fre = iua->log_head + (iua->log_end - iua->log_tail - iua->log_start);
   }
-  else if (nvramIUA->log_tail < nvramIUA->log_head) {
-    fre = (int)nvramIUA->log_head - (int)nvramIUA->log_tail;
+  else if (iua->log_tail < iua->log_head) {
+    fre = iua->log_head - iua->log_tail;
   }
-  for (; fre <= (int)(size + 5U + (int)(cVar3 != '\n')); fre = fre + 1) {
-    while (pcVar4 = nvramIUA->log_head, nvramIUA->log_head = nvramIUA->log_head + 1, *pcVar4 != '\n'
-          ) {
-      fre = fre + 1;
-      if (nvramIUA->log_end <= nvramIUA->log_head) {
-        nvramIUA->log_head = nvramIUA->log_start;
+  for (; fre <= size + 5 + add_newline; fre++) {
+    /* drop the oldest message (the original only wraps head inside the loop) */
+    while (*LOGPTR(iua->log_head++) != '\n') {
+      fre++;
+      if (iua->log_end <= iua->log_head) {
+        iua->log_head = iua->log_start;
       }
     }
   }
-  while (pnVar5 = nvramIUA, tssize = tssize + -1, tssize != -1) {
-    if (tssize == 4) {
-      *nvramIUA->log_tail = -0x10;
-      ppnVar1 = &pnVar5->log_tail;
-      *ppnVar1 = *ppnVar1 + 1;
-    }
-    else {
-      *nvramIUA->log_tail = *tp;
-      tp = tp + 1;
-      ppnVar1 = &pnVar5->log_tail;
-      *ppnVar1 = *ppnVar1 + 1;
-    }
-    if (nvramIUA->log_end <= nvramIUA->log_tail) {
-      nvramIUA->log_tail = nvramIUA->log_start;
-    }
+  nvramLogPut(iua, (char)0xf0);
+  for (i = 0; i < 4; i++) {
+    nvramLogPut(iua, (char)(tval >> (8 * i)));
   }
-  while (pnVar5 = nvramIUA, iVar2 = size + -1, size != 0) {
-    *nvramIUA->log_tail = *message;
-    message = message + 1;
-    ppnVar1 = &pnVar5->log_tail;
-    *ppnVar1 = *ppnVar1 + 1;
-    size = iVar2;
-    if (nvramIUA->log_end <= nvramIUA->log_tail) {
-      nvramIUA->log_tail = nvramIUA->log_start;
-    }
+  for (i = 0; i < size; i++) {
+    nvramLogPut(iua, message[i]);
   }
-  if (cVar3 != '\n') {
-    *nvramIUA->log_tail = '\n';
-    ppnVar1 = &pnVar5->log_tail;
-    *ppnVar1 = *ppnVar1 + 1;
-    if (nvramIUA->log_end <= nvramIUA->log_tail) {
-      nvramIUA->log_tail = nvramIUA->log_start;
-    }
+  if (add_newline) {
+    nvramLogPut(iua, '\n');
   }
-  uVar6 = ipmiCalcCSum((uint8 *)nvramIUA,0x82c);
-  nvramIUA->checksum = uVar6;
+  iua->checksum = ipmiCalcCSum((uint8 *)iua,0x82c);
   if (nvram_initialized == 3) {
     nvramSave(nvramTempCopy,0x4000);
   }
-  return;
 }
 
 void nvramLogFinsert(char *fmt, ...)
@@ -513,7 +491,7 @@ char *nvramLogFetch(void)
   struct tm *__tp;
   size_t sVar2;
   int32 size;
-  uchar *tp;
+  uint32 tbits;
   time_t tval;
   int tcnt;
   char *blkend;
@@ -527,8 +505,8 @@ char *nvramLogFetch(void)
   
   size = 1;
   if (nvramIUA->log_head < nvramIUA->log_tail) {
-    block1 = nvramIUA->log_head;
-    block1e = nvramIUA->log_tail;
+    block1 = LOGPTR(nvramIUA->log_head);
+    block1e = LOGPTR(nvramIUA->log_tail);
     block2 = NULL;
     block2e = NULL;
   }
@@ -541,10 +519,10 @@ char *nvramLogFetch(void)
       *pcVar1 = '\0';
       return pcVar1;
     }
-    block1 = nvramIUA->log_head;
-    block1e = nvramIUA->log_end;
-    block2 = nvramIUA->log_start;
-    block2e = nvramIUA->log_tail;
+    block1 = LOGPTR(nvramIUA->log_head);
+    block1e = LOGPTR(nvramIUA->log_end);
+    block2 = LOGPTR(nvramIUA->log_start);
+    block2e = LOGPTR(nvramIUA->log_tail);
   }
   tcnt = 0;
   blkend = block1e;
@@ -586,7 +564,7 @@ char *nvramLogFetch(void)
       for (c = blkbeg; c < blkend; c = c + 1) {
         if (tcnt == 0) {
           if (*c == -0x10) {
-            tp = (uchar *)&tval;
+            tbits = 0;          /* time follows as 4 little-endian bytes */
             tcnt = 4;
           }
           else {
@@ -595,10 +573,10 @@ char *nvramLogFetch(void)
           }
         }
         else {
-          *tp = *c;
-          tp = tp + 1;
+          tbits |= (uint32)(uchar)*c << (8 * (4 - tcnt));
           tcnt = tcnt + -1;
           if (tcnt == 0) {
+            tval = (time_t)tbits;
             __tp = localtime(&tval);
             strftime(messages + size,0x13,"%m/%d/%y %X ",__tp);
             sVar2 = strlen(messages + size);
@@ -614,21 +592,17 @@ char *nvramLogFetch(void)
   return messages;
 }
 
+/* The original rebased the IUA's log pointers between the in-memory image
+ * (absolute) and the file (offsets). They are offsets in both now, so only
+ * the checksum is refreshed, as the original did after rebasing. */
 static void nvramNormalizePointers(ipmiCommonHeader *nvbuf, uint32 old_base, uint32 new_base)
 {
-  uint8 uVar1;
   nvramInternalUseArea *tmpIUA;
-  uint32 offset;
-  
+
+  (void)old_base;
+  (void)new_base;
   tmpIUA = (nvramInternalUseArea *)(nvbuf + nvbuf->internal_use_area);
-  offset = new_base - old_base;
-  tmpIUA->log_start = tmpIUA->log_start + offset;
-  tmpIUA->log_end = tmpIUA->log_end + offset;
-  tmpIUA->log_head = tmpIUA->log_head + offset;
-  tmpIUA->log_tail = tmpIUA->log_tail + offset;
-  uVar1 = ipmiCalcCSum((uint8 *)tmpIUA,0x82c);
-  tmpIUA->checksum = uVar1;
-  return;
+  tmpIUA->checksum = ipmiCalcCSum((uint8 *)tmpIUA,0x82c);
 }
 
 static int nvramLoad(uint8 *buf, int size)
@@ -675,7 +649,7 @@ static int nvramLoad(uint8 *buf, int size)
         rval = -1;
       }
       else {
-        nvramNormalizePointers((ipmiCommonHeader *)buf,0,(uint32)buf);
+        nvramNormalizePointers((ipmiCommonHeader *)buf,0,0);
         close(fd);
       }
     }
@@ -706,14 +680,14 @@ static int nvramSave(uint8 *buf, int size)
         rval = -1;
       }
       else {
-        nvramNormalizePointers((ipmiCommonHeader *)buf,(uint32)buf,0);
+        nvramNormalizePointers((ipmiCommonHeader *)buf,0,0);
         rval = write(fd,buf,size);
         if (rval < 0) {
           piVar1 = __errno_location();
           pcVar2 = LoggerDefaultMessage(*piVar1);
           syslog(4,"nvram.c",0x43f,0,"can\'t write the NVRAM file \'%s\': %s",nvram_file,pcVar2);
         }
-        nvramNormalizePointers((ipmiCommonHeader *)buf,0,(uint32)buf);
+        nvramNormalizePointers((ipmiCommonHeader *)buf,0,0);
         close(fd);
         if (rval < 0) {
           rval = -1;

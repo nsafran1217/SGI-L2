@@ -97,8 +97,8 @@ int RouterInit(int max_in_args, int use_unix, char *process_name, int process_id
   }
   ProcessID = process_id;
   FatalCB = fatal_cb;
-  memset(&InputStats,0,0x28);
-  memset(&OutputStats,0,0x28);
+  memset(&InputStats,0,sizeof(RouterCompressStats));
+  memset(&OutputStats,0,sizeof(RouterCompressStats));
   pcVar1 = strrchr(process_name,0x2f);
   if (pcVar1 == NULL) {
     ProcessName = process_name;
@@ -605,11 +605,11 @@ RouterClient *RouterMakeClient(int socket, long unsigned int addr, int port, int
   int i;
   RouterClient *client;
   
-  __s = malloc(0x198);
+  __s = malloc(sizeof(RouterClient));
   if (__s == NULL) {
     RouterMemError();
   }
-  memset(__s,0,0x198);
+  memset(__s,0,sizeof(RouterClient));
   __s->socket = socket;
   __s->addr = addr;
   __s->port = port;
@@ -620,7 +620,7 @@ RouterClient *RouterMakeClient(int socket, long unsigned int addr, int port, int
   __s->in_handler = in_handler;
   __s->InArgList = NULL;
   if (__s->InArgList == NULL) {
-    pRVar1 = malloc(MaxInArgs * 8);
+    pRVar1 = malloc(MaxInArgs * sizeof(RouterArgument));
     __s->InArgList = pRVar1;
     if (pRVar1 == NULL) {
       RouterMemError();
@@ -1585,7 +1585,7 @@ int RouterUnpack(RouterClient *client, RouterHeader *packet)
   }
   while (buf_ptr + 4 < buf_end) {
     if (client->InArgListSize <= i) {
-      pRVar14 = realloc(client->InArgList,(MaxInArgs + client->InArgListSize) * 8);
+      pRVar14 = realloc(client->InArgList, (MaxInArgs + client->InArgListSize) * sizeof(RouterArgument));
       client->InArgList = pRVar14;
       if (pRVar14 == NULL) {
         RouterMemError();
@@ -1598,7 +1598,7 @@ int RouterUnpack(RouterClient *client, RouterHeader *packet)
         *(uint *)(client->InArgList + j) = *(uint *)(client->InArgList + j) & 0xff;
       }
     }
-    memcpy(&ubitbuf,buf_ptr,4);
+    memcpy(&ubitbuf,buf_ptr,sizeof(struct bitbuf));
     buf_ptr = buf_ptr + 4;
     class_size = ntohl(ubitbuf.value);
     pRVar12 = client->InArgList;
@@ -1613,7 +1613,7 @@ int RouterUnpack(RouterClient *client, RouterHeader *packet)
     *(uint *)pRVar12 = *(uint *)pRVar12 | class_size << 8;
     if (client->InArgList[i].clas == 0) {
       *(uint *)(client->InArgList + i) = *(uint *)(client->InArgList + i) & 0xff;
-      memcpy(&ubitbuf,buf_ptr,4);
+      memcpy(&ubitbuf,buf_ptr,sizeof(struct bitbuf));
       buf_ptr = buf_ptr + 4;
       uVar15 = ntohl(ubitbuf.value);
       client->InArgList[i].val = uVar15;
@@ -1717,8 +1717,8 @@ void RouterPrintProcessStats(FILE *fd, int reset)
     RouterPrintStats(fd,&OutputStats);
   }
   if (reset != 0) {
-    memset(&InputStats,0,0x28);
-    memset(&OutputStats,0,0x28);
+    memset(&InputStats,0,sizeof(RouterCompressStats));
+    memset(&OutputStats,0,sizeof(RouterCompressStats));
   }
   return;
 }

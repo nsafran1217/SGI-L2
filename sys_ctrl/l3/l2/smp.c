@@ -102,8 +102,8 @@ SMP *smp_init(IRIdent *id, int rfd, int wfd, void (*rfcn)(), long unsigned int h
   
   smp_input_debug = 0;
   smp_console_debug = 0;
-  smp = malloc(0x28);
-  memset(smp,0,0x28);
+  smp = malloc(sizeof(SMP));
+  memset(smp,0,sizeof(SMP));
   smp->host = host;
   smp->rfd = rfd;
   smp->wfd = wfd;
@@ -122,7 +122,7 @@ SMP *smp_init(IRIdent *id, int rfd, int wfd, void (*rfcn)(), long unsigned int h
     iVar5 = smp->rfd;
   }
   smp->grpid = iVar5;
-  pSVar1 = malloc(0xb8);
+  pSVar1 = malloc(sizeof(SMPGroup));
   smp->grp = pSVar1;
   memset(smp->grp,0,0xb8);
   smp->grp->id = smp->grpid;
@@ -708,7 +708,7 @@ int smp_leave(SMP *smp)
           }
         }
       }
-      pSVar2 = malloc(0xb8);
+      pSVar2 = malloc(sizeof(SMPGroup));
       smp->grp = pSVar2;
       memset(smp->grp,0,0xb8);
       smp->grp->id = smp->grpid;

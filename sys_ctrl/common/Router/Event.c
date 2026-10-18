@@ -65,12 +65,12 @@ static void EventIOListAlloc(int count)
     else {
       EventIOListSize = count + 1;
     }
-    EventIOList = malloc(EventIOListSize * 0xd8);
+    EventIOList = malloc(EventIOListSize * sizeof(EventIOEntry));
     memset(EventIOList,0,EventIOListSize * 0xd8);
   }
   else if (EventIOListSize <= count) {
     EventIOListSize = count + 1;
-    EventIOList = realloc(EventIOList,EventIOListSize * 0xd8);
+    EventIOList = realloc(EventIOList, EventIOListSize * sizeof(EventIOEntry));
     memset(EventIOList + count,0,0xd8);
   }
   return;
@@ -293,7 +293,7 @@ EventID EventAddTimeOut(long unsigned int seconds, long unsigned int microsecond
   char *func_name;
   
   if (EventTimerFreeList == NULL) {
-    entry = malloc(0x54);
+    entry = malloc(sizeof(EventTimerEntry));
     if (entry == NULL) {
       EventTimerErrors = EventTimerErrors + 1;
       LogError(-0x1f7,"EventAddTimeOut",0,"");

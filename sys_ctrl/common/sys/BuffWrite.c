@@ -27,7 +27,7 @@ BuffWrite_t *BuffWriteInit(void)
 {
   BuffWrite_t *o;
   
-  o = malloc(0xc);
+  o = malloc(sizeof(BuffWrite_t));
   o->buff = NULL;
   o->blen = 0;
   o->ulen = 0;

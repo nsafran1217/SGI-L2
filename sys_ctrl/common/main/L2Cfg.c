@@ -1913,12 +1913,11 @@ void L2CfgMCfgL2(L2Cfg *head, IRPacket *p)
                                       if (l2 != NULL) {
                                         iVar6 = l2->port_list[port].l1count;
                                         if (iVar6 == 0) {
-                                          pLVar11 = malloc(0x30);
+                                          pLVar11 = malloc(sizeof(L2CfgL1));
                                           l2->port_list[port].l1cfg = pLVar11;
                                         }
                                         else {
-                                          pLVar11 = realloc(l2->port_list[port].l1cfg,
-                                                            (iVar6 + 1) * 0x30);
+                                          pLVar11 = realloc(l2->port_list[port].l1cfg, (iVar6 + 1) * sizeof(L2CfgL1));
                                           l2->port_list[port].l1cfg = pLVar11;
                                         }
                                         memset(l2->port_list[port].l1cfg + iVar6,0,0x30);
@@ -2117,8 +2116,8 @@ static int l1l2(L2CfgPort *l2port, int l1, int index, char *cfgp, int size)
   if (0x70 < (uint)size) {
     size = 0x70;
   }
-  memset(&l1_l1cfg,0,0x70);
-  memset(&l2_l1cfg,0,0x30);
+  memset(&l1_l1cfg,0,sizeof(L1CfgL1));
+  memset(&l2_l1cfg,0,sizeof(L2CfgL1));
   memcpy(&l1_l1cfg,cfgp,size);
   l2_l1cfg.index = (uint8)index;
   if ((((l1_l1cfg.revision < 0x100) && (l1_l1cfg.configured < 0x100)) && (l1_l1cfg.type < 0x100)) &&

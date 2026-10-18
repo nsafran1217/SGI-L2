@@ -48,10 +48,13 @@ typedef struct {
     uint8 open2;
     uint32 ip_gateway;
     uint32 extra[467];
-    nvramLog *log_start;
-    nvramLog *log_end;
-    nvramLog *log_head;
-    nvramLog *log_tail;
+    /* Original: nvramLog * (absolute 32-bit pointers in memory, rebased to
+     * offsets on disk). Now always offsets into the NVRAM image, their disk
+     * form, so the layout is the same on every architecture. */
+    uint32 log_start;
+    uint32 log_end;
+    uint32 log_head;
+    uint32 log_tail;
     uint8 pad[3];
     uint8 checksum;
 } nvramInternalUseArea;
@@ -76,7 +79,7 @@ extern int32 nvramSim;
 extern nvramInstance nvram;
 int nvramInit(int mode);
 int nvramReset(void);
-void nvramSet(int32 location, uint32 value);
+void nvramSet(int32 location, uintptr_t value);   /* original: uint32 value */
 uintptr_t nvramGet(int32 location);   /* original: uint32 */
 void nvramLogReset(void);
 void nvramLogInsert(char *message);

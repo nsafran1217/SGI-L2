@@ -78,7 +78,7 @@ int discover_init(void)
     _Var1 = getpid();
     pcVar2 = inet_ntoa(*(struct in_addr *)&discover_ip);
     sprintf(client_id,"%s.%d",pcVar2,_Var1);
-    memset(&ifr,0,0x20);
+    memset(&ifr,0,sizeof(struct ifreq));
     strcpy((char *)&ifr,name);
     discover_sd = socket(2,2,0x11);
     if (discover_sd < 0) {

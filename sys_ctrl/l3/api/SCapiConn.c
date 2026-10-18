@@ -85,7 +85,7 @@ int sn1SCConnInitConn(sn1SCConn *conn, int id, char *host, char *iface, char *sy
                     /* WARNING: Subroutine does not return */
     exit(1);
   }
-  memset(conn,0,0x1868);
+  memset(conn,0,sizeof(sn1SCConn));
   (conn->ir_id).addr = 0x2ffff000;
   if ((host == NULL) || (*host == '\0')) {
     rval = sn1SCConnFindL2(conn->host,iface,sysname,ssn);

@@ -198,8 +198,8 @@ L2CMD *l2cmd_init(IRIdent *id, l2cmd_timeout_cb *tofunc, l2cmd_etimeout_cb *etof
   REQRSPQ *pRVar1;
   DEST *pDVar2;
   
-  c = malloc(0x20);
-  memset(c,0,0x20);
+  c = malloc(sizeof(L2CMD));
+  memset(c,0,sizeof(L2CMD));
   c->id = id;
   if (etofunc == NULL) {
     etofunc_00 = NULL;
@@ -291,7 +291,7 @@ static int l2cmd_broadcast(CmdData *cptr, char **results, L2CMD *c)
   }
   else {
     response(results,0x140);
-    memcpy(&orig_dest,c->dest,0x1188);
+    memcpy(&orig_dest,c->dest,sizeof(DEST));
     dest_reset(c->dest);
     dest_l1(c->dest,NULL);
     iVar1 = strcmp(cptr->toks[0],"router");
@@ -1519,7 +1519,7 @@ int l2cmd_power(CmdData *cptr, char **results, L2CMD *c)
         if (iVar3 != 0) {
           return -1;
         }
-        memcpy(&orig_dest,c->dest,0x1188);
+        memcpy(&orig_dest,c->dest,sizeof(DEST));
         l2cmd_process(c,"ver check",results,NULL);
         memcpy(c->dest,&orig_dest,0x1188);
         uVar4 = nvramGet(0x15);
@@ -1528,7 +1528,7 @@ int l2cmd_power(CmdData *cptr, char **results, L2CMD *c)
           bVar10 = c->dest->type == 2;
           if (bVar10) {
             flags = 0x10000;
-            memcpy(&orig_dest_,c->dest,0x1188);
+            memcpy(&orig_dest_,c->dest,sizeof(DEST));
             dest_reset(c->dest);
             dest_l1(c->dest,NULL);
             pwrcmd = "power up";
@@ -1823,7 +1823,7 @@ static int l2cmd_reset(CmdData *cptr, char **results, L2CMD *c)
     else {
       iVar1 = dest_pcheck(c->dest,cptr,*results);
       if (iVar1 == 0) {
-        memcpy(&orig_dest,c->dest,0x1188);
+        memcpy(&orig_dest,c->dest,sizeof(DEST));
         l2cmd_process(c,"ver check",results,NULL);
         memcpy(c->dest,&orig_dest,0x1188);
         iVar1 = broadcast_l1(c,1,"reset",1,0,0xff,NULL,1);

@@ -178,7 +178,7 @@ int RouterGetIDClients(int process_id, RouterID **buf)
     *buf = NULL;
   }
   else {
-    client_id_buf = calloc(clients,0x80);
+    client_id_buf = calloc(clients, sizeof(RouterID));
     if (client_id_buf == NULL) {
       RouterMemError();
     }
@@ -237,7 +237,7 @@ static RouterServer *RouterMakeServer(int inet_socket, int unix_socket, int port
   RouterServer *pRVar1;
   RouterServer *server;
   
-  pRVar1 = malloc(0x24);
+  pRVar1 = malloc(sizeof(RouterServer));
   if (pRVar1 == NULL) {
     RouterMemError();
   }

@@ -66,7 +66,7 @@ int IRouterForwardPacket(IRClient *client, IRIdent *id, IRPacket *pkt)
     priority = '\x14';
   }
 LAB_0807d4aa:
-  arglist = malloc(((pkt->_fnum & 0x7f) + 1) * 8);
+  arglist = malloc(((pkt->_fnum & 0x7f) + 1) * sizeof(RouterArgument));
   if (arglist == NULL) {
     rval = -0x25c;
   }

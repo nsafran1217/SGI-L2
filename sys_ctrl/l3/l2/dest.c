@@ -53,7 +53,7 @@ DEST *dest_init(void)
 {
   DEST *d;
   
-  d = malloc(0x1188);
+  d = malloc(sizeof(DEST));
   dest_reset(d);
   return d;
 }
@@ -66,7 +66,7 @@ void dest_free(DEST *d)
 
 void dest_reset(DEST *d)
 {
-  memset(d,0,0x1188);
+  memset(d,0,sizeof(DEST));
   memset(d->rlist,1,0x100);
   memset(d->slist,1,0x40);
   return;

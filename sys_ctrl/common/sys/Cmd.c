@@ -74,7 +74,7 @@ int CmdProcess(int mode, char *cmd, char **results, Cmd *cmds_in, int num_cmds_i
   if (results != NULL) {
     *results = NULL;
   }
-  memset(&cd,0,500);
+  memset(&cd,0,sizeof(CmdData));
   if (cmd != NULL) {
     while (isspace((unsigned char)*cmd)) {
       cmd = cmd + 1;

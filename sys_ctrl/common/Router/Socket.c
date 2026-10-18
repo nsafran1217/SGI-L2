@@ -62,7 +62,7 @@ int SocketExportInetConnection(int port)
       sock = -1;
     }
     else {
-      memset(&addr_inet,0,0x10);
+      memset(&addr_inet,0,sizeof(struct sockaddr_in));
       addr_inet.sin_family = 2;
       addr_inet.sin_port = htons((uint16_t)port);
       addr_inet.sin_addr.s_addr = 0;

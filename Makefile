@@ -20,7 +20,8 @@ CFLAGS  += -Wno-error=int-conversion \
 ifeq ($(ARCH),-m32)
 CFLAGS  += $(if $(wildcard /usr/include/i386-linux-gnu/bits),,-isystem /usr/include/x86_64-linux-gnu)
 endif
-LDFLAGS += $(ARCH)
+LDFLAGS += $(ARCH) $(EXTRA_LDFLAGS)
+CFLAGS  += $(EXTRA_CFLAGS)   # e.g. EXTRA_CFLAGS=-fsanitize=address EXTRA_LDFLAGS=-fsanitize=address
 # l2passwd needs crypt(). Without the 32-bit libcrypt dev package (libcrypt-dev:i386)
 # there is no libcrypt.so to find, so link the runtime library directly.
 CRYPT   := $(if $(and $(filter -m32,$(ARCH)),$(wildcard /usr/lib/i386-linux-gnu/libcrypt.so.1)),\
