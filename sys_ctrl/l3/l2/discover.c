@@ -413,7 +413,7 @@ void discover_response(void *cd, int sd)
     syslog(3,"discover.c",588,0,"discover_response: sendto: %m\n");
     iVar9 = retry;
     piVar1 = __errno_location();
-    fprintf(stderr,"errno=%d retry=%d status=%d\n",*piVar1,iVar9,sVar7);
+    fprintf(stderr,"errno=%d retry=%d status=%d\n",*piVar1,iVar9,(int)sVar7);
   }
   else if (((cfg_ping_sender_valid != 0) &&
            (l2node = L2CfgMFindNode(&L2CfgLocal,cliaddr.sin_addr.s_addr,0,NULL),

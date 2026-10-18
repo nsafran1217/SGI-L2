@@ -115,7 +115,7 @@ int L2CfgInitLocal(uint32 ip_addr, RouterClient *client)
   char *ssn;
   
   if (L2CfgDebug != 0) {
-    fprintf(stderr,"InitLocal(ip %08x, c %08x)\n",ip_addr,client);
+    fprintf(stderr,"InitLocal(ip %08x, c %08lx)\n",ip_addr,(unsigned long)(uintptr_t)client);
   }
   if (L2CfgMode == 0) {
     L2CfgMode = 1;
@@ -154,7 +154,7 @@ int L2CfgMInitL3(L2Cfg *head, RouterClient *client)
   L2CfgSysCon *pLVar2;
   
   if (L2CfgDebug != 0) {
-    fprintf(stderr,"InitL3(cfg %08x, c %08x)\n",head,client);
+    fprintf(stderr,"InitL3(cfg %08lx, c %08lx)\n",(unsigned long)(uintptr_t)head,(unsigned long)(uintptr_t)client);
   }
   if (L2CfgMode == 1) {
     syslog(3,"../../common/main/L2Cfg.c",165,0,
@@ -188,8 +188,8 @@ int L2CfgMAddL2(L2Cfg *head, uint32 ip_addr, uint32 port, RouterClient *client, 
   
   ir_addr = 0;
   if (L2CfgDebug != 0) {
-    fprintf(stderr,"\n------------------------\nAddL2(cfg %08x, ip %08x, c %08x)\n",head,ip_addr,
-            client);
+    fprintf(stderr,"\n------------------------\nAddL2(cfg %08lx, ip %08x, c %08lx)\n",(unsigned long)(uintptr_t)head,ip_addr,
+            (unsigned long)(uintptr_t)client);
   }
   if (client != NULL) {
     port = client->port;
@@ -260,7 +260,7 @@ int L2CfgMAddL3(L2Cfg *head, uint32 ip_addr, RouterClient *client)
   int bit;
   
   if (L2CfgDebug != 0) {
-    fprintf(stderr,"AddL3(cfg %08x, ip %08x, c %08x)\n",head,ip_addr,client);
+    fprintf(stderr,"AddL3(cfg %08lx, ip %08x, c %08lx)\n",(unsigned long)(uintptr_t)head,ip_addr,(unsigned long)(uintptr_t)client);
   }
   if (IRByteOrder == 1) {
     ir_addr = (head->net).ip_addr;
@@ -313,7 +313,7 @@ int L2CfgMDeleteNode(L2Cfg *head, RouterClient *client)
   L2CfgNode *l2;
   
   if (L2CfgDebug != 0) {
-    fprintf(stderr,"DeleteNode(cfg %08x, c %08x)\n",head,client);
+    fprintf(stderr,"DeleteNode(cfg %08lx, c %08lx)\n",(unsigned long)(uintptr_t)head,(unsigned long)(uintptr_t)client);
   }
   for (l2 = (head->net).next; l2 != NULL; l2 = l2->next) {
     iVar1 = match_node(l2,0,0,client);
@@ -347,8 +347,8 @@ L2CfgNode *L2CfgInitNode(L2CfgNode *node, int l2, uint32 ip_addr, IRAddress ir_a
   int nsize;
   
   if (L2CfgDebug != 0) {
-    fprintf(stderr,"InitNode(n %08x, l2 %08d, ip %08x, ir %08x, c %08x)\n",node,l2,ip_addr,ir_addr,
-            client);
+    fprintf(stderr,"InitNode(n %08lx, l2 %08d, ip %08x, ir %08x, c %08lx)\n",(unsigned long)(uintptr_t)node,l2,ip_addr,ir_addr,
+            (unsigned long)(uintptr_t)client);
   }
   if (node == NULL) {
     if (l2 == 0) {
@@ -399,7 +399,7 @@ static int match_node(L2CfgNode *n, uint32 ip_addr, IRAddress ir_addr, RouterCli
       fprintf(stderr,"checking IR %08x = %08x\n",n->ir_addr,ir_addr);
     }
     if (client != NULL) {
-      fprintf(stderr,"checking C %08x = %08x\n",n->client,client);
+      fprintf(stderr,"checking C %08lx = %08lx\n",(unsigned long)(uintptr_t)n->client,(unsigned long)(uintptr_t)client);
     }
   }
   if ((true) && (ip_addr != 0)) {
@@ -430,7 +430,7 @@ L2CfgNode *L2CfgMFindL2Node(L2Cfg *head, uint32 ip_addr, IRAddress ir_addr, Rout
   L2CfgNode *l2;
   
   if (L2CfgDebug != 0) {
-    fprintf(stderr,"FindL2Node(cfg %08x, ip %08x, ir %08x, c %08x)\n",head,ip_addr,ir_addr,client);
+    fprintf(stderr,"FindL2Node(cfg %08lx, ip %08x, ir %08x, c %08lx)\n",(unsigned long)(uintptr_t)head,ip_addr,ir_addr,(unsigned long)(uintptr_t)client);
   }
   for (l2 = &head->net; l2 != NULL; l2 = l2->next) {
     iVar1 = match_node(l2,ip_addr,ir_addr,client);
@@ -456,7 +456,7 @@ L2CfgNode *L2CfgMFindL3Node(L2Cfg *head, uint32 ip_addr, IRAddress ir_addr, Rout
   L2CfgNode *l3;
   
   if (L2CfgDebug != 0) {
-    fprintf(stderr,"FindL3Node(cfg %08x, ip %08x, ir %08x, c %08x)\n",head,ip_addr,ir_addr,client);
+    fprintf(stderr,"FindL3Node(cfg %08lx, ip %08x, ir %08x, c %08lx)\n",(unsigned long)(uintptr_t)head,ip_addr,ir_addr,(unsigned long)(uintptr_t)client);
   }
   l3 = head->l3_clients;
   while( true ) {
@@ -479,7 +479,7 @@ L2CfgNode *L2CfgMFindNodeLocal(L2Cfg *head, uint32 ip_addr)
   L2CfgNode *l2;
   
   if (L2CfgDebug != 0) {
-    fprintf(stderr,"FindNodeLocal(cfg %08x, ip %08x)\n",head,ip_addr);
+    fprintf(stderr,"FindNodeLocal(cfg %08lx, ip %08x)\n",(unsigned long)(uintptr_t)head,ip_addr);
   }
   for (l2 = &head->net; l2 != NULL; l2 = l2->next) {
     if ((l2->client != NULL) &&
@@ -526,7 +526,7 @@ L2CfgNode *L2CfgMFindNode(L2Cfg *head, uint32 ip_addr, IRAddress ir_addr, Router
   L2CfgNode *n;
   
   if (L2CfgDebug != 0) {
-    fprintf(stderr,"FindNode(cfg %08x, ip %08x, ir %08x, c %08x)\n",head,ip_addr,ir_addr,client);
+    fprintf(stderr,"FindNode(cfg %08lx, ip %08x, ir %08x, c %08lx)\n",(unsigned long)(uintptr_t)head,ip_addr,ir_addr,(unsigned long)(uintptr_t)client);
   }
   n = L2CfgMFindL2Node(head,ip_addr,ir_addr,client);
   if (n == NULL) {
@@ -871,7 +871,7 @@ static void format_l2(char *rptr, L2CfgNode *l2node, L2Cfg *head, int mode, int 
     sprintf(rackstr,"%04d",L2CFG_OF(l2node)->rack);
   }
   if (mode == 2) {
-    sprintf(rptr,"L2 %s: - %s (IR %08x, C %08x)",ipstr,rackstr,l2node->ir_addr,l2node->client);
+    sprintf(rptr,"L2 %s: - %s (IR %08x, C %08lx)",ipstr,rackstr,l2node->ir_addr,(unsigned long)(uintptr_t)l2node->client);
   }
   else {
     sprintf(rptr,"L2 %s: - %s",ipstr,rackstr);
@@ -1219,7 +1219,7 @@ LAB_0806a7f0:
           }
           else {
             sprintf(pcVar2," %s (%s) @ %s running \'%s\'\n",(pRVar1->id).username,
-                    (pRVar1->id).fullname,&pRVar1->id,(pRVar1->id).procname);
+                    (pRVar1->id).fullname,pRVar1->id.hostname,(pRVar1->id).procname);
           }
           sVar3 = strlen(pcVar2);
           rptr = pcVar2 + sVar3;
@@ -1243,7 +1243,7 @@ LAB_0806a7f0:
           }
           else {
             sprintf(pcVar2," %s (%s) @ %s running \'%s\'\n",(pRVar1->id).username,
-                    (pRVar1->id).fullname,&pRVar1->id,(pRVar1->id).procname);
+                    (pRVar1->id).fullname,pRVar1->id.hostname,(pRVar1->id).procname);
           }
           sVar3 = strlen(pcVar2);
           rptr = pcVar2 + sVar3;
@@ -2921,7 +2921,7 @@ IRAddress L2CfgMGetConsole(L2Cfg *head, int partition)
   L2CfgNode *l2node;
   
   if (L2CfgDebugX != 0) {
-    fprintf(stderr,"L2CfgGetConsole(%x, %d)\n",head,partition);
+    fprintf(stderr,"L2CfgGetConsole(%lx, %d)\n",(unsigned long)(uintptr_t)head,partition);
   }
   if ((partition == -1) || (partition < 0x100)) {
     if ((partition == -1) || (detected = head->syscon[partition].detected, detected == 0)) {

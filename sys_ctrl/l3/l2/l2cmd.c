@@ -529,10 +529,10 @@ switchD_080557f5_caseD_0:
     break;
   case 5:
     now = time(NULL);
-    sprintf(*results,"%d\n",now);
+    sprintf(*results,"%d\n",(int)now);
     break;
   case 6:
-    sprintf(buff,"date sync %x",c);
+    sprintf(buff,"date sync %lx",(unsigned long)(uintptr_t)c);
     nvramLogInsert(buff);
     if (c == NULL) {
       return -1;
@@ -702,7 +702,7 @@ static int l2cmd_l2dbg(CmdData *cptr, char **results)
     else if (uVar6 == 0xb) {
       pcVar2 = response(results,0x1000);
       gettimeofday((struct timeval *)&cur_time,NULL);
-      sprintf(pcVar2,"%4d.%06d CURRENT TIME\n",cur_time.tv_sec,cur_time.tv_usec);
+      sprintf(pcVar2,"%4d.%06d CURRENT TIME\n",(int)cur_time.tv_sec,(int)cur_time.tv_usec);
       sVar3 = strlen(pcVar2);
       pcVar2 = pcVar2 + sVar3;
       if (cfg_auto_rescan == 0) {
@@ -715,7 +715,7 @@ static int l2cmd_l2dbg(CmdData *cptr, char **results)
       sVar3 = strlen(pcVar2);
       rptr = pcVar2 + sVar3;
       for (e = EventTimerQueue; e != NULL; e = e->next) {
-        sprintf(rptr,"%4d.%06d %s\n",(e->timer_value).tv_sec,(e->timer_value).tv_usec,e->desc);
+        sprintf(rptr,"%4d.%06d %s\n",(int)(e->timer_value).tv_sec,(int)(e->timer_value).tv_usec,e->desc);
         sVar3 = strlen(rptr);
         rptr = rptr + sVar3;
       }
@@ -2824,7 +2824,7 @@ static int l2cmd_ip(CmdData *cptr, char **results)
         rptr = rptr + sVar3;
         if (ip_gateway == 0) {
           pcVar2 = inet_ntoa(*(struct in_addr *)&ip_gateway);
-          sprintf(rptr,"gateway: <not set>\n",pcVar2);
+          sprintf(rptr,"gateway: <not set>\n");
         }
         else {
           pcVar2 = inet_ntoa(*(struct in_addr *)&ip_gateway);
@@ -3443,6 +3443,7 @@ static int ver_summary_rsp(IRPacket *rsp, L2CMD *c, IRAddress *dest, int pktslef
   char *verstr;
   char *pcVar4;
   unsigned int uVar5;
+  char *errtext;
   char *pcVar6;
   unsigned char *puVar7;
   int iVar8;
@@ -3517,14 +3518,15 @@ static int ver_summary_rsp(IRPacket *rsp, L2CMD *c, IRAddress *dest, int pktslef
       }
     }
     else {
+      /* the error text (64-bit: it went through an unsigned int) */
       if ((rsp->_argv[1]._clas & 7) == 0) {
-        uVar5 = (unsigned int)rsp->_argv[1]._val;
+        errtext = (char *)IR_VAL_PTR(rsp->_argv[1]._val);
       }
       else {
-        uVar5 = IRArg(rsp,1);
+        errtext = (char *)IRArg(rsp,1);
       }
       pcVar6 = format_address(*dest);
-      sprintf(emsg,"    %s:  %s\n",pcVar6,uVar5);
+      sprintf(emsg,"    %s:  %s\n",pcVar6,errtext);
     }
   }
   else {

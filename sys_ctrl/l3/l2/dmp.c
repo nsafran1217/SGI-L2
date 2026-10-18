@@ -19,7 +19,7 @@ void dmp(char *s, unsigned char *bptr, int blen, int newline)
   char buff [80];
   
   if (s != NULL) {
-    fprintf(stderr,"\n%s %x\n",s,bptr);
+    fprintf(stderr,"\n%s %lx\n",s,(unsigned long)(uintptr_t)bptr);
   }
   for (n = 0; n < blen; n = n + 1) {
     fprintf(stderr,"%02x ",(unsigned int)bptr[n]);

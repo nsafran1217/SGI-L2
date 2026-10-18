@@ -238,6 +238,8 @@ static void *mrealloc(void *oldptr, size_t newsize, void *caller)
   size_t oldsize = 0, usable;
   void *newptr;
 
+  uintptr_t oldaddr = (uintptr_t)oldptr;        /* (only compared once realloc() has it) */
+
   if (oldptr != NULL)
     oldsize = malloc_usable_size(oldptr);
   get_arena();
@@ -247,7 +249,7 @@ static void *mrealloc(void *oldptr, size_t newsize, void *caller)
   if (newptr == NULL)
     return NULL;
   usable = malloc_usable_size(newptr);
-  if (oldptr != NULL && list_delete(oldptr,"realloc") && oldsize < MAX_TRACKED)
+  if (oldaddr != 0 && list_delete((char *)oldaddr,"realloc") && oldsize < MAX_TRACKED)
     mcurr[oldsize >> 10]--;
   list_insert(newptr,newsize,usable,caller,"realloc");
   count_block(usable);
@@ -274,13 +276,15 @@ static void *mmemalign(size_t boundary, size_t size, void *caller)
 static void mfree(void *ptr, void *caller)
 {
   size_t size;
+  int listed;
 
   size = malloc_usable_size(ptr);
   memset(ptr,FREED_FILL,size);
+  listed = list_delete(ptr,"free");     /* (before the free: the same as after) */
   restore_free();
   free(ptr);
   override_free();
-  if (list_delete(ptr,"free") && size < MAX_TRACKED)
+  if (listed && size < MAX_TRACKED)
     mcurr[size >> 10]--;
 }
 

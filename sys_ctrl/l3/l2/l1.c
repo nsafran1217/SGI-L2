@@ -811,7 +811,7 @@ int l1_read_usb(int fd, unsigned char **bptr, int blen)
   dev_still_open = 1;
   dev = l1_fd_device(fd);
   if (l2_debug != 0) {
-    fprintf(stderr,"l1_read_usb(%d,%x(%x),%d) in\n",fd,bptr,*bptr,blen);
+    fprintf(stderr,"l1_read_usb(%d,%lx(%lx),%d) in\n",fd,(unsigned long)(uintptr_t)bptr,(unsigned long)(uintptr_t)*bptr,blen);
   }
   piVar1 = __errno_location();
   *piVar1 = 0;
@@ -873,7 +873,7 @@ int l1_read_raw(int fd, unsigned char *bptr, int blen)
   int status;
   
   if (l2_debug != 0) {
-    fprintf(stderr,"l1_read_raw(%d,%x,%d) in\n",fd,bptr,blen);
+    fprintf(stderr,"l1_read_raw(%d,%lx,%d) in\n",fd,(unsigned long)(uintptr_t)bptr,blen);
   }
   piVar1 = __errno_location();
   *piVar1 = 0;
@@ -894,7 +894,7 @@ int l1_read_socket(int fd, unsigned char *bptr, int blen)
   int status;
   
   if (l2_debug != 0) {
-    fprintf(stderr,"l1_read_socket(%d,%x,%d) in\n",fd,bptr,blen);
+    fprintf(stderr,"l1_read_socket(%d,%lx,%d) in\n",fd,(unsigned long)(uintptr_t)bptr,blen);
   }
   piVar1 = __errno_location();
   *piVar1 = 0;
@@ -921,7 +921,7 @@ int l1_read_ppp(int fd, unsigned char **bptr, int32 blen)
     rfcn = l1_read_socket;
   }
   if (l2_debug != 0) {
-    fprintf(stderr,"l1_read_ppp(%d,%x,%d) in\n",fd,bptr,blen);
+    fprintf(stderr,"l1_read_ppp(%d,%lx,%d) in\n",fd,(unsigned long)(uintptr_t)bptr,blen);
   }
   status = PPPRead(&ppp,rfcn,(void *)(intptr_t)fd,bptr,blen);
   if (l2_debug != 0) {
@@ -1013,7 +1013,7 @@ void l1_read_packet(int port, int fd)
       if (l2_l1_conn_mode == 2) {
         pFVar2 = NULL;
       }
-      fprintf(pFVar2,"WARNING: last error on %s repeated %d times\n",lastdev + fd,lastcnt[fd]);
+      fprintf(pFVar2,"WARNING: last error on %s repeated %d times\n",lastdev[fd],lastcnt[fd]);
     }
     lastcnt[fd] = 0;
     lasterr[fd] = 0;
@@ -1034,7 +1034,7 @@ void l1_read_packet(int port, int fd)
       if (l2_l1_conn_mode == 2) {
         pFVar2 = NULL;
       }
-      fprintf(pFVar2,"WARNING: last read error on %s repeated %d times\n",lastdev + fd,lastcnt[fd]);
+      fprintf(pFVar2,"WARNING: last read error on %s repeated %d times\n",lastdev[fd],lastcnt[fd]);
     }
     lasterr[fd] = status;
     lastcnt[fd] = 1;
@@ -1045,7 +1045,7 @@ void l1_read_packet(int port, int fd)
     if (l2_l1_conn_mode == 2) {
       pFVar2 = NULL;
     }
-    fprintf(pFVar2,"WARNING: can\'t read packet from %s:   %s\n",lastdev + fd,pcVar1);
+    fprintf(pFVar2,"WARNING: can\'t read packet from %s:   %s\n",lastdev[fd],pcVar1);
   }
   if (l2_debug != 0) {
     fprintf(stderr,"l1_read_packet() out\n");
@@ -1066,7 +1066,7 @@ int l1_write_usb(int fd, unsigned char *bptr, int blen)
   iVar3 = blen;
   dev = l1_fd_device(fd);
   if (l2_debug != 0) {
-    fprintf(stderr,"l1_write_usb(%d,%x,%d) in\n",fd,bptr,blen);
+    fprintf(stderr,"l1_write_usb(%d,%lx,%d) in\n",fd,(unsigned long)(uintptr_t)bptr,blen);
   }
   status = write(fd,bptr,blen);
   if (status < 0) {
@@ -1126,7 +1126,7 @@ int l1_write_raw(int fd, unsigned char *bptr, int blen)
   int *piVar1;
   
   if (l2_debug != 0) {
-    fprintf(stderr,"l1_write_raw(%d,%x,%d) in\n",fd,bptr,blen);
+    fprintf(stderr,"l1_write_raw(%d,%lx,%d) in\n",fd,(unsigned long)(uintptr_t)bptr,blen);
   }
   status = write(fd,bptr,blen);
   if (1 < l2_debug) {
@@ -1145,7 +1145,7 @@ int l1_write_socket(int fd, unsigned char *bptr, int blen)
   int *piVar1;
   
   if (l2_debug != 0) {
-    fprintf(stderr,"l1_write_socket(%d,%x,%d) in\n",fd,bptr,blen);
+    fprintf(stderr,"l1_write_socket(%d,%lx,%d) in\n",fd,(unsigned long)(uintptr_t)bptr,blen);
   }
   status = SocketWrite(fd,bptr,blen);
   if (1 < l2_debug) {
@@ -1170,7 +1170,7 @@ int l1_write_ppp(int fd, unsigned char *bptr, int blen)
     wfcn = l1_write_socket;
   }
   if (l2_debug != 0) {
-    fprintf(stderr,"l1_write_ppp(%d,%x,%d) in\n",fd,bptr,blen);
+    fprintf(stderr,"l1_write_ppp(%d,%lx,%d) in\n",fd,(unsigned long)(uintptr_t)bptr,blen);
   }
   status = PPPWrite(&ppp,wfcn,(void *)(intptr_t)fd,bptr,blen);
   if (l2_debug != 0) {
@@ -1198,7 +1198,7 @@ void l1_write_packet(int fd, IRPacket *p)
   
   wfcn = NULL;
   if (l2_debug != 0) {
-    fprintf(stderr,"l1_write_packet(%d, %x) in\n",fd,p);
+    fprintf(stderr,"l1_write_packet(%d, %lx) in\n",fd,(unsigned long)(uintptr_t)p);
   }
   switch(l2_l1_conn_mode) {
   case 1:
@@ -1298,7 +1298,11 @@ int l1_parse_usbpath(char *usbpath)
           return -1;
         }
       }
-      sprintf(path,"b%d;p%d%s",busno,pathno,path2);
+      /* (the original sprintf()ed past path's end for a long path) */
+      if (snprintf(path,sizeof(path),"b%d;p%d%s",busno,pathno,path2) >= (int)sizeof(path)) {
+        fprintf(stderr,"ERROR: -usbpath: invalid USB path:   \'%s\'\n",pcVar5);
+        return -1;
+      }
       if (l1_usbpath_count == l1_usbpath_size) {
         l1_usbpath_size = l1_usbpath_size + 10;
         l1_usbpath_list = realloc(l1_usbpath_list, l1_usbpath_size * sizeof(char *));

@@ -121,7 +121,11 @@ LAB_0804da70:
     iVar1 = slots[l1];
     iVar3 = l1sim_partition;
     uVar2 = nvramGet(NVRAM_RACK);
-    sprintf(cmd,"%s -sn2 -t %s -rs %d %d -p %d %s &",simpath,types[l1],uVar2,iVar1,iVar3,pcVar4);
+    if (snprintf(cmd,sizeof(cmd),"%s -sn2 -t %s -rs %d %d -p %d %s &",simpath,types[l1],uVar2,iVar1,
+                 iVar3,pcVar4) >= (int)sizeof(cmd)) {
+      fprintf(stderr,"l1sim: command too long\n");   /* (the original overflowed cmd) */
+      continue;
+    }
     printf("starting l1sim: %s\n",cmd);
     system(cmd);
   }

@@ -454,7 +454,7 @@ void route_process_response(IRPacket *p)
           else {
             puStack_cc = "RSP";
           }
-          sprintf(buff,"%s:     L2-%-5d   %3d (%3d)\n",puStack_cc,val1 & 0x3fffffff,puVar2,
+          sprintf(buff,"%s:     L2-%-5d   %3d (%3d)\n",puStack_cc,val1 & 0x3fffffff,(int)(intptr_t)puVar2,
                   uVar6 % 1000);
           sVar5 = strlen(buff);
           smp_output(route_smp,buff,sVar5);

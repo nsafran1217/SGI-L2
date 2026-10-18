@@ -128,8 +128,7 @@ void cfg_init(void)
     if ((l2_discover != 0) && (L2CfgLocal.net.msmode != 1)) {
       uVar4 = nvramGet(NVRAM_MULTISYS);
       if (uVar4 == 1) {
-        uVar4 = nvramGet(NVRAM_SERIAL);
-        sprintf(client_data,"%s,ssn:%s",cfg_client_id,uVar4);
+        sprintf(client_data,"%s,ssn:%s",cfg_client_id,(char *)nvramGet(NVRAM_SERIAL));   /* (64-bit: was via a uint32) */
       }
       else {
         strcpy(client_data,cfg_client_id);
@@ -1269,7 +1268,7 @@ void cfg_l2ping(int start_timer)
       }
       else {
         del_client = node->client;
-        fprintf(stderr,"INFO: L2 %s not responding, closing connection\n",&node->client->id);
+        fprintf(stderr,"INFO: L2 %s not responding, closing connection\n",node->client->id.hostname);
         node = node->next;
         L2CfgMDeleteNode(&L2CfgLocal,del_client);
         RouterClose(del_client);
@@ -1282,8 +1281,7 @@ void cfg_l2ping(int start_timer)
   }
   uVar2 = nvramGet(NVRAM_MULTISYS);
   if (uVar2 == 1) {
-    uVar2 = nvramGet(NVRAM_SERIAL);
-    sprintf(client_data,"%s,ssn:%s",cfg_client_id,uVar2);
+    sprintf(client_data,"%s,ssn:%s",cfg_client_id,(char *)nvramGet(NVRAM_SERIAL));   /* (64-bit: was via a uint32) */
   }
   else {
     strcpy(client_data,cfg_client_id);

@@ -18,7 +18,7 @@ ARCH    ?= -m32
 CFLAGS  ?= -g -O0
 # -fsigned-char: the code was written for i386, where char is signed (not so on
 # s390x, ARM, PowerPC)
-CFLAGS  += $(ARCH) -std=gnu99 -fcommon -fno-strict-aliasing -fno-builtin -fsigned-char -Icompat -Wall -Wextra -Wno-unused-parameter -Wno-format-zero-length \
+CFLAGS  += $(ARCH) -std=gnu99 -fcommon -fno-strict-aliasing -fno-builtin-fprintf -include compat/printf_check.h -fsigned-char -Icompat -Wall -Wextra -Wno-unused-parameter -Wno-format-zero-length \
            -Wno-unused-variable -Wno-unused-but-set-variable -Wno-unused-label -Wno-pointer-sign
 # Debian's libc6-dev-i386 puts the 32-bit glibc headers under the x86_64 multiarch dir
 ifeq ($(ARCH),-m32)

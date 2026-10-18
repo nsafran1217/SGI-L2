@@ -47,7 +47,7 @@
 #include "decomp.h"     /* Ghidra types/macros; remove once the file is cleaned up */
 
 static int pop(char *s, int slen);
-static int exp(char *dptr, int dlen, char *sptr);
+static int expand_range(char *dptr, int dlen, char *sptr);
 
 DEST *dest_init(void)
 {
@@ -252,7 +252,7 @@ static int pop(char *s, int slen)
   return c;
 }
 
-static int exp(char *dptr, int dlen, char *sptr)
+static int expand_range(char *dptr, int dlen, char *sptr)
 {
   size_t sVar1;
   char *__format;
@@ -349,17 +349,17 @@ void dest_print(DEST *d, char *sptr)
   if (iVar1 == 0) {
     strcpy(sptr,"rack ");
     sVar2 = strlen(sptr);
-    exp(d->rlist,0x100,sptr + sVar2);
+    expand_range(d->rlist,0x100,sptr + sVar2);
     sVar2 = strlen(sptr);
     __dest = sptr + sVar2;
     strcat(__dest," slot ");
     sVar2 = strlen(__dest);
-    exp(d->slist,0x40,__dest + sVar2);
+    expand_range(d->slist,0x40,__dest + sVar2);
   }
   else {
     strcpy(sptr,"partition ");
     sVar2 = strlen(sptr);
-    exp(d->plist,0x40,sptr + sVar2);
+    expand_range(d->plist,0x40,sptr + sVar2);
   }
   return;
 }

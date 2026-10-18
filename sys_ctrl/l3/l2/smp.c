@@ -803,7 +803,7 @@ void smp_input(SMP *smp, char *rbuf, int rlen)
   IRAddress IVar5;
   char *__s1;
   int iVar6;
-  char tmp_ [5];
+  char tmp_ [8];   /* original: 5, overflowed by "\\-128" (a negative char) */
   char tmp [8];
   char *rptr;
   IRAddress conaddr;
@@ -1219,7 +1219,7 @@ void smp_process_packet(SMP *smp, IRPacket *p, int source, void (*w)())
   int arg;
   
   if (l2_debug != 0) {
-    fprintf(stderr,"smp_process_packet(%x) in\n",p);
+    fprintf(stderr,"smp_process_packet(%lx) in\n",(unsigned long)(uintptr_t)p);
   }
   for (arg = 0; arg < (int)(unsigned int)p->_argc; arg = arg + 1) {
     if ((p->_argv[arg]._clas & 7) == 2) {
@@ -1695,7 +1695,7 @@ void smp_write(SMP *smp, char *ibptr, int iblen)
           dtime.tv_usec = dtime.tv_usec + 1000000;
         }
         if ((0 < dtime.tv_sec) || (0 < dtime.tv_usec)) {
-          sprintf(x_,"SMP %d waited %d.%06d",smp->grpid,dtime.tv_sec,dtime.tv_usec);
+          sprintf(x_,"SMP %d waited %d.%06d",smp->grpid,(int)dtime.tv_sec,(int)dtime.tv_usec);
           nvramLogFinsert(x_);
         }
         if (FD_ISSET(smp->wfd, &wrset) == 0) {
