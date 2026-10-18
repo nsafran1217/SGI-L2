@@ -5,6 +5,8 @@
  * Original: /data/cf/sysco/scs123.patch/sys_ctrl/l3/l2/l1.c
  */
 
+#include <stdlib.h>
+#include <sys/ioctl.h>
 #include "../../common/Router/SocketIO.h"   /* needed by the reconstruction */
 #include "dmp.h"   /* needed by the reconstruction */
 #include "irtr.h"   /* needed by the reconstruction */
@@ -916,7 +918,7 @@ int l1_read_socket(int fd, unsigned char *bptr, int blen)
 int l1_read_ppp(int fd, unsigned char **bptr, int32 blen)
 {
   int status;
-  code *rfcn;
+  int (*rfcn)();
   
   if (l2_l1_conn_mode == 3) {
     rfcn = l1_read_raw;
@@ -927,7 +929,7 @@ int l1_read_ppp(int fd, unsigned char **bptr, int32 blen)
   if (l2_debug != 0) {
     fprintf(stderr,"l1_read_ppp(%d,%x,%d) in\n",fd,bptr,blen);
   }
-  status = PPPRead(&ppp,rfcn,(void *)fd,bptr,blen);
+  status = PPPRead(&ppp,rfcn,(void *)(intptr_t)fd,bptr,blen);
   if (l2_debug != 0) {
     fprintf(stderr,"l1_read_ppp() out\n");
   }
@@ -989,7 +991,7 @@ void l1_read_packet(int port, int fd)
   int task;
   int type;
   IRPacket *p;
-  code *rfcn;
+  int (*rfcn)();
   
   rfcn = NULL;
   if (l1_throttle_timerid != 0) {
@@ -1010,7 +1012,7 @@ void l1_read_packet(int port, int fd)
   if (l2_debug != 0) {
     fprintf(stderr,"l1_read_packet(%x,%d) in\n",port,fd);
   }
-  status = IRouterReadPacket(&l2_id,rfcn,(void *)fd,&p);
+  status = IRouterReadPacket(&l2_id,rfcn,(void *)(intptr_t)fd,&p);
   if (status == 0) {
     if (1 < lastcnt[fd]) {
       pFVar2 = stderr;
@@ -1165,7 +1167,7 @@ int l1_write_socket(int fd, unsigned char *bptr, int blen)
 int l1_write_ppp(int fd, unsigned char *bptr, int blen)
 {
   int status;
-  code *wfcn;
+  int (*wfcn)();
   
   if (l2_l1_conn_mode == 3) {
     wfcn = l1_write_raw;
@@ -1176,7 +1178,7 @@ int l1_write_ppp(int fd, unsigned char *bptr, int blen)
   if (l2_debug != 0) {
     fprintf(stderr,"l1_write_ppp(%d,%x,%d) in\n",fd,bptr,blen);
   }
-  status = PPPWrite(&ppp,wfcn,(void *)fd,bptr,blen);
+  status = PPPWrite(&ppp,wfcn,(void *)(intptr_t)fd,bptr,blen);
   if (l2_debug != 0) {
     fprintf(stderr,"l1_write_ppp() out\n");
   }
@@ -1197,7 +1199,7 @@ void l1_write_packet(int fd, IRPacket *p)
   char *pcVar1;
   char *pcVar2;
   IRAddress IVar3;
-  code *wfcn;
+  int (*wfcn)();
   IRAddress dest;
   
   wfcn = NULL;
@@ -1217,7 +1219,7 @@ void l1_write_packet(int fd, IRPacket *p)
     wfcn = l1_write_ppp;
   }
   IVar3 = p->_dest;
-  status = IRouterWritePacket(&l2_id,wfcn,(void *)fd,p);
+  status = IRouterWritePacket(&l2_id,wfcn,(void *)(intptr_t)fd,p);
   if ((status != 0) && (status != -0x26e)) {
     pcVar1 = LoggerDefaultMessage(status);
     pcVar2 = L2CfgMDeviceName(&L2CfgLocal,fd);

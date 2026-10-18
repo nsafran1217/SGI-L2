@@ -5,6 +5,8 @@
  * Original: /data/cf/sysco/scs123.patch/sys_ctrl/l3/l2/smp.c
  */
 
+#define _GNU_SOURCE     /* ptsname() */
+#include <ctype.h>
 #include "cfg.h"   /* needed by the reconstruction */
 #include "irtr.h"   /* needed by the reconstruction */
 #include "power.h"   /* needed by the reconstruction */
@@ -1657,7 +1659,7 @@ void smp_write(SMP *smp, char *ibptr, int iblen)
     }
     if (iblen != 0) {
       oblen = 0;
-      obptr = &obuff;
+      obptr = obuff;
       do {
         while ((iblen != 0 && ((uint)oblen < 0xfff))) {
           if (*ibptr == '\n') {

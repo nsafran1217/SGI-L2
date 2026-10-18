@@ -5,6 +5,7 @@
  * Original: /data/cf/sysco/scs123.patch/sys_ctrl/l3/utils/l2passwd.c
  */
 
+#include <stdlib.h>
 #include "../l2/l2.h"   /* needed by the reconstruction */
 #include "l2passwd.h"   /* needed by the reconstruction */
 #include <stdio.h>

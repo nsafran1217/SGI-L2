@@ -5,6 +5,7 @@
  * Original: /data/cf/sysco/scs123.patch/sys_ctrl/l3/api/SCapiL2.c
  */
 
+#include <unistd.h>
 #include "SCapiL2.h"   /* needed by the reconstruction */
 #include "../sys/syslogLib.h"   /* needed by the reconstruction */
 #include <stdio.h>
@@ -35,7 +36,7 @@
 #include "../../common/sys/syslog.h"
 #include "decomp.h"     /* Ghidra types/macros; remove once the file is cleaned up */
 
-static char **find_interfaces(long unsigned int **addrlist_ptr);
+static char **find_interfaces(uint32 **addrlist_ptr);
 static char *ip_str(uint8 *ip);
 
 static uint32 *addrlist;
@@ -462,10 +463,10 @@ LAB_08072050:
   } while( true );
 }
 
-static char **find_interfaces(long unsigned int **addrlist_ptr)
+static char **find_interfaces(uint32 **addrlist_ptr)
 {
   static char *namelist[20];
-  static long unsigned int addrlist[20];
+  static uint32 addrlist[20];
   static struct ifreq ifrbuf[50];
   int sd;
   int *piVar1;
@@ -477,10 +478,10 @@ static char **find_interfaces(long unsigned int **addrlist_ptr)
   struct ifreq ifr;
   struct sockaddr_in *p;
   struct ifreq *ifp_;
-  ulong *altmp;
+  uint32 *altmp;
   char **nltmp;
   int j;
-  ulong lb_addr;
+  uint32 lb_addr;
   struct ifreq *ifp;
   struct ifconf ic;
   int i;
@@ -501,7 +502,7 @@ static char **find_interfaces(long unsigned int **addrlist_ptr)
   }
   else {
     ic.ifc_len = 0x640;
-    ic.ifc_ifcu.ifcu_buf = &ifrbuf;
+    ic.ifc_ifcu.ifcu_buf = (char *)ifrbuf;
     status = ioctl(sd,0x8912,&ic);
     if (status < 0) {
       piVar1 = __errno_location();
@@ -516,14 +517,14 @@ static char **find_interfaces(long unsigned int **addrlist_ptr)
         free(*nlptr);
         *nlptr = NULL;
       }
-      memset((void *)&addrlist,0,0x50);
+      memset(addrlist,0,sizeof(addrlist));
       for (i = 0; i < ic.ifc_len; i = i + 0x20) {
         pcVar2 = ic.ifc_ifcu.ifcu_buf + i;
         p = (struct sockaddr_in *)(pcVar2 + 0x10);
         iVar4 = strncmp(pcVar2,"dummy",5);
         if (iVar4 != 0) {
           nltmp = (char **)&namelist;
-          altmp = (ulong *)&addrlist;
+          altmp = addrlist;
           while ((*nltmp != NULL && (iVar4 = strcmp(*nltmp,pcVar2), iVar4 != 0))) {
             nltmp = nltmp + 1;
             altmp = altmp + 1;
@@ -563,7 +564,7 @@ static char **find_interfaces(long unsigned int **addrlist_ptr)
         }
       }
       close(sd);
-      *addrlist_ptr = (ulong *)&addrlist;
+      *addrlist_ptr = addrlist;
       ppcVar3 = (char **)&namelist;
     }
   }
@@ -575,5 +576,5 @@ static char *ip_str(uint8 *ip)
   static char str[20];
   
   sprintf((char *)&str,"%d.%d.%d.%d",(uint)*ip,(uint)ip[1],(uint)ip[2],(uint)ip[3]);
-  return &str;
+  return str;
 }

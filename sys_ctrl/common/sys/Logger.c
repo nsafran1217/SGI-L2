@@ -201,7 +201,7 @@ char *LoggerDefaultMessage(int msgnbr)
     pcVar3 = strerror(tmp);
     sprintf((char *)&message,"%s [errno %d]",pcVar3,tmp);
   }
-  return &message;
+  return message;
 }
 
 char *LoggerModuleMessage(int msgnbr)

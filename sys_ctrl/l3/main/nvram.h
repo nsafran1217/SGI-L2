@@ -8,6 +8,8 @@
 #ifndef SYS_CTRL_L3_MAIN_NVRAM_H
 #define SYS_CTRL_L3_MAIN_NVRAM_H
 
+#include <stdint.h>
+
 #include "../../common/sys/sysctl_types.h"   /* needed by the reconstruction */
 #include "../../common/sys/ipmi.h"
 typedef char nvramLog;
@@ -75,7 +77,7 @@ extern nvramInstance nvram;
 int nvramInit(int mode);
 int nvramReset(void);
 void nvramSet(int32 location, uint32 value);
-uint32 nvramGet(int32 location);
+uintptr_t nvramGet(int32 location);   /* original: uint32 */
 void nvramLogReset(void);
 void nvramLogInsert(char *message);
 void nvramLogFinsert(char *fmt, ...);

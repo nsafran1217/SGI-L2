@@ -288,7 +288,7 @@ switchD_08082331_caseD_27:
       strcpy((char *)&buff,"1955 Chassis");
     }
   }
-  return &buff;
+  return buff;
 }
 
 char brickTypeToChar(unsigned int type)

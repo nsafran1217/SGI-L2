@@ -5,6 +5,7 @@
  * Original: /data/cf/sysco/scs123.patch/sys_ctrl/common/Router/RouterSv.c
  */
 
+#include <string.h>
 #include "RouterSv.h"   /* needed by the reconstruction */
 #include "../../l3/l2/discover.h"   /* needed by the reconstruction */
 #include "Router.h"

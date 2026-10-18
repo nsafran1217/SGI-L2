@@ -5,6 +5,7 @@
  * Original: /data/cf/sysco/scs123.patch/sys_ctrl/l3/l2/pty.c
  */
 
+#include <unistd.h>
 #include <stdio.h>
 #include <stddef.h>
 #include <stdarg.h>
@@ -29,7 +30,7 @@ int pty_master(void)
   char *ptr;
   int i;
   
-  ptr = &ptychar;
+  ptr = ptychar;
   while( true ) {
     if (*ptr == '\0') {
       return -1;

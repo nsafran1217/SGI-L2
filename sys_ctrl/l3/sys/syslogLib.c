@@ -5,6 +5,7 @@
  * Original: /data/cf/sysco/scs123.patch/sys_ctrl/l3/sys/syslogLib.c
  */
 
+#include <stdlib.h>
 #include "../l2/smp.h"   /* needed by the reconstruction */
 #include "syslogLib.h"   /* needed by the reconstruction */
 #include "../../common/sys/syslog.h"

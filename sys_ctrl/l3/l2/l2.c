@@ -5,6 +5,7 @@
  * Original: /data/cf/sysco/scs123.patch/sys_ctrl/l3/l2/l2.c
  */
 
+#include <execinfo.h>
 #include "cmd.h"   /* needed by the reconstruction */
 #include "discover.h"   /* needed by the reconstruction */
 #include "../sys/syslogLib.h"   /* needed by the reconstruction */
@@ -199,7 +200,7 @@ int main(int argc, char **argv, char **envp)
       sa.sa_handler = SIG_IGN;
       sigaction(SIGCHLD,(struct sigaction *)&sa,NULL);
       sigemptyset((sigset_t *)&sa.sa_mask);
-      sa.sa_handler = oops_handler;
+      sa.sa_sigaction = oops_handler;   /* SA_SIGINFO handler */
       sa.sa_flags = SA_SIGINFO;
       sigaction(SIGSEGV,(struct sigaction *)&sa,NULL);
       sigaction(SIGBUS,(struct sigaction *)&sa,NULL);

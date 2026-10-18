@@ -5,6 +5,7 @@
  * Original: /data/cf/sysco/scs123.patch/sys_ctrl/common/Router/SocketIO.c
  */
 
+#include <unistd.h>
 #include "SocketIO.h"   /* needed by the reconstruction */
 #include <stdio.h>
 #include <stddef.h>

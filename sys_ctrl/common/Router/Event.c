@@ -5,6 +5,7 @@
  * Original: /data/cf/sysco/scs123.patch/sys_ctrl/common/Router/Event.c
  */
 
+#include <string.h>
 #include "Event.h"
 #include "EventMsg.h"
 #include <malloc.h>
@@ -52,7 +53,7 @@ char *EventStats(int clear)
     EventSelectCount = 0;
     EventTimerCBCount = 0;
   }
-  return &buf;
+  return buf;
 }
 
 static void EventIOListAlloc(int count)

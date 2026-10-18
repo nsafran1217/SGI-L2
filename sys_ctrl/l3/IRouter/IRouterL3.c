@@ -5,6 +5,8 @@
  * Original: /data/cf/sysco/scs123.patch/sys_ctrl/l3/IRouter/IRouterL3.c
  */
 
+#include <stdlib.h>
+#include <string.h>
 #include "../../common/Router/RouterCl.h"   /* needed by the reconstruction */
 #include "../sys/syslogLib.h"   /* needed by the reconstruction */
 #include <stdio.h>

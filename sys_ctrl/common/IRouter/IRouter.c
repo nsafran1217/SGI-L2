@@ -5,6 +5,7 @@
  * Original: /data/cf/sysco/scs123.patch/sys_ctrl/common/IRouter/IRouter.c
  */
 
+#include <string.h>
 #include "../../l3/l2/dest.h"   /* needed by the reconstruction */
 #include "../../l3/l2/smp.h"   /* needed by the reconstruction */
 #include <stdlib.h>

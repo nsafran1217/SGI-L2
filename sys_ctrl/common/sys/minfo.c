@@ -5,6 +5,7 @@
  * Original: /data/cf/sysco/scs123.patch/sys_ctrl/common/sys/minfo.c
  */
 
+#include <mcheck.h>
 #include "minfo.h"   /* needed by the reconstruction */
 #include "../../l3/l2/smp.h"   /* needed by the reconstruction */
 #include "../../l3/main/nvram.h"   /* needed by the reconstruction */
@@ -171,12 +172,12 @@ static void list_insert(char *addr, size_t usize, size_t size, void *caller, cha
       if (head == NULL) {
         head = new;
       }
-      else if (pcVar1 < head->addr) {
+      else if (pcVar1 < (char *)head->addr) {
         new->next = head;
         head = new;
       }
       else {
-        for (curr = head; (curr != NULL && (curr->addr < pcVar1)); curr = curr->next) {
+        for (curr = head; (curr != NULL && ((char *)curr->addr < pcVar1)); curr = curr->next) {
           last = curr;
         }
         if (curr == NULL) {

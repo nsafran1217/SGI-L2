@@ -11,6 +11,8 @@
 
 /* prototypes (not recorded in STABS; reconstructed from definitions) */
 /* syslogLib.c */
+/* SGI's own syslog (not <syslog.h>'s): level, source file, line, message number, format */
+void syslog(int level, char *fl, int ln, int msgno, char *fmt, ...);
 void syslogLibInit(void (*msgcb)());
 
 #endif /* SYS_CTRL_L3_SYS_SYSLOGLIB_H */

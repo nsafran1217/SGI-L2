@@ -5,6 +5,7 @@
  * Original: /data/cf/sysco/scs123.patch/sys_ctrl/l3/api/SCapiConn.c
  */
 
+#include <unistd.h>
 #include "SCapiL2.h"   /* needed by the reconstruction */
 #include "../l2/l2cmd.h"   /* needed by the reconstruction */
 #include "../l2/smp.h"   /* needed by the reconstruction */

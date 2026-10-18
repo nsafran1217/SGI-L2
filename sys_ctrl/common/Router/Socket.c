@@ -7,6 +7,7 @@
 
 struct sockaddr_un;
 
+#include <unistd.h>
 #include "../../l3/l2/smp.h"   /* needed by the reconstruction */
 #include "Socket.h"
 #include "SocketMsg.h"

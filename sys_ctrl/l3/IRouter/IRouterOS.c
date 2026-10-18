@@ -5,6 +5,9 @@
  * Original: /data/cf/sysco/scs123.patch/sys_ctrl/l3/IRouter/IRouterOS.c
  */
 
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 #include "../l2/smp.h"   /* needed by the reconstruction */
 #include "../sys/syslogLib.h"   /* needed by the reconstruction */
 #include <stdio.h>
@@ -305,7 +308,7 @@ static int pipe_in(int fd, unsigned char **pptr, int plen)
   }
   else {
     do {
-      iptr = &ibuf;
+      iptr = ibuf;
       ilen = rd(fd,(uchar *)&ibuf,0x80);
       if (ilen < 1) {
         return -0x264;

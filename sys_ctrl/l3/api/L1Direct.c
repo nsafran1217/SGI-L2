@@ -5,6 +5,8 @@
  * Original: /data/cf/sysco/scs123.patch/sys_ctrl/l3/api/L1Direct.c
  */
 
+#include <stdlib.h>
+#include <string.h>
 #include "../../common/Router/SocketIO.h"   /* needed by the reconstruction */
 #include "../IRouter/IRouterL3.h"   /* needed by the reconstruction */
 #include "../l2/dmp.h"   /* needed by the reconstruction */
@@ -794,7 +796,7 @@ switchD_0805a610_caseD_2:
       strcpy((char *)&buff,"local attached C\'s I/O");
     }
   }
-  return &buff;
+  return buff;
 }
 
 static void dmp(char *s, unsigned char *bptr, int blen, int newline)

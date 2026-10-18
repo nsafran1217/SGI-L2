@@ -5,6 +5,8 @@
  * Original: /data/cf/sysco/scs123.patch/sys_ctrl/common/Router/Router.c
  */
 
+#include <stdlib.h>
+#include <unistd.h>
 #include "Buff.h"   /* needed by the reconstruction */
 #include "../sys/MemUsage.h"   /* needed by the reconstruction */
 #include "../../l3/l2/discover.h"   /* needed by the reconstruction */

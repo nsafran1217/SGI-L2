@@ -5,6 +5,7 @@
  * Original: /data/cf/sysco/scs123.patch/sys_ctrl/common/main/L2Cfg.c
  */
 
+#include <stdlib.h>
 #include "../../l3/l2/l2.h"   /* needed by the reconstruction */
 #include "../../l3/l2/smp.h"   /* needed by the reconstruction */
 #include "../../l3/sys/syslogLib.h"   /* needed by the reconstruction */
@@ -616,7 +617,7 @@ char *L2CfgMDeviceName(L2Cfg *head, int fd)
   l2port = L2CfgMFindPort(head,fd);
   if (l2port == NULL) {
     sprintf((char *)&buff,"[fd %d, not an L1 device]",fd);
-    pcVar2 = &buff;
+    pcVar2 = buff;
   }
   else {
     iVar1 = l2port->state;
@@ -2898,7 +2899,7 @@ switchD_0806fc1f_caseD_6:
       }
     }
   }
-  return &buff;
+  return buff;
 }
 
 static int attached_io_type(L2CfgPort *port, int index)

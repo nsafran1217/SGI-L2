@@ -5,6 +5,9 @@
  * Original: /data/cf/sysco/scs123.patch/sys_ctrl/l3/main/nvram.c
  */
 
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 #include "../l2/l1.h"   /* needed by the reconstruction */
 #include "../sys/syslogLib.h"   /* needed by the reconstruction */
 #include <stdio.h>
@@ -301,96 +304,98 @@ switchD_08066c58_default:
   return;
 }
 
-uint32 nvramGet(int32 location)
+/* Returns numbers and, for string fields, pointers: uintptr_t (the original's uint32)
+ * holds either on any architecture. */
+uintptr_t nvramGet(int32 location)
 {
-  char *pcVar1;
+  uintptr_t val;
   
   if ((nvram_initialized & 1U) == 0) {
     nvramInit(1);
   }
   switch(location) {
   case 1:
-    pcVar1 = (char *)(uint)nvramIUA->rack;
+    val = (uintptr_t)nvramIUA->rack;
     break;
   case 2:
-    pcVar1 = nvramIUA->auto_powerup;
+    val = (uintptr_t)nvramIUA->auto_powerup;
     break;
   case 3:
-    pcVar1 = nvramIUA->system_serial_number;
+    val = (uintptr_t)nvramIUA->system_serial_number;
     break;
   case 4:
-    pcVar1 = nvramIUA->system_name;
+    val = (uintptr_t)nvramIUA->system_name;
     break;
   case 5:
-    pcVar1 = nvramIUA->multisys;
+    val = (uintptr_t)nvramIUA->multisys;
     break;
   case 6:
-    pcVar1 = (char *)nvramIUA->ip_addr;
+    val = (uintptr_t)nvramIUA->ip_addr;
     break;
   case 7:
-    pcVar1 = (char *)nvramIUA->ip_netmask;
+    val = (uintptr_t)nvramIUA->ip_netmask;
     break;
   case 8:
-    pcVar1 = (char *)nvramIUA->ip_broadcast;
+    val = (uintptr_t)nvramIUA->ip_broadcast;
     break;
   case 9:
-    pcVar1 = nvramIUA->l2dsp_disabled;
+    val = (uintptr_t)nvramIUA->l2dsp_disabled;
     break;
   case 10:
-    pcVar1 = (char *)nvramIUA->l1usb_debug;
+    val = (uintptr_t)nvramIUA->l1usb_debug;
     break;
   case 0xb:
-    pcVar1 = (char *)nvramIUA->ping_min;
+    val = (uintptr_t)nvramIUA->ping_min;
     break;
   case 0xc:
-    pcVar1 = (char *)nvramIUA->ping_max;
+    val = (uintptr_t)nvramIUA->ping_max;
     break;
   case 0xd:
-    pcVar1 = (char *)nvramIUA->ping_sender;
+    val = (uintptr_t)nvramIUA->ping_sender;
     break;
   case 0xe:
-    pcVar1 = (char *)nvramIUA->ping_l2freq;
+    val = (uintptr_t)nvramIUA->ping_l2freq;
     break;
   case 0xf:
-    pcVar1 = (char *)nvramIUA->ping_l1freq;
+    val = (uintptr_t)nvramIUA->ping_l1freq;
     break;
   case 0x10:
-    pcVar1 = nvramIUA->dhcps_disabled;
+    val = (uintptr_t)nvramIUA->dhcps_disabled;
     break;
   case 0x11:
-    pcVar1 = nvramIUA->timezone;
+    val = (uintptr_t)nvramIUA->timezone;
     break;
   case 0x12:
-    pcVar1 = (char *)(uint)nvramIUA->modem_baud;
+    val = (uintptr_t)nvramIUA->modem_baud;
     break;
   case 0x13:
-    pcVar1 = nvramIUA->password;
+    val = (uintptr_t)nvramIUA->password;
     break;
   case 0x14:
-    pcVar1 = (char *)nvramIUA->autopower_delay;
+    val = (uintptr_t)nvramIUA->autopower_delay;
     break;
   case 0x15:
-    pcVar1 = nvramIUA->slow_pwrup;
+    val = (uintptr_t)nvramIUA->slow_pwrup;
     break;
   case 0x16:
-    pcVar1 = (char *)(uint)nvramIUA->slot;
+    val = (uintptr_t)nvramIUA->slot;
     break;
   case 0x17:
-    pcVar1 = (char *)(uint)nvramIUA->broadcast_timeout;
+    val = (uintptr_t)nvramIUA->broadcast_timeout;
     break;
   case 0x18:
-    pcVar1 = (char *)(uint)nvramIUA->target_timeout;
+    val = (uintptr_t)nvramIUA->target_timeout;
     break;
   case 0x19:
-    pcVar1 = (char *)nvramIUA->ip_gateway;
+    val = (uintptr_t)nvramIUA->ip_gateway;
     break;
   case 0x1a:
-    pcVar1 = nvramIUA->master_slave;
+    val = (uintptr_t)nvramIUA->master_slave;
     break;
   default:
-    pcVar1 = (char *)0xffffffff;
+    val = 0xffffffff;
   }
-  return (uint32)pcVar1;
+  return val;
 }
 
 void nvramLogReset(void)

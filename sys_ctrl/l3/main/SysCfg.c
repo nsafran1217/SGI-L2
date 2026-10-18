@@ -5,6 +5,8 @@
  * Original: /data/cf/sysco/scs123.patch/sys_ctrl/l3/main/SysCfg.c
  */
 
+#include <stdlib.h>
+#include <unistd.h>
 #include "../../common/Router/Socket.h"   /* needed by the reconstruction */
 #include "../sys/syslogLib.h"   /* needed by the reconstruction */
 #include "../../common/sys/syslog.h"

@@ -5,6 +5,7 @@
  * Original: /data/cf/sysco/scs123.patch/sys_ctrl/common/Router/Buff.c
  */
 
+#include <stdlib.h>
 #include "../sys/PPP.h"   /* needed by the reconstruction */
 #include <stdio.h>
 #include <stddef.h>

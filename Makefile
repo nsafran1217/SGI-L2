@@ -14,7 +14,7 @@ CFLAGS  ?= -g -O0
 CFLAGS  += $(ARCH) -std=gnu99 -fcommon -fno-strict-aliasing -fno-builtin -Icompat -Wall \
            -Wno-unused-variable -Wno-unused-but-set-variable -Wno-unused-label -Wno-pointer-sign
 # gcc 14 made these errors; the bootstrapped code still trips them (fix, then delete this line)
-CFLAGS  += -Wno-error=implicit-function-declaration -Wno-error=int-conversion \
+CFLAGS  += -Wno-error=int-conversion \
            -Wno-error=incompatible-pointer-types -Wno-error=return-mismatch
 # Debian's libc6-dev-i386 puts the 32-bit glibc headers under the x86_64 multiarch dir
 ifeq ($(ARCH),-m32)

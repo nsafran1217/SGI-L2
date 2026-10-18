@@ -5,6 +5,7 @@
  * Original: /data/cf/sysco/scs123.patch/sys_ctrl/l3/l2/l2cmd.c
  */
 
+#include <ctype.h>
 #include "../../common/sys/MemUsage.h"   /* needed by the reconstruction */
 #include "../../common/sys/minfo.h"   /* needed by the reconstruction */
 #include "../api/SCapiL2.h"   /* needed by the reconstruction */
