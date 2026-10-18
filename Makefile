@@ -113,7 +113,8 @@ L2GUI_SRCS := \
 L2GUI_CSRCS := \
 	sys_ctrl/l3/main/SysCfg.c \
 	sys_ctrl/l3/api/SCapiConn.c \
-	sys_ctrl/common/sys/Cmd.c
+	sys_ctrl/common/sys/Cmd.c \
+	sys_ctrl/common/sys/PPP.c
 L2GUI_UI := mainwin logowin destwin graphwin cmdwin
 
 # FLTK for l2gui. Its -D_FILE_OFFSET_BITS=64 is left out: the GUI shares
@@ -150,7 +151,9 @@ CLEAN_SRCS := \
 	sys_ctrl/common/sys/BuffWrite.c \
 	sys_ctrl/common/sys/MemUsage.c \
 	sys_ctrl/common/sys/ipmi.c \
-	sys_ctrl/common/sys/l3paths.c
+	sys_ctrl/common/sys/l3paths.c \
+	sys_ctrl/common/sys/Cmd.c \
+	sys_ctrl/common/sys/PPP.c
 $(CLEAN_SRCS:%.c=$(B)/%.o): CFLAGS += -Wunused-variable -Wunused-but-set-variable \
 	-Wunused-label -Wpointer-sign
 

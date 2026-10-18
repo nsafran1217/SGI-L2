@@ -51,6 +51,22 @@ struct _PPPDecodeState {
 };
 typedef struct _PPPDecodeState PPPDecodeState;
 
+/* PPP error numbers, -700 + the index in Logger's PPPErrorList.
+ * (The numbers are SGI's; the names were added by the reconstruction.) */
+enum {
+    PPP_ERR_FCS = -700,                 /* bad FCS (checksum) */
+    PPP_ERR_OVERFLOW = -701,            /* read buffer overflow */
+    PPP_ERR_SHORT = -702,               /* short read/frame */
+    PPP_ERR_ESCAPE = -703,              /* escape sequence in read stream */
+    PPP_ERR_CONTROL = -704,             /* control sequence in read stream */
+    PPP_ERR_NOT_IN_FRAME = -705,        /* read stream not in frame */
+    PPP_ERR_REALLOC = -706,             /* read buffer reallocation failed */
+};
+
+/* PPPReset() which */
+#define PPP_RESET_INPUT   1
+#define PPP_RESET_OUTPUT  2
+
 /* prototypes (not recorded in STABS; reconstructed from definitions) */
 /* PPP.c */
 

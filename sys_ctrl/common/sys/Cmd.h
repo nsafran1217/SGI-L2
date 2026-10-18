@@ -8,6 +8,52 @@
 #ifndef SYS_CTRL_COMMON_SYS_CMD_H
 #define SYS_CTRL_COMMON_SYS_CMD_H
 
+#include <stdint.h>
+
+/*
+ * A command form's tokens (Cmd.toks, up to CMD_TOKS, ended by CMD_END) are
+ * words, "a|b" for alternatives, or token types: "pointers" below
+ * CMD_WORD_MIN. (The numbers are SGI's; the names were added by the
+ * reconstruction.)
+ */
+enum {
+    CMD_END = 0,                /* end of the form: nothing may follow */
+    CMD_EXP = 1,                /* a number, C notation (strtoul base 0) */
+    CMD_DEC = 2,                /* a decimal number */
+    CMD_HEX = 3,                /* a hexadecimal number */
+    CMD_OCT = 4,                /* an octal number */
+    CMD_STR = 5,                /* any word */
+    CMD_REST = 6,               /* the rest of the line ("<command>") */
+    CMD_IP = 7,                 /* a.b.c.d */
+    CMD_PORT_L1 = 8,            /* :port:l1 */
+    CMD_IP_PORT_L1 = 9,         /* a.b.c.d:port:l1 */
+    CMD_RANGE = 10,             /* "rack|r <rng> [slot|s <rng>]", "partition|p <rng>", "*" */
+    CMD_RACKSLOT = 11,          /* <rack><type><slot>, as 001c05 */
+    CMD_BAY = 12,               /* "s|b<rng>": only in usage text, matches nothing */
+    CMD_WORD = 13,              /* (what token_type() says for a word) */
+};
+#define CMD_WORD_MIN  1000
+#define CMD_TOK(type) ((char *)(uintptr_t)(type))
+#define CMD_TOKS      10
+
+/* what a range list (CmdData rlist/slist/plist, CmdMatchRange()) holds */
+enum {
+    CMD_RANGE_NONE = 0,         /* not selected */
+    CMD_RANGE_ONE = 1,          /* a single number */
+    CMD_RANGE_FIRST = 2,        /* n-m: n */
+    CMD_RANGE_MID = 3,          /* n-m: between */
+    CMD_RANGE_LAST = 4,         /* n-m: m */
+    CMD_RANGE_ALL = 5,          /* "*" or "all" */
+    CMD_RANGE_ANY = 6,          /* none given: all by default ("**") */
+};
+
+/* CmdProcess() modes and errors (Logger's Cmd module, -8xx) */
+#define CMD_EXECUTE     1       /* run the command; otherwise just match it */
+enum {
+    CMD_ERR_ERROR = -800,       /* CMD_ERROR: no form matches */
+    CMD_ERR_EMPTY = -801,       /* CMD_EMPTY: a blank line */
+};
+
 typedef int CmdCallback();
 struct _Cmd {
     char *toks[10];
