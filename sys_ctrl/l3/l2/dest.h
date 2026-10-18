@@ -9,6 +9,7 @@
 #define SYS_CTRL_L3_L2_DEST_H
 
 #include "../../common/sys/Cmd.h"
+#include "../../common/IRouter/IRouter.h"
 struct DEST_s {
     char plist[64];
     char rlist[256];

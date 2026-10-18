@@ -400,12 +400,15 @@ _Static_assert(offsetof(struct _PPPDecodeState, resync) == 40, "struct _PPPDecod
 _Static_assert(offsetof(struct _PPPDecodeState, inframe) == 44, "struct _PPPDecodeState.inframe");
 _Static_assert(offsetof(struct _PPPDecodeState, async_reset) == 48, "struct _PPPDecodeState.async_reset");
 _Static_assert(sizeof(ipmiCommonHeader) == 8, "ipmiCommonHeader");
-_Static_assert(sizeof(struct _sem_t) == 48, "struct _sem_t");
-_Static_assert(offsetof(struct _sem_t, name) == 0, "struct _sem_t.name");
-_Static_assert(offsetof(struct _sem_t, mutex) == 8, "struct _sem_t.mutex");
-_Static_assert(offsetof(struct _sem_t, cond) == 32, "struct _sem_t.cond");
-_Static_assert(offsetof(struct _sem_t, count) == 44, "struct _sem_t.count");
-_Static_assert(offsetof(struct _sem_t, reset) == 45, "struct _sem_t.reset");
+/* struct _sem_t (common/sys/sysutils.h) embeds pthread_mutex_t/pthread_cond_t, whose
+ * sizes differ between glibc 2.1.3 and today. It is in-memory only (no wire or
+ * NVRAM format), so its original layout is not required. */
+// _Static_assert(sizeof(struct _sem_t) == 48, "struct _sem_t");
+// _Static_assert(offsetof(struct _sem_t, name) == 0, "struct _sem_t.name");
+// _Static_assert(offsetof(struct _sem_t, mutex) == 8, "struct _sem_t.mutex");
+// _Static_assert(offsetof(struct _sem_t, cond) == 32, "struct _sem_t.cond");
+// _Static_assert(offsetof(struct _sem_t, count) == 44, "struct _sem_t.count");
+// _Static_assert(offsetof(struct _sem_t, reset) == 45, "struct _sem_t.reset");
 _Static_assert(sizeof(struct _queue_t) == 92, "struct _queue_t");
 _Static_assert(offsetof(struct _queue_t, mutex) == 0, "struct _queue_t.mutex");
 _Static_assert(offsetof(struct _queue_t, rcond) == 24, "struct _queue_t.rcond");
