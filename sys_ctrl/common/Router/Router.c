@@ -3,34 +3,37 @@
  *
  * Reconstructed from the STABS debug info and Ghidra decompilation of l2.
  * Original: /data/cf/sysco/scs123.patch/sys_ctrl/common/Router/Router.c
+ *
+ * The Router: SGI's message protocol between the controller processes (L2s,
+ * and the L3 tools talking to an L2) over TCP or local sockets. RouterCl.c
+ * opens connections, RouterSv.c accepts them; this file runs them.
+ *
+ * A packet is an 8-byte header (RouterHeader, big-endian on the wire: opcode
+ * 16 bits, class 8, id 8, config 8, length 24) and the arguments. Each
+ * argument is a big-endian word, class << 24 | size, then either an inline
+ * 32-bit value (class 0) or size bytes of data padded to 4. Requests carry an
+ * id (1..255) that their response repeats.
+ *
+ * Output goes through a per-connection queue ordered by priority; the packet
+ * being written is out_buf. Sent requests wait in the input queue (in_queue)
+ * for their responses. Errors go to the connection's error callback, which is
+ * expected to drop the connection (RouterClose).
  */
 
-#include <stdlib.h>
-#include <unistd.h>
-#include "Buff.h"   /* needed by the reconstruction */
-#include "../sys/MemUsage.h"   /* needed by the reconstruction */
-#include "../../l3/l2/discover.h"   /* needed by the reconstruction */
-#include "../../l3/l2/smp.h"   /* needed by the reconstruction */
-#include "Router.h"
+#include <errno.h>
+#include <pwd.h>
+#include <signal.h>
 #include <stdio.h>
-#include <stddef.h>
-#include <stdarg.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include "Router.h"
 #include "RouterInt.h"
 #include "RouterMsg.h"
-#include "../sys/Logger.h"
-#include "../../l3/sys/LoggerMsg.h"
+#include "Buff.h"
 #include "Socket.h"
-#include <string.h>
-#include <signal.h>
-#include <pwd.h>
-#include <errno.h>
-struct bitbuf {
-    unsigned int value;
-};
-#include <malloc.h>
-#include "decomp.h"     /* Ghidra types/macros; remove once the file is cleaned up */
+#include "../sys/MemUsage.h"
 
-static void call_SocketSetBufferSize(RouterClient *client);
 static int RouterProcessRequest(RouterClient *client, int argcountin);
 static int RouterProcessResponse(RouterClient *client, int argcountin);
 static int RouterProcessEvent(RouterClient *client, int argcountin);
@@ -65,7 +68,7 @@ int ProcessID;
 void (*FatalCB)();
 void (*ClientFreeCB)();
 uint32_t IPAddress;
-RouterConfig RouterLocalConfig = { .rev = 2, .flags = 2147483648 };
+RouterConfig RouterLocalConfig = { .rev = 2, .flags = RCF_COMPRESS };
 int SocketSendBufsize;
 int SocketReceiveBufsize;
 int MonitorHighWaterEntries;
@@ -79,69 +82,71 @@ RouterCompressStats InputStats;
 RouterCompressStats OutputStats;
 void (*MonitorCB)();
 void *MonitorCBData;
-static struct bitbuf lbitbuf;
-static struct bitbuf ubitbuf;
+static int bufsize_rval;
 
 /* argument words on the wire, independent of the host's byte order */
 static void put_be32(unsigned char *b, uint32_t v)
 {
-  b[0] = (unsigned char)(v >> 24); b[1] = (unsigned char)(v >> 16); b[2] = (unsigned char)(v >> 8); b[3] = (unsigned char)v;
+  b[0] = v >> 24;
+  b[1] = v >> 16;
+  b[2] = v >> 8;
+  b[3] = v;
 }
 
 static void put_le32(unsigned char *b, uint32_t v)
 {
-  b[0] = (unsigned char)v; b[1] = (unsigned char)(v >> 8); b[2] = (unsigned char)(v >> 16); b[3] = (unsigned char)(v >> 24);
+  b[0] = v;
+  b[1] = v >> 8;
+  b[2] = v >> 16;
+  b[3] = v >> 24;
 }
 
 static uint32_t get_be32(const unsigned char *b)
 {
   return (uint32_t)b[0] << 24 | (uint32_t)b[1] << 16 | (uint32_t)b[2] << 8 | b[3];
 }
-static int bufsize_rval;
+
+/* errno values that mean the other end is gone */
+static int connection_lost(int err)
+{
+  return err == ENOTCONN || err == ENETUNREACH || err == ECONNRESET || err == EPIPE ||
+         err == ETIMEDOUT || err == ECONNREFUSED;
+}
+
+static int is_request(RouterQEntry *entry)
+{
+  return entry->header.clas == RC_REQUEST || entry->header.clas == RC_REL_REQUEST;
+}
+
+/* ---- setup ---- */
 
 int RouterInit(int max_in_args, int use_unix, char *process_name, int process_id, void (*fatal_cb)())
 {
-  char *pcVar1;
-  __uid_t __uid;
-  int iVar2;
-  char *myhost;
   struct passwd *pw;
-  
-  MaxInArgs = max_in_args;
-  if (max_in_args < 10) {
-    MaxInArgs = 10;
-  }
+  char *myhost;
+  char *slash;
+
+  MaxInArgs = max_in_args < 10 ? 10 : max_in_args;
   ProcessID = process_id;
   FatalCB = fatal_cb;
-  memset(&InputStats,0,sizeof(RouterCompressStats));
-  memset(&OutputStats,0,sizeof(RouterCompressStats));
-  pcVar1 = strrchr(process_name,0x2f);
-  if (pcVar1 == NULL) {
-    ProcessName = process_name;
-  }
-  else {
-    ProcessName = pcVar1 + 1;
-  }
-  signal(0xd,SIG_IGN);
-  memset(UserName,0,9);
-  memset(FullName,0,0x21);
-  __uid = getuid();
-  pw = (struct passwd *)getpwuid(__uid);
+  memset(&InputStats,0,sizeof(InputStats));
+  memset(&OutputStats,0,sizeof(OutputStats));
+  slash = strrchr(process_name,'/');
+  ProcessName = slash != NULL ? slash + 1 : process_name;
+  signal(SIGPIPE,SIG_IGN);      /* write errors come back as EPIPE */
+  memset(UserName,0,sizeof(UserName));
+  memset(FullName,0,sizeof(FullName));
+  pw = getpwuid(getuid());
   if (pw == NULL) {
-    LogError(-0x141,"",0,"");
-    iVar2 = -1;
+    LogError(ROUTER_ERR_NO_PASSWD,"",0,"");
+    return -1;
   }
-  else {
-    strncpy(UserName,((struct passwd *)pw)->pw_name,8);
-    strncpy(FullName,pw->pw_gecos,0x20);
-    iVar2 = SocketGetHostName(&myhost);
-    if (iVar2 == -1) {
-      myhost = "localhost";
-    }
-    SocketGetAddr(myhost,&IPAddress);
-    iVar2 = 0;
-  }
-  return iVar2;
+  strncpy(UserName,pw->pw_name,sizeof(UserName) - 1);
+  strncpy(FullName,pw->pw_gecos,sizeof(FullName) - 1);
+  if (SocketGetHostName(&myhost) == -1)
+    myhost = "localhost";
+  SocketGetAddr(myhost,&IPAddress);
+  return 0;
 }
 
 int RouterSetFreeCB(void (*free_cb)())
@@ -150,201 +155,143 @@ int RouterSetFreeCB(void (*free_cb)())
   return 0;   /* the original left free_cb in %eax; no caller uses the result */
 }
 
+/* clients connected to our servers */
 int RouterClientsConnected(void)
 {
-  int clients;
-  RouterClient *client_ptr;
-  
-  clients = 0;
-  for (client_ptr = ClientList.head; client_ptr != NULL;
-      client_ptr = client_ptr->next) {
-    if (((client_ptr->use & 2U) != 0) && ((client_ptr->use & 0xc0U) == 0x80)) {
-      clients = clients + 1;
-    }
-  }
+  RouterClient *client;
+  int clients = 0;
+
+  for (client = ClientList.head; client != NULL; client = client->next)
+    if ((client->use & RU_ACCEPTED) && (client->use & RU_SIDE) == RU_SERVER)
+      clients++;
   return clients;
 }
 
 int RouterConnectionCount(void)
 {
-  int clients;
-  RouterClient *client_ptr;
-  
-  clients = 0;
-  for (client_ptr = ClientList.head; client_ptr != NULL;
-      client_ptr = client_ptr->next) {
-    if ((client_ptr->use & 2U) != 0) {
-      clients = clients + 1;
-    }
-  }
+  RouterClient *client;
+  int clients = 0;
+
+  for (client = ClientList.head; client != NULL; client = client->next)
+    if (client->use & RU_ACCEPTED)
+      clients++;
   return clients;
+}
+
+/* is there a connection to that server? 1: our connection is still being
+ * made, 4: connected, 0: none. *client is the connection (or NULL) */
+static int connection_state(RouterClient *client)
+{
+  switch (client->use & (RU_CONNECTING | RU_CONNECTED)) {
+  case RU_CONNECTING:
+    return (client->use & RU_SIDE) == RU_CLIENT ? 1 : 0;
+  case RU_CONNECTED:
+    return 4;
+  default:
+    return 0;
+  }
 }
 
 int RouterHostConnected(char *host, int port, int process_id, RouterClient **client)
 {
-  int iVar1;
-  unsigned int uVar2;
-  
-  *client = ClientList.head;
-  do {
-    if (*client == NULL) {
-      return 0;
-    }
-    iVar1 = strcmp(((*client)->id).hostname,host);
-    if (((iVar1 == 0) && ((*client)->port == port)) && ((*client)->process_id == process_id)) {
-      uVar2 = (*client)->use & 5;
-      if (uVar2 == 1) {
-        if (((*client)->use & 0xc0U) == 0x40) {
-          return 1;
-        }
-      }
-      else if (uVar2 == 4) {
-        return 4;
-      }
-    }
-    *client = (*client)->next;
-  } while( true );
+  int state;
+
+  for (*client = ClientList.head; *client != NULL; *client = (*client)->next) {
+    if (strcmp((*client)->id.hostname,host) == 0 && (*client)->port == port &&
+        (*client)->process_id == process_id && (state = connection_state(*client)) != 0)
+      return state;
+  }
+  return 0;
 }
 
 int RouterAddrConnected(uint32_t addr, int port, int process_id, RouterClient **client)
 {
-  unsigned int uVar1;
-  
-  *client = ClientList.head;
-  do {
-    if (*client == NULL) {
-      return 0;
-    }
-    if ((((*client)->addr == addr) && ((*client)->port == port)) &&
-       ((*client)->process_id == process_id)) {
-      uVar1 = (*client)->use & 5;
-      if (uVar1 == 1) {
-        if (((*client)->use & 0xc0U) == 0x40) {
-          return 1;
-        }
-      }
-      else if (uVar1 == 4) {
-        return 4;
-      }
-    }
-    *client = (*client)->next;
-  } while( true );
+  int state;
+
+  for (*client = ClientList.head; *client != NULL; *client = (*client)->next) {
+    if ((*client)->addr == addr && (*client)->port == port &&
+        (*client)->process_id == process_id && (state = connection_state(*client)) != 0)
+      return state;
+  }
+  return 0;
 }
 
 void RouterInitClient(RouterClient *client, int timeout, int limit, int (*connect_cb)(), int (*request_cb)(), void (*event_cb)(), void (*error_cb)())
 {
   client->timeout = timeout;
-  client->out_limit = (short)limit;
+  client->out_limit = limit;
   client->connect_cb = connect_cb;
   client->request_cb = request_cb;
   client->event_cb = event_cb;
   client->error_cb = error_cb;
-  return;
 }
+
+/* ---- sending ---- */
 
 int RouterRequestOut(RouterClient *client, int opcode, int argcount, RouterArgument *arglist, void (*response_cb)(), void *response_data, int limit)
 {
-  int iVar1;
-  
-  iVar1 = RouterPriRequestOut(client,opcode,argcount,arglist,response_cb,response_data,limit,0,
-                              NULL);
-  return iVar1;
+  return RouterPriRequestOut(client,opcode,argcount,arglist,response_cb,response_data,limit,0,NULL);
 }
 
+/* send a request; response_cb gets the response. With limit, refuse (-2)
+ * while out_limit packets are waiting to be sent. */
 int RouterPriRequestOut(RouterClient *client, int opcode, int argcount, RouterArgument *arglist, void (*response_cb)(), void *response_data, int limit, int priority, void *purge_data)
 {
-  int iVar1;
-  char *func_name;
-  unsigned char priority_;
-  
-  iVar1 = RouterCheckOutput(client,"RouterRequestOut");
-  if (iVar1 == 0) {
-    if ((limit == 1) && ((int)client->out_limit <= (client->out_queue).total)) {
-      iVar1 = -2;
-    }
-    else {
-      RouterDoOutput(client,opcode,0x10,argcount,arglist,response_cb,response_data,
-                     NULL,NULL,priority & 0xff,purge_data);
-      iVar1 = 0;
-    }
-  }
-  else {
-    iVar1 = -1;
-  }
-  return iVar1;
+  if (RouterCheckOutput(client,"RouterRequestOut") != 0)
+    return -1;
+  if (limit == 1 && client->out_queue.total >= client->out_limit)
+    return -2;
+  RouterDoOutput(client,opcode,RC_REQUEST,argcount,arglist,response_cb,response_data,NULL,NULL,
+                 priority & 0xff,purge_data);
+  return 0;
 }
 
 int RouterRelRequestOut(RouterClient *client, int opcode, int argcount, RouterArgument *arglist, void (*response_cb)(), void *response_data, void (*error_cb)(), void *error_data, int limit)
 {
-  int iVar1;
-  
-  iVar1 = RouterPriRelRequestOut
-                    (client,opcode,argcount,arglist,response_cb,response_data,error_cb,error_data,
-                     limit,0,NULL);
-  return iVar1;
+  return RouterPriRelRequestOut(client,opcode,argcount,arglist,response_cb,response_data,error_cb,
+                                error_data,limit,0,NULL);
 }
 
+/* a "reliable" request: if it is never answered, error_cb gets its arguments back */
 int RouterPriRelRequestOut(RouterClient *client, int opcode, int argcount, RouterArgument *arglist, void (*response_cb)(), void *response_data, void (*error_cb)(), void *error_data, int limit, int priority, void *purge_data)
 {
-  int iVar1;
-  char *func_name;
-  unsigned char priority_;
-  
-  iVar1 = RouterCheckOutput(client,"RouterRelRequestOut");
-  if (iVar1 == 0) {
-    if ((limit == 1) && ((int)client->out_limit <= (client->out_queue).total)) {
-      iVar1 = -2;
-    }
-    else {
-      RouterDoOutput(client,opcode,0x20,argcount,arglist,response_cb,response_data,error_cb,
-                     error_data,priority & 0xff,purge_data);
-      iVar1 = 0;
-    }
-  }
-  else {
-    iVar1 = -1;
-  }
-  return iVar1;
+  if (RouterCheckOutput(client,"RouterRelRequestOut") != 0)
+    return -1;
+  if (limit == 1 && client->out_queue.total >= client->out_limit)
+    return -2;
+  RouterDoOutput(client,opcode,RC_REL_REQUEST,argcount,arglist,response_cb,response_data,error_cb,
+                 error_data,priority & 0xff,purge_data);
+  return 0;
 }
 
 void RouterResponseOut(RouterClient *client, int argcount, RouterArgument *arglist)
 {
   RouterPriResponseOut(client,argcount,arglist,0,NULL);
-  return;
 }
 
 void RouterPriResponseOut(RouterClient *client, int argcount, RouterArgument *arglist, int priority, void *purge_data)
 {
-  unsigned char priority_;
-  
-  RouterDoOutput(client,0,0x40,argcount,arglist,NULL,NULL,
-                 NULL,NULL,priority & 0xff,purge_data);
+  RouterDoOutput(client,0,RC_RESPONSE,argcount,arglist,NULL,NULL,NULL,NULL,priority & 0xff,
+                 purge_data);
   client->ResponseSent = 1;
-  return;
 }
 
 int RouterEventOut(int opcode, int argcount, RouterArgument *arglist)
 {
-  int iVar1;
-  
-  iVar1 = RouterPriEventOut(opcode,argcount,arglist,0,NULL);
-  return iVar1;
+  return RouterPriEventOut(opcode,argcount,arglist,0,NULL);
 }
 
+/* an event to every connected peer; returns how many got it */
 int RouterPriEventOut(int opcode, int argcount, RouterArgument *arglist, int priority, void *purge_data)
 {
-  int events_sent;
-  RouterQEntry *entry;
-  RouterClient *client_ptr;
-  unsigned char priority_;
-  
-  events_sent = 0;
-  for (client_ptr = ClientList.head; client_ptr != NULL;
-      client_ptr = client_ptr->next) {
-    if ((client_ptr->use & 4U) != 0) {
-      RouterDoOutput(client_ptr,opcode,0x80,argcount,arglist,NULL,NULL,
-                     NULL,NULL,priority & 0xff,purge_data);
-      events_sent = events_sent + 1;
+  RouterClient *client;
+  int events_sent = 0;
+
+  for (client = ClientList.head; client != NULL; client = client->next) {
+    if (client->use & RU_CONNECTED) {
+      RouterDoOutput(client,opcode,RC_EVENT,argcount,arglist,NULL,NULL,NULL,NULL,priority & 0xff,
+                     purge_data);
+      events_sent++;
     }
   }
   return events_sent;
@@ -352,26 +299,20 @@ int RouterPriEventOut(int opcode, int argcount, RouterArgument *arglist, int pri
 
 int RouterIDEventOut(int process_id, int opcode, int argcount, RouterArgument *arglist)
 {
-  int iVar1;
-  
-  iVar1 = RouterPriIDEventOut(process_id,opcode,argcount,arglist,0,NULL);
-  return iVar1;
+  return RouterPriIDEventOut(process_id,opcode,argcount,arglist,0,NULL);
 }
 
+/* an event to every connected peer of one process type */
 int RouterPriIDEventOut(int process_id, int opcode, int argcount, RouterArgument *arglist, int priority, void *purge_data)
 {
-  int events_sent;
-  RouterQEntry *entry;
-  RouterClient *client_ptr;
-  unsigned char priority_;
-  
-  events_sent = 0;
-  for (client_ptr = ClientList.head; client_ptr != NULL;
-      client_ptr = client_ptr->next) {
-    if ((client_ptr->process_id == process_id) && ((client_ptr->use & 4U) != 0)) {
-      RouterDoOutput(client_ptr,opcode,0x80,argcount,arglist,NULL,NULL,
-                     NULL,NULL,priority & 0xff,purge_data);
-      events_sent = events_sent + 1;
+  RouterClient *client;
+  int events_sent = 0;
+
+  for (client = ClientList.head; client != NULL; client = client->next) {
+    if (client->process_id == process_id && (client->use & RU_CONNECTED)) {
+      RouterDoOutput(client,opcode,RC_EVENT,argcount,arglist,NULL,NULL,NULL,NULL,priority & 0xff,
+                     purge_data);
+      events_sent++;
     }
   }
   return events_sent;
@@ -379,39 +320,22 @@ int RouterPriIDEventOut(int process_id, int opcode, int argcount, RouterArgument
 
 int RouterGroupEventOut(int process_id, int group, int opcode, int argcount, RouterArgument *arglist)
 {
-  int iVar1;
-  
-  iVar1 = RouterPriGroupEventOut(process_id,group,opcode,argcount,arglist,0,NULL);
-  return iVar1;
+  return RouterPriGroupEventOut(process_id,group,opcode,argcount,arglist,0,NULL);
 }
 
+/* an event to the peers of one process type that joined group (their group
+ * bit set; SGI's test lets group equal the group count) */
 int RouterPriGroupEventOut(int process_id, int group, int opcode, int argcount, RouterArgument *arglist, int priority, void *purge_data)
 {
-  int group_index;
-  int iVar1;
-  char group_mask;
-  int events_sent;
-  RouterQEntry *entry;
-  RouterClient *client_ptr;
-  unsigned char priority_;
-  
-  client_ptr = ClientList.head;
-  events_sent = 0;
-  group_index = group;
-  if (group < 0) {
-    group_index = group + 7;
-  }
-  iVar1 = group;
-  if (group < 0) {
-    iVar1 = group + 7;
-  }
-  for (; client_ptr != NULL; client_ptr = client_ptr->next) {
-    if (((client_ptr->process_id == process_id) && ((unsigned int)group <= (client_ptr->groups).count)) &&
-       ((unsigned char)((client_ptr->groups).bits[group_index >> 3] &
-              (unsigned char)(1 << (((char)group + (char)(iVar1 >> 3) * -8) & 0x1fU))) != 0)) {
-      RouterDoOutput(client_ptr,opcode,0x80,argcount,arglist,NULL,NULL,
-                     NULL,NULL,priority & 0xff,purge_data);
-      events_sent = events_sent + 1;
+  RouterClient *client;
+  int events_sent = 0;
+
+  for (client = ClientList.head; client != NULL; client = client->next) {
+    if (client->process_id == process_id && (unsigned int)group <= client->groups.count &&
+        (client->groups.bits[group / 8] & (1 << (group % 8)))) {
+      RouterDoOutput(client,opcode,RC_EVENT,argcount,arglist,NULL,NULL,NULL,NULL,priority & 0xff,
+                     purge_data);
+      events_sent++;
     }
   }
   return events_sent;
@@ -420,183 +344,140 @@ int RouterPriGroupEventOut(int process_id, int group, int opcode, int argcount, 
 void RouterClientEventOut(RouterClient *client, int opcode, int argcount, RouterArgument *arglist)
 {
   RouterPriClientEventOut(client,opcode,argcount,arglist,0,NULL);
-  return;
 }
 
 void RouterPriClientEventOut(RouterClient *client, int opcode, int argcount, RouterArgument *arglist, int priority, void *purge_data)
 {
-  unsigned char priority_;
-  
-  RouterDoOutput(client,opcode,0x80,argcount,arglist,NULL,NULL,
-                 NULL,NULL,priority & 0xff,purge_data);
-  return;
+  RouterDoOutput(client,opcode,RC_EVENT,argcount,arglist,NULL,NULL,NULL,NULL,priority & 0xff,
+                 purge_data);
 }
 
 void RouterFlushOutputs(int timeout)
 {
-  RouterClient *client_ptr;
-  
-  for (client_ptr = ClientList.head; client_ptr != NULL;
-      client_ptr = client_ptr->next) {
-    if ((client_ptr->use & 4U) != 0) {
-      RouterFlushOutput(client_ptr,timeout);
-    }
-  }
-  return;
+  RouterClient *client;
+
+  for (client = ClientList.head; client != NULL; client = client->next)
+    if (client->use & RU_CONNECTED)
+      RouterFlushOutput(client,timeout);
 }
 
+/* a packet has been written out: keep requests for their responses */
+static void output_done(RouterClient *client)
+{
+  switch (client->out_buf->header.clas) {
+  case RC_REQUEST:
+    RouterFreePacket(client->out_buf);  /* only the response callback is needed */
+    RouterQStore(&client->in_queue,client->out_buf,0);
+    break;
+  case RC_REL_REQUEST:
+    RouterQStore(&client->in_queue,client->out_buf,0);   /* kept for its error callback */
+    break;
+  default:
+    RouterFreeEntry(client,client->out_buf,0);
+    break;
+  }
+}
+
+/* write out everything queued now, waiting up to timeout seconds (one sleep
+ * at a time) while the socket is full */
 void RouterFlushOutput(RouterClient *client, int timeout)
 {
-  unsigned char bVar1;
-  int *piVar2;
-  int iVar3;
-  RouterClient *client_00;
-  char *format;
-  int rvalue;
-  int sleeps;
-  
-  sleeps = 0;
-  if (client->out_bytesleft < 1) {
+  int sleeps = 0;
+  int written;
+
+  if (client->out_bytesleft < 1)
     RouterReloadOutput(client);
-  }
-LAB_08075a70:
-  do {
-    if (client->out_bytesleft < 1) {
-      return;
-    }
-    rvalue = write(client->socket,client->out_bufptr,client->out_bytesleft);
-    if (rvalue < 0) {
-      piVar2 = __errno_location();
-      iVar3 = *piVar2;
-      if (iVar3 == 0x6b) {
-LAB_08075b10:
+  while (client->out_bytesleft > 0) {
+    written = write(client->socket,client->out_bufptr,client->out_bytesleft);
+    if (written < 0) {
+      if (connection_lost(errno)) {
         RouterConnectionLost(client);
         return;
       }
-      if (0x6b < iVar3) {
-        if ((0x6f < iVar3) || (iVar3 < 0x6e)) goto LAB_08075b21;
-        goto LAB_08075b10;
-      }
-      if (iVar3 == 0x65) goto LAB_08075b10;
-      if (0x65 < iVar3) {
-        if (iVar3 != 0x68) {
-LAB_08075b21:
-          format = "";
-          client_00 = client;
-          piVar2 = __errno_location();
-          RouterLogError(-0x131,"write",*piVar2,client_00,format);
-          RouterConnectionError(client);
-          return;
-        }
-        goto LAB_08075b10;
-      }
-      if (iVar3 != 0xb) {
-        if (iVar3 != 0x20) goto LAB_08075b21;
-        goto LAB_08075b10;
-      }
-      sleeps = sleeps + 1;
-      if (timeout < sleeps) {
+      if (errno != EAGAIN) {
+        RouterLogError(ROUTER_ERR_ERROR,"write",errno,client,"");
+        RouterConnectionError(client);
         return;
       }
+      if (++sleeps > timeout)
+        return;
       sleep(1);
-      rvalue = 0;
+      written = 0;
     }
-    iVar3 = client->out_bytesleft - rvalue;
-    client->out_bytesleft = iVar3;
-    if (iVar3 < 1) {
-      bVar1 = (client->out_buf->header).clas;
-      if (bVar1 == 0x10) {
-        RouterFreePacket(client->out_buf);
-LAB_08075bb2:
-        RouterQStore(&client->in_queue,client->out_buf,0);
-      }
-      else {
-        if (bVar1 == 0x20) goto LAB_08075bb2;
-        RouterFreeEntry(client,client->out_buf,0);
-      }
+    client->out_bytesleft -= written;
+    if (client->out_bytesleft < 1) {
+      output_done(client);
       RouterReloadOutput(client);
-      goto LAB_08075a70;
     }
-    client->out_bufptr = client->out_bufptr + rvalue;
-  } while( true );
+    else {
+      client->out_bufptr += written;
+    }
+  }
 }
 
+/* ask every client of our servers to disconnect */
 int RouterDisconnectClients(int timeout)
 {
-  int clients;
-  RouterClient *client_ptr;
-  
-  clients = 0;
-  for (client_ptr = ClientList.head; client_ptr != NULL;
-      client_ptr = client_ptr->next) {
-    if (((client_ptr->use & 2U) != 0) && ((client_ptr->use & 0xc0U) == 0x80)) {
-      RouterDisconnect(client_ptr,timeout);
-      clients = clients + 1;
+  RouterClient *client;
+  int clients = 0;
+
+  for (client = ClientList.head; client != NULL; client = client->next) {
+    if ((client->use & RU_ACCEPTED) && (client->use & RU_SIDE) == RU_SERVER) {
+      RouterDisconnect(client,timeout);
+      clients++;
     }
   }
   return clients;
 }
 
+/* ask the other side to disconnect (it answers, then the connection closes) */
 void RouterDisconnect(RouterClient *client, int timeout)
 {
-  client->use = (client->use & 0xffffffc0U) | 8;
-  if (timeout < 1) {
-    timeout = 1;
-  }
-  client->timeout = timeout;
-  RouterDoOutput(client,0,0x11,0,NULL,NULL,NULL,
-                 NULL,NULL,0xff,NULL);
-  return;
+  client->use = (client->use & ~RU_STATE) | RU_DISCONNECTING;
+  client->timeout = timeout < 1 ? 1 : timeout;
+  RouterDoOutput(client,0,RC_DISCONNECT_REQ,0,NULL,NULL,NULL,NULL,NULL,0xff,NULL);
 }
 
 void RouterShutDownClients(void)
 {
-  while (ClientList.head != NULL) {
+  while (ClientList.head != NULL)
     RouterDoClose(ClientList.head,0);
-  }
-  return;
 }
 
 void RouterCloseOnlyClients(void)
 {
-  while (ClientList.head != NULL) {
+  while (ClientList.head != NULL)
     RouterCloseOnlyClient(ClientList.head);
-  }
-  return;
 }
 
+/* close without shutdown() (for a forked child: the parent keeps the connection) */
 void RouterCloseOnlyClient(RouterClient *client)
 {
-  if (0 < client->socket) {
+  if (client->socket > 0) {
     RouterRemoveInput(client);
-    if ((0 < client->out_bytesleft) && (client->out_stopped == '\0')) {
+    if (client->out_bytesleft > 0 && !client->out_stopped)
       RouterRemoveOutput(client);
-    }
     SocketCloseOnly(client->socket);
   }
   RouterRemoveClient(client,0);
-  return;
 }
 
 void RouterPing(RouterClient *client)
 {
-  RouterDoOutput(client,0,0x24,0,NULL,NULL,NULL,
-                 NULL,NULL,0xff,NULL);
+  RouterDoOutput(client,0,RC_PING,0,NULL,NULL,NULL,NULL,NULL,0xff,NULL);
   RouterFlushOutput(client,0);
-  return;
 }
 
 static void call_SocketSetBufferSize(RouterClient *client)
 {
   int rval;
-  
+
   rval = SocketSetBufferSize(client->socket,SocketSendBufsize,SocketReceiveBufsize);
-  if ((rval != 0) && (bufsize_rval == 0)) {
+  if (rval != 0 && bufsize_rval == 0)
     bufsize_rval = rval;
-  }
-  return;
 }
 
+/* buffer sizes for every connection, now and later; returns the first error */
 int RouterSetBufferSize(int sendbuf, int recvbuf)
 {
   SocketSendBufsize = sendbuf;
@@ -608,201 +489,165 @@ int RouterSetBufferSize(int sendbuf, int recvbuf)
 
 int RouterClientSetBufferSize(RouterClient *client, int sendbuf, int recvbuf)
 {
-  int iVar1;
-  
-  iVar1 = SocketSetBufferSize(client->socket,sendbuf,recvbuf);
-  return iVar1;
+  return SocketSetBufferSize(client->socket,sendbuf,recvbuf);
 }
+
+/* ---- connections ---- */
 
 RouterClient *RouterMakeClient(int socket, uint32_t addr, int port, int process_id, int use, RouterServer *server, char *host, int (*in_handler)())
 {
-  RouterClient *__s;
-  RouterArgument *pRVar1;
-  int i;
   RouterClient *client;
-  
-  __s = malloc(sizeof(RouterClient));
-  if (__s == NULL) {
+
+  client = calloc(1,sizeof(RouterClient));
+  if (client == NULL)
     RouterMemError();
-  }
-  memset(__s,0,sizeof(RouterClient));
-  __s->socket = socket;
-  __s->addr = addr;
-  __s->port = port;
-  __s->process_id = process_id;
-  __s->use = use;
-  __s->server = server;
-  strncpy((__s->id).hostname,host,0x40);
-  __s->in_handler = in_handler;
-  __s->InArgList = NULL;
-  if (__s->InArgList == NULL) {
-    pRVar1 = malloc(MaxInArgs * sizeof(RouterArgument));
-    __s->InArgList = pRVar1;
-    if (pRVar1 == NULL) {
-      RouterMemError();
-    }
-    __s->InArgListSize = MaxInArgs;
-    for (i = 0; i < __s->InArgListSize; i = i + 1) {
-      __s->InArgList[i].clas = 0;
-      __s->InArgList[i].val = 0;
-      __s->InArgList[i].fre = 0;
-      __s->InArgList[i].size = 0;
-    }
-  }
-  return __s;
+  client->socket = socket;
+  client->addr = addr;
+  client->port = port;
+  client->process_id = process_id;
+  client->use = use;
+  client->server = server;
+  strncpy(client->id.hostname,host,sizeof(client->id.hostname) - 1);
+  client->in_handler = in_handler;
+  client->InArgList = calloc(MaxInArgs,sizeof(RouterArgument));
+  if (client->InArgList == NULL)
+    RouterMemError();
+  client->InArgListSize = MaxInArgs;
+  return client;
 }
 
+/* this process's identity, as sent to the other side */
 void RouterSetClientID(RouterID *client_id)
 {
   memset(client_id,0,sizeof(*client_id));
-  strncpy(client_id->procname,ProcessName,0x10);
-  strncpy(client_id->username,UserName,8);
-  strncpy(client_id->fullname,FullName,0x20);
+  strncpy(client_id->procname,ProcessName,sizeof(client_id->procname) - 1);
+  strncpy(client_id->username,UserName,sizeof(client_id->username) - 1);
+  strncpy(client_id->fullname,FullName,sizeof(client_id->fullname) - 1);
   client_id->ipaddr = IPAddress;
-  return;
+}
+
+int RouterPackID(RouterID *id, unsigned char *buf)
+{
+  unsigned char *p = buf;
+
+  p = (unsigned char *)stpcpy((char *)p,id->procname) + 1;
+  p = (unsigned char *)stpcpy((char *)p,id->username) + 1;
+  p = (unsigned char *)stpcpy((char *)p,id->fullname) + 1;
+  memcpy(p,&id->ipaddr,4);
+  return p + 4 - buf;
+}
+
+/* copy a NUL-terminated string from the packet into a fixed-size field
+ * (the original did not bound the copy); returns what follows it */
+static char *unpack_string(char *field, size_t field_size, char *s)
+{
+  size_t len = strlen(s);
+
+  memcpy(field,s,len < field_size ? len + 1 : field_size);
+  field[field_size - 1] = '\0';
+  return s + len + 1;
+}
+
+/* fill in procname, username, fullname (and the address, if present) */
+void RouterUnpackID(RouterID *id, char *buf, int size)
+{
+  char *p = buf;
+
+  p = unpack_string(id->procname,sizeof(id->procname),p);
+  p = unpack_string(id->username,sizeof(id->username),p);
+  p = unpack_string(id->fullname,sizeof(id->fullname),p);
+  if (p - buf < size)
+    memcpy(&id->ipaddr,p,4);
 }
 
 void RouterAddClient(RouterClient *client)
 {
-  if (ClientList.tail == NULL) {
+  if (ClientList.tail == NULL)
     ClientList.head = client;
-  }
-  else {
-    (ClientList.tail)->next = client;
-  }
+  else
+    ClientList.tail->next = client;
   ClientList.tail = client;
   client->next = NULL;
-  ClientList.total = ClientList.total + 1;
-  return;
+  ClientList.total++;
 }
 
+/* unlink and free a connection */
 void RouterRemoveClient(RouterClient *client, int return_rel_request)
 {
-  RouterClient *last_client;
-  RouterClient *client_ptr;
-  
-  client_ptr = ClientList.head;
-  last_client = NULL;
-  while( true ) {
-    if (client_ptr == NULL) {
-      return;
-    }
-    if (client_ptr == client) break;
-    last_client = client_ptr;
-    client_ptr = client_ptr->next;
-  }
-  if (client_ptr == ClientList.head) {
-    if (client_ptr->next == NULL) {
-      ClientList.head = NULL;
-      ClientList.tail = NULL;
-    }
-    else {
-      ClientList.head = client_ptr->next;
-    }
-  }
-  else if (client_ptr == ClientList.tail) {
-    ClientList.tail = last_client;
-    last_client->next = NULL;
-  }
-  else {
-    last_client->next = client_ptr->next;
-  }
+  RouterClient *prev = NULL;
+  RouterClient *c;
+
+  for (c = ClientList.head; c != NULL && c != client; c = c->next)
+    prev = c;
+  if (c == NULL)
+    return;
+  if (prev == NULL)
+    ClientList.head = c->next;
+  else
+    prev->next = c->next;
+  if (ClientList.tail == c)
+    ClientList.tail = prev;
   RouterFreeClient(client,return_rel_request);
-  ClientList.total = ClientList.total + -1;
-  return;
+  ClientList.total--;
 }
 
+/* client, if it still exists */
 RouterClient *RouterFindClient(RouterClient *client)
 {
-  RouterClient *client_ptr;
-  
-  client_ptr = ClientList.head;
-  while( true ) {
-    if (client_ptr == NULL) {
-      return NULL;
-    }
-    if (client_ptr == client) break;
-    client_ptr = client_ptr->next;
-  }
-  return client;
+  RouterClient *c;
+
+  for (c = ClientList.head; c != NULL; c = c->next)
+    if (c == client)
+      return client;
+  return NULL;
 }
 
 void RouterListClients(void (*cb_func)())
 {
-  RouterClient *last_client;
-  RouterClient *client_ptr;
-  
-  for (client_ptr = ClientList.head; client_ptr != NULL;
-      client_ptr = client_ptr->next) {
-    (*cb_func)(client_ptr);
-  }
-  return;
+  RouterClient *client;
+
+  for (client = ClientList.head; client != NULL; client = client->next)
+    cb_func(client);
 }
+
+/* ---- input ---- */
 
 void RouterStartInput(RouterClient *client)
 {
-  if (client->in_buf != NULL) {
-    free(client->in_buf);
-  }
+  free(client->in_buf);
   client->in_bufptr = NULL;
   client->in_buf = NULL;
   client->in_bufsize = 0;
-  client->in_bytesneeded = 8;
+  client->in_bytesneeded = sizeof(RouterHeader);
   client->in_hostbyteorder = 0;
   RouterAddInput(client);
-  return;
 }
 
+/* the socket is readable: read the header, then the rest of the packet, and
+ * hand the whole packet to the connection's handler */
 RouterFunc RouterInput(RouterClient *client)
 {
-  unsigned int uVar1;
-  unsigned int uVar2;
-  unsigned char *bptr;
+  RouterHeader hdr;
+  unsigned char *b;
   int rvalue;
-  int *piVar3;
-  RouterHeader *pRVar4;
-  int iVar5;
-  RouterClient *pRVar6;
-  int buf_bytesneeded;
-  char *format;
-  RouterHeader thdr;
-  int bytesread;
-  
+  int needed;
+
   if (client->in_buf == NULL) {
-    client->in_bufsize = 8;
-    bptr = malloc(client->in_bufsize);
-    client->in_buf = (RouterHeader *)bptr;
-    if (bptr == NULL) {
+    client->in_bufsize = sizeof(RouterHeader);
+    client->in_buf = malloc(client->in_bufsize);
+    if (client->in_buf == NULL)
       RouterMemError();
-    }
     client->in_bufptr = (char *)client->in_buf;
   }
-  if (0 < client->in_bytesneeded) {
+  if (client->in_bytesneeded > 0) {
     rvalue = read(client->socket,client->in_bufptr,client->in_bytesneeded);
     if (rvalue < 0) {
-      piVar3 = __errno_location();
-      iVar5 = *piVar3;
-      if (iVar5 != 0x6b) {
-        if (iVar5 < 0x6c) {
-          if (iVar5 != 0x65) {
-            if (iVar5 < 0x66) {
-              if (iVar5 == 0xb) {
-                return;
-              }
-              if (iVar5 != 0x20) {
-LAB_08076364:
-                format = "";
-                pRVar6 = client;
-                piVar3 = __errno_location();
-                RouterLogError(-0x131,"read",*piVar3,pRVar6,format);
-                RouterConnectionError(client);
-                return;
-              }
-            }
-            else if (iVar5 != 0x68) goto LAB_08076364;
-          }
-        }
-        else if ((0x6f < iVar5) || (iVar5 < 0x6e)) goto LAB_08076364;
+      if (errno == EAGAIN)
+        return;
+      if (!connection_lost(errno)) {
+        RouterLogError(ROUTER_ERR_ERROR,"read",errno,client,"");
+        RouterConnectionError(client);
+        return;
       }
       RouterConnectionLost(client);
       return;
@@ -811,577 +656,433 @@ LAB_08076364:
       RouterConnectionLost(client);
       return;
     }
-    client->in_bufptr = client->in_bufptr + rvalue;
-    client->in_bytesneeded = client->in_bytesneeded - rvalue;
+    client->in_bufptr += rvalue;
+    client->in_bytesneeded -= rvalue;
   }
-  if (client->in_bytesneeded < 1) {
-    if (client->in_hostbyteorder == 0) {
-      /* header arrives big-endian: opcode(2) clas(1) id(1) config(1) length(3) */
-      uint8 *b = (uint8 *)client->in_buf;
-      thdr.opcode = (b[0] << 8) | b[1];
-      thdr.clas = b[2];
-      thdr.id = b[3];
-      thdr.config = b[4];
-      thdr.length = (b[5] << 16) | (b[6] << 8) | b[7];
-      memcpy(client->in_buf,&thdr,8);
-      client->in_hostbyteorder = 1;
+  if (client->in_bytesneeded > 0)
+    return;
+  if (!client->in_hostbyteorder) {
+    /* the header arrives big-endian: opcode(2) clas(1) id(1) config(1) length(3) */
+    b = (unsigned char *)client->in_buf;
+    hdr.opcode = b[0] << 8 | b[1];
+    hdr.clas = b[2];
+    hdr.id = b[3];
+    hdr.config = b[4];
+    hdr.length = b[5] << 16 | b[6] << 8 | b[7];
+    memcpy(client->in_buf,&hdr,sizeof(hdr));
+    client->in_hostbyteorder = 1;
+  }
+  if ((unsigned int)(client->in_bufptr - (char *)client->in_buf) <
+      (unsigned int)(client->in_buf->length + sizeof(RouterHeader))) {
+    /* header done: now the arguments */
+    client->in_bytesneeded = client->in_buf->length;
+    needed = client->in_bytesneeded + sizeof(RouterHeader);
+    if (client->in_bufsize < needed) {
+      client->in_buf = realloc(client->in_buf,needed);
+      if (client->in_buf == NULL)
+        RouterMemError();
+      client->in_bufptr = (char *)(client->in_buf + 1);
+      client->in_bufsize = needed;
     }
-    if ((unsigned int)((int)(client->in_bufptr - (char *)client->in_buf)) < (unsigned int)(client->in_buf->length + 8)) {
-      client->in_bytesneeded = client->in_buf->length;
-      buf_bytesneeded = client->in_bytesneeded + 8;
-      if (client->in_bufsize < buf_bytesneeded) {
-        pRVar4 = realloc(client->in_buf,buf_bytesneeded);
-        client->in_buf = pRVar4;
-        if (pRVar4 == NULL) {
-          RouterMemError();
-        }
-        client->in_bufptr = (char *)(client->in_buf + 1);
-        client->in_bufsize = buf_bytesneeded;
-      }
-    }
-    else {
-      client->in_pkts = client->in_pkts + 1;
-      iVar5 = (*client->in_handler)(client);
-      if ((iVar5 == 0) && (pRVar6 = RouterFindClient(client), pRVar6 != NULL)) {
-        free(client->in_buf);
-        client->in_buf = NULL;
-        client->in_bufsize = 0;
-        client->in_bufptr = NULL;
-        client->in_bytesneeded = 8;
-        client->in_sequence = 0;
-        client->in_hostbyteorder = 0;
-        if ((client->out_stopped != '\0') &&
-           ((client->out_bytesleft != 0 && ((client->in_queue).total < 0xe7)))) {
-          RouterAddOutput(client);
-          client->out_stopped = '\0';
-        }
-      }
+    return;
+  }
+  client->in_pkts++;
+  if (client->in_handler(client) == 0 && RouterFindClient(client) != NULL) {
+    free(client->in_buf);
+    client->in_buf = NULL;
+    client->in_bufsize = 0;
+    client->in_bufptr = NULL;
+    client->in_bytesneeded = sizeof(RouterHeader);
+    client->in_sequence = 0;
+    client->in_hostbyteorder = 0;
+    /* resume output stopped by too many unanswered requests */
+    if (client->out_stopped && client->out_bytesleft != 0 && client->in_queue.total < RQ_RESUME) {
+      RouterAddOutput(client);
+      client->out_stopped = 0;
     }
   }
-  return;
 }
 
+/* the input handler of an established connection */
 int RouterProcessPacket(RouterClient *client)
 {
-  unsigned char bVar1;
   int argcountin;
   int rvalue;
-  char *func_name;
-  
+
   argcountin = RouterUnpack(client,client->in_buf);
-  bVar1 = client->in_buf->clas;
-  if (bVar1 == 0x18) {
+  switch (client->in_buf->clas) {
+  case RC_REQUEST:
+  case RC_REL_REQUEST:
+    rvalue = RouterProcessRequest(client,argcountin);
+    break;
+  case RC_RESPONSE:
+    rvalue = RouterProcessResponse(client,argcountin);
+    break;
+  case RC_EVENT:
+    rvalue = RouterProcessEvent(client,argcountin);
+    break;
+  case RC_DISCONNECT_REQ:
+    rvalue = RouterProcessDisRequest(client);
+    break;
+  case RC_DISCONNECT_RSP:
+    rvalue = RouterProcessDisResponse(client);
+    break;
+  case RC_CONFIG_INIT:
+    rvalue = RouterProcessConfigInit(client,argcountin);
+    break;
+  case RC_CONFIG_REQ:
     rvalue = RouterProcessConfigRequest(client,argcountin);
-    goto LAB_08076830;
+    break;
+  case RC_CONFIG_RSP:
+    rvalue = RouterProcessConfigResponse(client,argcountin);
+    break;
+  case RC_PING:
+    rvalue = 0;
+    break;
+  default:
+    RouterBadClass(client,"RouterProcessPacket");
+    rvalue = -1;
+    break;
   }
-  if (bVar1 < 0x19) {
-    if (bVar1 == 0x11) {
-      rvalue = RouterProcessDisRequest(client);
-      goto LAB_08076830;
-    }
-    if (bVar1 < 0x12) {
-      if (bVar1 == 0x10) {
-LAB_08076732:
-        rvalue = RouterProcessRequest(client,argcountin);
-        goto LAB_08076830;
-      }
-    }
-    else {
-      if (bVar1 == 0x12) {
-        rvalue = RouterProcessDisResponse(client);
-        goto LAB_08076830;
-      }
-      if (bVar1 == 0x14) {
-        rvalue = RouterProcessConfigInit(client,argcountin);
-        goto LAB_08076830;
-      }
-    }
-  }
-  else {
-    if (bVar1 == 0x24) {
-      rvalue = 0;
-      goto LAB_08076830;
-    }
-    if (bVar1 < 0x25) {
-      if (bVar1 == 0x20) goto LAB_08076732;
-      if (bVar1 == 0x21) {
-        rvalue = RouterProcessConfigResponse(client,argcountin);
-        goto LAB_08076830;
-      }
-    }
-    else {
-      if (bVar1 == 0x40) {
-        rvalue = RouterProcessResponse(client,argcountin);
-        goto LAB_08076830;
-      }
-      if (bVar1 == 0x80) {
-        rvalue = RouterProcessEvent(client,argcountin);
-        goto LAB_08076830;
-      }
-    }
-  }
-  RouterBadClass(client,"RouterProcessPacket");
-  rvalue = -1;
-LAB_08076830:
   RouterFreeArguments(argcountin,client->InArgList);
   return rvalue;
 }
 
+/* call the request callback; send its answer unless it responded itself */
 static int RouterProcessRequest(RouterClient *client, int argcountin)
 {
-  int iVar1;
   RouterArgument *arglistout;
   int argcountout;
-  char *func_name;
-  
-  func_name = "RouterProcessRequest";
+
   if (client->request_cb == NULL) {
-    LogError(-0x13d,"RouterProcessRequest",0,"");
+    LogError(ROUTER_ERR_PROTOCOL,"RouterProcessRequest",0,"");
     RouterConnectionError(client);
-    iVar1 = -1;
+    return -1;
   }
-  else {
-    client->in_sequence = (unsigned short)client->in_buf->id;
-    client->ResponseSent = 0;
-    argcountout = (*client->request_cb)
-                            (client,(unsigned int)client->in_buf->opcode,argcountin,client->InArgList,
-                             &arglistout);
-    if (client->ResponseSent == 0) {
-      RouterResponseOut(client,argcountout,arglistout);
-    }
-    iVar1 = 0;
-  }
-  return iVar1;
+  client->in_sequence = client->in_buf->id;
+  client->ResponseSent = 0;
+  argcountout = client->request_cb(client,client->in_buf->opcode,argcountin,client->InArgList,
+                                   &arglistout);
+  if (!client->ResponseSent)
+    RouterResponseOut(client,argcountout,arglistout);
+  return 0;
 }
 
+/* match a response to its request and call the request's response callback */
 static int RouterProcessResponse(RouterClient *client, int argcountin)
 {
-  int *piVar1;
-  unsigned int uVar2;
-  RouterQEntry *prev;
-  RouterQEntry *response;
-  char *func_name;
-  
-  if ((client->use & 0x18000U) == 0x8000) {
-    response = RouterQRetrieve(&client->in_queue);
+  RouterQ *queue = &client->in_queue;
+  RouterQEntry *response, *prev;
+
+  if ((client->use & RU_ORDER) == RU_INORDER) {
+    /* our connections: the first request waiting must be the one */
+    response = RouterQRetrieve(queue);
     if (response == NULL) {
-      LogError(-0x13d,"RouterProcessResponse",0,"");
+      LogError(ROUTER_ERR_PROTOCOL,"RouterProcessResponse",0,"");
       RouterConnectionError(client);
       return -1;
     }
-    if (client->in_buf->id != (response->header).id) {
-      LogError(-0x13a,"RouterProcessResponse",0,"");
+    if (client->in_buf->id != response->header.id) {
+      LogError(ROUTER_ERR_SEQUENCE,"RouterProcessResponse",0,"");
       RouterFreeEntry(client,response,0);
       RouterConnectionError(client);
       return -1;
     }
   }
   else {
+    /* accepted connections: find the request by id */
     prev = NULL;
-    for (response = (client->in_queue).head;
-        (response != NULL && (client->in_buf->id != (response->header).id));
-        response = response->next) {
+    for (response = queue->head; response != NULL && client->in_buf->id != response->header.id;
+         response = response->next)
       prev = response;
-    }
     if (response == NULL) {
-      LogError(-0x13d,"RouterProcessResponse",0,"request not found");
+      LogError(ROUTER_ERR_PROTOCOL,"RouterProcessResponse",0,"request not found");
       RouterConnectionError(client);
       return -1;
     }
-    if ((client->in_queue).head == (client->in_queue).tail) {
-      (client->in_queue).tail = NULL;
-      (client->in_queue).head = NULL;
-    }
-    else if (prev == NULL) {
-      (client->in_queue).head = response->next;
-    }
-    else {
+    if (prev == NULL)
+      queue->head = response->next;
+    else
       prev->next = response->next;
-    }
-    piVar1 = &(client->in_queue).total;
-    *piVar1 = *piVar1 + -1;
-    (client->in_queue).bytes = (client->in_queue).bytes - (response->header).length;
+    /* (the original left tail on the removed entry when it was the last
+     * of several) */
+    if (queue->tail == response)
+      queue->tail = prev;
+    queue->total--;
+    queue->bytes -= response->header.length;
   }
-  if (response->response_cb != NULL) {
-    (*response->response_cb)(client,response->response_data,argcountin,client->InArgList);
-  }
+  if (response->response_cb != NULL)
+    response->response_cb(client,response->response_data,argcountin,client->InArgList);
   RouterFreeEntry(client,response,0);
   return 0;
 }
 
 static int RouterProcessEvent(RouterClient *client, int argcountin)
 {
-  if (client->event_cb != NULL) {
-    (*client->event_cb)(client,(unsigned int)client->in_buf->opcode,argcountin,client->InArgList);
-  }
+  if (client->event_cb != NULL)
+    client->event_cb(client,client->in_buf->opcode,argcountin,client->InArgList);
   return 0;
 }
 
+/* the other side wants to disconnect: drop our unsent requests and agree */
 static int RouterProcessDisRequest(RouterClient *client)
 {
   RouterQRemoveRequests(client,&client->out_queue);
   RouterCheckOutputMonitor(client);
-  client->use = (client->use & 0xffffffc0U) | 0x10;
-  RouterDoOutput(client,0,0x12,0,NULL,NULL,NULL,
-                 NULL,NULL,0xff,NULL);
+  client->use = (client->use & ~RU_STATE) | RU_DISCONNECTED;
+  RouterDoOutput(client,0,RC_DISCONNECT_RSP,0,NULL,NULL,NULL,NULL,NULL,0xff,NULL);
   return 0;
 }
 
+/* the other side agreed to our disconnect: close (always -1: the client is gone) */
 static int RouterProcessDisResponse(RouterClient *client)
 {
-  char *func_name;
-  
-  if ((client->use & 0x3fU) == 8) {
+  if ((client->use & RU_STATE) == RU_DISCONNECTING) {
     RouterConnectionLost(client);
   }
   else {
-    LogError(-0x13d,"RouterProcessDisResponse",0,"");
+    LogError(ROUTER_ERR_PROTOCOL,"RouterProcessDisResponse",0,"");
     RouterConnectionError(client);
   }
   return -1;
 }
 
+/*
+ * A RouterConfig from the other side (8 bytes: rev, flags). ORIGINAL BUG:
+ * only the low three bytes of each are read, so RCF_COMPRESS never arrives
+ * and Router compression is never used (ORIGINAL_BUGS.md).
+ */
+static RouterConfig *read_config(RouterClient *client)
+{
+  unsigned char *b = (unsigned char *)client->InArgList[0].val;
+  RouterConfig *cfg;
+
+  cfg = calloc(1,sizeof(RouterConfig));
+  if (cfg == NULL)
+    RouterMemError();
+  cfg->rev = b[1] << 16 | b[2] << 8 | b[3];
+  cfg->flags = b[5] << 16 | b[6] << 8 | b[7];
+  return cfg;
+}
+
+/* echo the config argument back with class clas, and send it now */
+static void echo_config(RouterClient *client, int clas)
+{
+  RouterArgument arglist;
+
+  arglist.fre = 1;
+  arglist.clas = 1;
+  arglist.size = client->InArgList[0].size;
+  arglist.val = client->InArgList[0].val;
+  RouterDoOutput(client,0,clas,1,&arglist,NULL,NULL,NULL,NULL,0,NULL);
+  RouterFlushOutput(client,0);
+}
+
+/* the server's config (RouterConfigure): it applies to what we send */
 static int RouterProcessConfigInit(RouterClient *client, int argcountin)
 {
-  uintptr_t uVar1;
-  int iVar2;
-  RouterConfig *__s;
-  unsigned char *tptr;
   RouterConfig *cfg;
-  RouterArgument arglist;
-  char *func_name;
-  
-  if (argcountin == 1) {
-    uVar1 = client->InArgList->val;
-    arglist.fre = 1;
-    arglist.clas = 1;
-    arglist.size = client->InArgList->size;
-    arglist.val = uVar1;
-    RouterDoOutput(client,0,0x18,1,&arglist,NULL,NULL,NULL,
-                   NULL,0,NULL);
-    RouterFlushOutput(client,0);
-    __s = malloc(sizeof(RouterConfig));
-    if (__s == NULL) {
-      RouterMemError();
-    }
-    memset(__s,0,sizeof(RouterConfig));
-    __s->rev = (unsigned int)*(unsigned char *)(uVar1 + 1) << 0x10 | (unsigned int)*(unsigned char *)(uVar1 + 2) << 8 |
-               (unsigned int)*(unsigned char *)(uVar1 + 3);
-    __s->flags = (unsigned int)*(unsigned char *)(uVar1 + 5) << 0x10 | (unsigned int)*(unsigned char *)(uVar1 + 6) << 8 |
-                 (unsigned int)*(unsigned char *)(uVar1 + 7);
-    if ((client->out_cfg != NULL) && (client->out_cfg != client->in_cfg)) {
-      free(client->out_cfg);
-    }
-    client->out_cfg = __s;
-    iVar2 = 0;
+
+  if (argcountin != 1) {
+    LogError(ROUTER_ERR_ARG_COUNT,"RouterProcessConfigInit",0,"");
+    return -1;
   }
-  else {
-    LogError(-0x13e,"RouterProcessConfigInit",0,"");
-    iVar2 = -1;
-  }
-  return iVar2;
+  echo_config(client,RC_CONFIG_REQ);
+  cfg = read_config(client);
+  if (client->out_cfg != NULL && client->out_cfg != client->in_cfg)
+    free(client->out_cfg);
+  client->out_cfg = cfg;
+  return 0;
 }
 
+/* our config echoed with the client's agreement: it applies both ways */
 static int RouterProcessConfigRequest(RouterClient *client, int argcountin)
 {
-  uintptr_t uVar1;
-  int iVar2;
-  RouterConfig *__s;
-  unsigned char *tptr;
   RouterConfig *cfg;
-  RouterArgument arglist;
-  char *func_name;
-  
-  if (argcountin == 1) {
-    uVar1 = client->InArgList->val;
-    arglist.fre = 1;
-    arglist.clas = 1;
-    arglist.size = client->InArgList->size;
-    arglist.val = uVar1;
-    RouterDoOutput(client,0,0x21,1,&arglist,NULL,NULL,NULL,
-                   NULL,0,NULL);
-    RouterFlushOutput(client,0);
-    __s = malloc(sizeof(RouterConfig));
-    if (__s == NULL) {
-      RouterMemError();
-    }
-    memset(__s,0,sizeof(RouterConfig));
-    __s->rev = (unsigned int)*(unsigned char *)(uVar1 + 1) << 0x10 | (unsigned int)*(unsigned char *)(uVar1 + 2) << 8 |
-               (unsigned int)*(unsigned char *)(uVar1 + 3);
-    __s->flags = (unsigned int)*(unsigned char *)(uVar1 + 5) << 0x10 | (unsigned int)*(unsigned char *)(uVar1 + 6) << 8 |
-                 (unsigned int)*(unsigned char *)(uVar1 + 7);
-    if (client->in_cfg != NULL) {
-      free(client->in_cfg);
-    }
-    if ((client->out_cfg != NULL) && (client->out_cfg != client->in_cfg)) {
-      free(client->out_cfg);
-    }
-    client->out_cfg = __s;
-    client->in_cfg = __s;
-    iVar2 = 0;
+
+  if (argcountin != 1) {
+    LogError(ROUTER_ERR_ARG_COUNT,"RouterProcessConfigRequest",0,"");
+    return -1;
   }
-  else {
-    LogError(-0x13e,"RouterProcessConfigRequest",0,"");
-    iVar2 = -1;
-  }
-  return iVar2;
+  echo_config(client,RC_CONFIG_RSP);
+  cfg = read_config(client);
+  free(client->in_cfg);
+  if (client->out_cfg != NULL && client->out_cfg != client->in_cfg)
+    free(client->out_cfg);
+  client->out_cfg = cfg;
+  client->in_cfg = cfg;
+  return 0;
 }
 
+/* the final echo: it applies to what we receive */
 static int RouterProcessConfigResponse(RouterClient *client, int argcountin)
 {
-  uintptr_t uVar1;
-  RouterConfig *__s;
-  int iVar2;
-  unsigned char *tptr;
   RouterConfig *cfg;
-  char *func_name;
-  
-  if (argcountin == 1) {
-    uVar1 = client->InArgList->val;
-    __s = malloc(sizeof(RouterConfig));
-    if (__s == NULL) {
-      RouterMemError();
-    }
-    memset(__s,0,sizeof(RouterConfig));
-    __s->rev = (unsigned int)*(unsigned char *)(uVar1 + 1) << 0x10 | (unsigned int)*(unsigned char *)(uVar1 + 2) << 8 |
-               (unsigned int)*(unsigned char *)(uVar1 + 3);
-    __s->flags = (unsigned int)*(unsigned char *)(uVar1 + 5) << 0x10 | (unsigned int)*(unsigned char *)(uVar1 + 6) << 8 |
-                 (unsigned int)*(unsigned char *)(uVar1 + 7);
-    if ((client->in_cfg != NULL) && (client->in_cfg != client->out_cfg)) {
-      free(client->in_cfg);
-    }
-    if ((client->out_cfg == NULL) ||
-       (iVar2 = memcmp(__s,client->out_cfg,sizeof(RouterConfig)), iVar2 != 0)) {
-      client->in_cfg = __s;
-    }
-    else {
-      client->in_cfg = client->out_cfg;
-      free(__s);
-    }
-    return 0;
+
+  if (argcountin != 1) {
+    LogError(ROUTER_ERR_ARG_COUNT,"RouterProcessConfigResponse",0,"");
+    return -1;
   }
-  LogError(-0x13e,"RouterProcessConfigResponse",0,"");
-  return -1;
+  cfg = read_config(client);
+  if (client->in_cfg != NULL && client->in_cfg != client->out_cfg)
+    free(client->in_cfg);
+  if (client->out_cfg != NULL && memcmp(cfg,client->out_cfg,sizeof(RouterConfig)) == 0) {
+    client->in_cfg = client->out_cfg;
+    free(cfg);
+  }
+  else {
+    client->in_cfg = cfg;
+  }
+  return 0;
 }
 
-void RouterDoOutput(RouterClient *client, int opcode, int class, int argcount, RouterArgument *arglist, void (*response_cb)(), unsigned char *response_data, void (*error_cb)(), unsigned char *error_data, int priority, void *purge_data)
+/* ---- output ---- */
+
+/* queue a packet (a response gets the id of the request being answered) */
+void RouterDoOutput(RouterClient *client, int opcode, int clas, int argcount, RouterArgument *arglist, void (*response_cb)(), unsigned char *response_data, void (*error_cb)(), unsigned char *error_data, int priority, void *purge_data)
 {
-  unsigned char bVar1;
-  RouterHeader *pRVar2;
   RouterQEntry *entry;
-  unsigned char priority_;
-  
-  priority_ = (unsigned char)priority;
-  RouterPack(client,opcode,class,argcount,arglist,response_cb,response_data,error_cb,error_data,
+
+  RouterPack(client,opcode,clas,argcount,arglist,response_cb,response_data,error_cb,error_data,
              priority & 0xff,purge_data,&entry);
-  if ((entry->header).clas == 0x40) {
-    pRVar2 = entry->packet;
-    bVar1 = (unsigned char)client->in_sequence;
-    (entry->header).id = bVar1;
-    pRVar2->id = bVar1;
+  if (entry->header.clas == RC_RESPONSE) {
+    entry->header.id = client->in_sequence;
+    entry->packet->id = client->in_sequence;
   }
   RouterStartOutput(client,entry);
-  return;
 }
 
+/* drop queued output whose purge_data matches (purge_cb decides, if given);
+ * reliable requests go back to their error callbacks */
 void RouterPurge(RouterClient *client, int (*purge_cb)(), void *purge_data)
 {
-  int *piVar1;
-  struct _RouterQEntry *p_Var2;
-  unsigned int uVar3;
-  RouterQ *queue;
-  int plen;
+  RouterQ *queue = &client->out_queue;
+  RouterQEntry **link = &queue->head;
+  RouterQEntry *entry, *prev = NULL;
   int delete;
-  RouterQEntry *dead_entry;
-  RouterQEntry *last_entry;
-  RouterQEntry *entry;
-  
-  queue = &client->out_queue;
-  last_entry = NULL;
-  entry = queue->head;
-  while (entry != NULL) {
-    if (purge_cb == NULL) {
-      delete = (int)(entry->purge_data == purge_data);
+
+  while ((entry = *link) != NULL) {
+    if (purge_cb == NULL)
+      delete = entry->purge_data == purge_data;
+    else
+      delete = purge_cb(entry->purge_data,purge_data);
+    if (!delete) {
+      prev = entry;
+      link = &entry->next;
+      continue;
     }
-    else {
-      delete = (*purge_cb)(entry->purge_data,purge_data);
-    }
-    if (delete == 0) {
-      last_entry = entry;
-      entry = entry->next;
-    }
-    else {
-      if (entry == queue->head) {
-        if (entry->next == NULL) {
-          (client->out_queue).tail = NULL;
-          queue->head = NULL;
-        }
-        else {
-          queue->head = entry->next;
-        }
-      }
-      else if (entry == (client->out_queue).tail) {
-        (client->out_queue).tail = last_entry;
-        ((client->out_queue).tail)->next = NULL;
-      }
-      else {
-        last_entry->next = entry->next;
-      }
-      p_Var2 = entry->next;
-      piVar1 = &(client->out_queue).total;
-      *piVar1 = *piVar1 + -1;
-      (client->out_queue).bytes = (client->out_queue).bytes - (entry->header).length;
-      RouterFreeEntry(client,entry,1);
-      entry = p_Var2;
-    }
+    *link = entry->next;
+    if (queue->tail == entry)
+      queue->tail = prev;
+    queue->total--;
+    queue->bytes -= entry->header.length;
+    RouterFreeEntry(client,entry,1);
   }
-  return;
 }
 
+/* send now if nothing is being sent, else queue */
 static void RouterStartOutput(RouterClient *client, RouterQEntry *entry)
 {
   if (client->out_bytesleft < 1) {
     RouterLoadOutput(client,entry);
     RouterAddOutput(client);
-    client->out_stopped = '\0';
+    client->out_stopped = 0;
   }
   else {
     RouterQStore(&client->out_queue,entry,1);
     RouterCheckOutputMonitor(client);
   }
-  return;
 }
 
+/* make entry the packet being written: requests get the next id (1..255),
+ * and the header is put in wire order in place */
 static void RouterLoadOutput(RouterClient *client, RouterQEntry *entry)
 {
-  unsigned char bVar1;
-  RouterHeader *pRVar2;
-  uint32_t uVar3;
-  uint32_t uVar4;
-  uint32_t uVar5;
-  unsigned int uVar6;
-  unsigned char *bptr;
-  
-  client->out_pkts = client->out_pkts + 1;
+  unsigned char *b;
+
+  client->out_pkts++;
   client->out_buf = entry;
   client->out_bufptr = (char *)entry->packet;
-  client->out_bytesleft = (entry->header).length + 8;
-  if (((entry->header).clas == 0x10) || ((entry->header).clas == 0x20)) {
-    client->out_sequence = client->out_sequence + 1;
-    uVar6 = client->out_sequence & 0xff;
-    client->out_sequence = uVar6;
-    if (uVar6 == 0) {
-      client->out_sequence = client->out_sequence + 1;
-    }
-    pRVar2 = entry->packet;
-    bVar1 = (unsigned char)client->out_sequence;
-    (entry->header).id = bVar1;
-    pRVar2->id = bVar1;
+  client->out_bytesleft = entry->header.length + sizeof(RouterHeader);
+  if (is_request(entry)) {
+    client->out_sequence = (client->out_sequence + 1) & 0xff;
+    if (client->out_sequence == 0)
+      client->out_sequence = 1;
+    entry->header.id = client->out_sequence;
+    entry->packet->id = client->out_sequence;
   }
-  memcpy(&entry->header,entry->packet,8);
-  bptr = (unsigned char *)entry->packet;
-  *bptr = (unsigned char)((entry->header).opcode >> 8);
-  bptr[1] = (unsigned char)(entry->header).opcode;
-  bptr[2] = (entry->header).clas;
-  bptr[3] = (entry->header).id;
-  bptr[4] = (entry->header).config;
-  uVar3 = (entry->header).length;
-  bptr[5] = (unsigned char)(uVar3 >> 0x10);
-  uVar4 = (entry->header).length;
-  bptr[6] = (unsigned char)(uVar4 >> 8);
-  uVar5 = (entry->header).length;
-  bptr[7] = (unsigned char)uVar5;
-  return;
+  memcpy(&entry->header,entry->packet,sizeof(RouterHeader));
+  b = (unsigned char *)entry->packet;
+  b[0] = entry->header.opcode >> 8;
+  b[1] = entry->header.opcode;
+  b[2] = entry->header.clas;
+  b[3] = entry->header.id;
+  b[4] = entry->header.config;
+  b[5] = entry->header.length >> 16;
+  b[6] = entry->header.length >> 8;
+  b[7] = entry->header.length;
 }
 
+/* the socket is writable: write some more of out_buf */
 static RouterFunc RouterOutput(RouterClient *client)
 {
-  unsigned char bVar1;
-  int rvalue;
-  int *piVar2;
-  int iVar3;
-  RouterClient *client_00;
-  char *format;
-  
+  int written;
+
   if (client->out_bytesleft < 1) {
     RouterReloadOutput(client);
     return;
   }
-  rvalue = write(client->socket,client->out_bufptr,client->out_bytesleft);
-  if (rvalue < 0) {
-    piVar2 = __errno_location();
-    iVar3 = *piVar2;
-    if (iVar3 != 0x6b) {
-      if (iVar3 < 0x6c) {
-        if (iVar3 != 0x65) {
-          if (iVar3 < 0x66) {
-            if (iVar3 == 0xb) {
-              return;
-            }
-            if (iVar3 != 0x20) {
-LAB_080774f3:
-              format = "";
-              client_00 = client;
-              piVar2 = __errno_location();
-              RouterLogError(-0x131,"write",*piVar2,client_00,format);
-              RouterConnectionError(client);
-              return;
-            }
-          }
-          else if (iVar3 != 0x68) goto LAB_080774f3;
-        }
-      }
-      else if ((0x6f < iVar3) || (iVar3 < 0x6e)) goto LAB_080774f3;
+  written = write(client->socket,client->out_bufptr,client->out_bytesleft);
+  if (written < 0) {
+    if (errno == EAGAIN)
+      return;
+    if (!connection_lost(errno)) {
+      RouterLogError(ROUTER_ERR_ERROR,"write",errno,client,"");
+      RouterConnectionError(client);
+      return;
     }
     RouterConnectionLost(client);
     return;
   }
-  iVar3 = client->out_bytesleft - rvalue;
-  client->out_bytesleft = iVar3;
-  if (0 < iVar3) {
-    client->out_bufptr = client->out_bufptr + rvalue;
+  client->out_bytesleft -= written;
+  if (client->out_bytesleft > 0) {
+    client->out_bufptr += written;
     return;
   }
-  bVar1 = (client->out_buf->header).clas;
-  if (bVar1 == 0x10) {
-    RouterFreePacket(client->out_buf);
-  }
-  else if (bVar1 != 0x20) {
-    RouterFreeEntry(client,client->out_buf,0);
-    goto LAB_080775c0;
-  }
-  RouterQStore(&client->in_queue,client->out_buf,0);
-LAB_080775c0:
+  output_done(client);
   RouterReloadOutput(client);
-  return;
 }
 
+/* start on the next queued packet; with nothing left, stop watching for
+ * writability (and end a transaction connection we made) */
 static void RouterReloadOutput(RouterClient *client)
 {
   RouterQEntry *entry;
-  
+
   entry = RouterQRetrieve(&client->out_queue);
   if (entry == NULL) {
     client->out_buf = NULL;
     client->out_bufptr = NULL;
     client->out_bytesleft = 0;
     RouterRemoveOutput(client);
-    if ((((client->use & 0x600U) == 0x400) && ((client->use & 0xc0U) == 0x40)) &&
-       ((client->use & 4U) != 0)) {
+    if ((client->use & RU_KIND) == RU_TRANSACTION && (client->use & RU_SIDE) == RU_CLIENT &&
+        (client->use & RU_CONNECTED))
       RouterDisconnect(client,client->timeout);
-    }
   }
   else {
     RouterLoadOutput(client,entry);
-    if (0xf9 < (client->in_queue).total) {
+    if (client->in_queue.total >= RQ_STOP) {
+      /* too many unanswered requests: wait (RouterInput resumes) */
       RouterRemoveOutput(client);
       client->out_stopped = 1;
     }
   }
   RouterCheckOutputMonitor(client);
-  return;
 }
 
+/* output_monitor_cb(cb_data, client, 1) when a connection's output queue
+ * passes a high water mark (entries or bytes; 0 means no limit), and
+ * (cb_data, client, 0) when it falls below the low water marks */
 int RouterSetOutputMonitor(void (*output_monitor_cb)(), void *cb_data, int high_water_entries, int high_water_bytes, int low_water_entries, int low_water_bytes)
 {
   MonitorCB = output_monitor_cb;
@@ -1396,324 +1097,248 @@ int RouterSetOutputMonitor(void (*output_monitor_cb)(), void *cb_data, int high_
 
 static void RouterCheckOutputMonitor(RouterClient *client)
 {
-  if (MonitorCB != NULL) {
-    if (client->out_highwater == '\0') {
-      if (((MonitorHighWaterEntries != 0) && (MonitorHighWaterEntries < (client->out_queue).total))
-         || ((MonitorHighWaterBytes != 0 && (MonitorHighWaterBytes < (client->out_queue).bytes)))) {
-        client->out_highwater = 1;
-        (*MonitorCB)(MonitorCBData,client,1);
-      }
-    }
-    else if (((MonitorLowWaterEntries == 0) || ((client->out_queue).total < MonitorLowWaterEntries))
-            && ((MonitorLowWaterBytes == 0 || ((client->out_queue).bytes < MonitorLowWaterBytes))))
-    {
-      client->out_highwater = '\0';
-      (*MonitorCB)(MonitorCBData,client,0);
+  RouterQ *q = &client->out_queue;
+
+  if (MonitorCB == NULL)
+    return;
+  if (!client->out_highwater) {
+    if ((MonitorHighWaterEntries != 0 && q->total > MonitorHighWaterEntries) ||
+        (MonitorHighWaterBytes != 0 && q->bytes > MonitorHighWaterBytes)) {
+      client->out_highwater = 1;
+      MonitorCB(MonitorCBData,client,1);
     }
   }
-  return;
+  else if ((MonitorLowWaterEntries == 0 || q->total < MonitorLowWaterEntries) &&
+           (MonitorLowWaterBytes == 0 || q->bytes < MonitorLowWaterBytes)) {
+    client->out_highwater = 0;
+    MonitorCB(MonitorCBData,client,0);
+  }
 }
 
-void RouterPack(RouterClient *client, int opcode, int class, int argcount, RouterArgument *arglist, void (*response_cb)(), unsigned char *response_data, void (*error_cb)(), unsigned char *error_data, int priority, void *purge_data, RouterQEntry **entry)
+/* build a packet (header in host order until RouterLoadOutput) */
+void RouterPack(RouterClient *client, int opcode, int clas, int argcount, RouterArgument *arglist, void (*response_cb)(), unsigned char *response_data, void (*error_cb)(), unsigned char *error_data, int priority, void *purge_data, RouterQEntry **entry)
 {
-  unsigned int *puVar1;
-  unsigned int uVar2;
-  unsigned int uVar3;
-  unsigned int uVar4;
-  unsigned int uVar5;
-  RouterQEntry *pRVar6;
-  RouterHeader *pRVar7;
-  int iVar8;
-  uint32_t class_size;
-  int i;
-  unsigned char *cbuf_ptr;
-  unsigned char *data_start;
-  unsigned char *buf_ptr;
-  int compress;
-  int csize;
-  int size;
-  unsigned char priority_;
-  
-  priority_ = (unsigned char)priority;
+  RouterQEntry *e;
+  unsigned char *data_start, *p, *cbuf;
+  unsigned int csize;
+  int compress, size, i;
+
+  compress = client->out_cfg != NULL && (client->out_cfg->flags & RCF_COMPRESS);
+  e = malloc(sizeof(RouterQEntry));
+  *entry = e;
+  if (e == NULL)
+    RouterMemError();
+  e->response_cb = response_cb;
+  e->response_data = response_data;
+  e->error_cb = error_cb;
+  e->error_data = error_data;
+  e->priority = priority;
+  e->purge_data = purge_data;
+  e->next = NULL;
+
   size = 0;
-  csize = 0;
-  compress = 0;
-  if ((client->out_cfg != NULL) && ((client->out_cfg->flags & 0x80000000) != 0)) {
-    compress = 1;
-  }
-  pRVar6 = malloc(sizeof(RouterQEntry));
-  *entry = pRVar6;
-  if (pRVar6 == NULL) {
+  for (i = 0; i < argcount; i++)
+    size += arglist[i].clas == 0 ? 8 : 4 + ((arglist[i].size + 3U) & ~3U);
+  e->packet = malloc(size + sizeof(RouterHeader));
+  if (e->packet == NULL) {
+    free(e);
     RouterMemError();
   }
-  (*entry)->response_cb = response_cb;
-  (*entry)->response_data = response_data;
-  (*entry)->error_cb = error_cb;
-  (*entry)->error_data = error_data;
-  (*entry)->priority = priority_;
-  (*entry)->purge_data = purge_data;
-  (*entry)->next = NULL;
-  for (i = 0; i < argcount; i = i + 1) {
-    if (arglist[i].clas == 0) {
-      size = size + 8;
-    }
-    else {
-      size = size + 4 + (((arglist[i].size) + 3U) & 0xfffffffc);
-    }
-  }
-  pRVar7 = malloc(size + 8);
-  (*entry)->packet = pRVar7;
-  if (pRVar7 == NULL) {
-    free(entry);
-    RouterMemError();
-  }
-  pRVar7 = (*entry)->packet;
-  pRVar7->length = 0;
-  pRVar7->length = pRVar7->length | size;
-  (*entry)->packet->opcode = (unsigned short)opcode;
-  (*entry)->packet->clas = (unsigned char)class;
-  (*entry)->packet->id = 0;
-  (*entry)->packet->config = 0;
-  data_start = (unsigned char *)((*entry)->packet + 1);
-  buf_ptr = data_start;
-  for (i = 0; i < argcount; i = i + 1) {
-    put_be32(buf_ptr,arglist[i].clas << 0x18 | arglist[i].size);
-    buf_ptr = buf_ptr + 4;
+  e->packet->length = size;
+  e->packet->opcode = opcode;
+  e->packet->clas = clas;
+  e->packet->id = 0;
+  e->packet->config = 0;
+
+  data_start = (unsigned char *)(e->packet + 1);
+  p = data_start;
+  for (i = 0; i < argcount; i++) {
+    put_be32(p,arglist[i].clas << 24 | arglist[i].size);
+    p += 4;
     if (arglist[i].clas == 0) {
       /* the original stored inline values unconverted, i.e. little-endian (i386) */
-      put_le32(buf_ptr,(uint32_t)arglist[i].val);
-      buf_ptr = buf_ptr + 4;
+      put_le32(p,(uint32_t)arglist[i].val);
+      p += 4;
     }
     else {
-      memcpy(buf_ptr,(void *)arglist[i].val,arglist[i].size);
+      memcpy(p,(void *)arglist[i].val,arglist[i].size);
       /* the original left the alignment padding uninitialized: heap bytes on the wire */
-      memset(buf_ptr + arglist[i].size,0,-arglist[i].size & 3U);
-      buf_ptr = buf_ptr + (((arglist[i].size) + 3U) & 0xfffffffc);
+      memset(p + arglist[i].size,0,-arglist[i].size & 3U);
+      p += (arglist[i].size + 3U) & ~3U;
     }
   }
-  if ((compress == 0) || (size < 1)) {
-    OutputStats.notry_count = OutputStats.notry_count + 1;
-    OutputStats.notry_bytes = OutputStats.notry_bytes + size;
-    (client->out_stats).notry_count = (client->out_stats).notry_count + 1;
-    (client->out_stats).notry_bytes = size + (client->out_stats).notry_bytes;
+
+  if (!compress || size < 1) {
+    OutputStats.notry_count++;
+    OutputStats.notry_bytes += size;
+    client->out_stats.notry_count++;
+    client->out_stats.notry_bytes += size;
   }
   else {
-    iVar8 = BuffCompress(data_start,size,&cbuf_ptr,(unsigned int *)&csize);
-    if (iVar8 == -1) {
+    if (BuffCompress(data_start,size,&cbuf,&csize) == -1)
       RouterMemError();
-    }
-    if (csize < size) {
-      memcpy(data_start,cbuf_ptr,csize);
-      pRVar7 = (*entry)->packet;
-      pRVar7->length = 0;
-      pRVar7->length = pRVar7->length | csize;
-      (*entry)->packet->config = (*entry)->packet->config | 0x80;
-      OutputStats.compress_count = OutputStats.compress_count + 1;
-      OutputStats.compress_bytes = OutputStats.compress_bytes + csize;
-      OutputStats.uncompressed_bytes = OutputStats.uncompressed_bytes + size;
-      puVar1 = &(client->out_stats).compress_count;
-      *puVar1 = *puVar1 + 1;
-      (client->out_stats).compress_bytes = csize + (client->out_stats).compress_bytes;
-      (client->out_stats).uncompressed_bytes = size + (client->out_stats).uncompressed_bytes;
+    if ((int)csize < size) {
+      memcpy(data_start,cbuf,csize);
+      e->packet->length = csize;
+      e->packet->config |= RH_COMPRESSED;
+      OutputStats.compress_count++;
+      OutputStats.compress_bytes += csize;
+      OutputStats.uncompressed_bytes += size;
+      client->out_stats.compress_count++;
+      client->out_stats.compress_bytes += csize;
+      client->out_stats.uncompressed_bytes += size;
     }
     else {
-      OutputStats.nocompress_count = OutputStats.nocompress_count + 1;
-      OutputStats.nocompress_bytes = OutputStats.nocompress_bytes + size;
-      OutputStats.nocompress_compressed_bytes = OutputStats.nocompress_compressed_bytes + csize;
-      puVar1 = &(client->out_stats).nocompress_count;
-      *puVar1 = *puVar1 + 1;
-      (client->out_stats).nocompress_bytes = size + (client->out_stats).nocompress_bytes;
-      (client->out_stats).nocompress_compressed_bytes =
-           csize + (client->out_stats).nocompress_compressed_bytes;
+      OutputStats.nocompress_count++;
+      OutputStats.nocompress_bytes += size;
+      OutputStats.nocompress_compressed_bytes += csize;
+      client->out_stats.nocompress_count++;
+      client->out_stats.nocompress_bytes += size;
+      client->out_stats.nocompress_compressed_bytes += csize;
     }
-    BuffFree(cbuf_ptr);
+    BuffFree(cbuf);
   }
-  memcpy(&(*entry)->header,(*entry)->packet,8);
-  return;
+  memcpy(&e->header,e->packet,sizeof(RouterHeader));
 }
 
+/* split a received packet into client->InArgList; returns the number of
+ * arguments (data arguments are malloc()ed, freed by RouterFreeArguments) */
 int RouterUnpack(RouterClient *client, RouterHeader *packet)
 {
-  unsigned int *puVar1;
-  unsigned int uVar2;
-  unsigned int uVar3;
-  unsigned int uVar4;
-  unsigned int uVar5;
-  unsigned int uVar6;
-  unsigned int uVar7;
-  unsigned int uVar8;
-  unsigned int uVar9;
-  unsigned int uVar10;
-  unsigned int uVar11;
-  RouterArgument *pRVar12;
-  int iVar13;
-  RouterArgument *pRVar14;
+  unsigned char *p, *end, *ubuf = NULL;
+  unsigned int usize;
   uint32_t class_size;
-  uint32_t uVar15;
-  void *pvVar16;
-  int j;
-  int i;
-  int usize;
-  int size;
-  unsigned char *buf_end;
-  unsigned char *ubuf_ptr;
-  unsigned char *buf_ptr;
-  bool compress;
-  
-  compress = false;
-  i = 0;
-  if ((client->in_cfg != NULL) && ((client->in_cfg->flags & 0x80000000) != 0)) {
-    compress = true;
-  }
-  size = packet->length - 8;
-  buf_ptr = (unsigned char *)(packet + 1);
-  buf_end = (unsigned char *)(buf_ptr + packet->length);
-  if ((compress) && ((packet->config & 0x80) != 0)) {
-    iVar13 = BuffUncompress(buf_ptr,packet->length,&ubuf_ptr,(unsigned int *)&usize);
-    if (iVar13 == -1) {
+  RouterArgument *arg;
+  int compressed, i, j;
+
+  compressed = client->in_cfg != NULL && (client->in_cfg->flags & RCF_COMPRESS);
+  p = (unsigned char *)(packet + 1);
+  end = p + packet->length;
+  if (compressed && (packet->config & RH_COMPRESSED)) {
+    if (BuffUncompress(p,packet->length,&ubuf,&usize) == -1)
       RouterMemError();
-    }
-    buf_ptr = ubuf_ptr;
-    buf_end = ubuf_ptr + usize;
-    InputStats.compress_count = InputStats.compress_count + 1;
-    InputStats.compress_bytes = InputStats.compress_bytes + packet->length;
-    InputStats.uncompressed_bytes = InputStats.uncompressed_bytes + usize;
-    puVar1 = &(client->in_stats).compress_count;
-    *puVar1 = *puVar1 + 1;
-    (client->in_stats).compress_bytes = (client->in_stats).compress_bytes + packet->length;
-    (client->in_stats).uncompressed_bytes = usize + (client->in_stats).uncompressed_bytes;
+    p = ubuf;
+    end = ubuf + usize;
+    InputStats.compress_count++;
+    InputStats.compress_bytes += packet->length;
+    InputStats.uncompressed_bytes += usize;
+    client->in_stats.compress_count++;
+    client->in_stats.compress_bytes += packet->length;
+    client->in_stats.uncompressed_bytes += usize;
+  }
+  else if (compressed) {
+    InputStats.nocompress_count++;
+    InputStats.nocompress_bytes += packet->length;
+    client->in_stats.nocompress_count++;
+    client->in_stats.nocompress_bytes += packet->length;
   }
   else {
-    buf_ptr = (unsigned char *)(packet + 1);
-    buf_end = (unsigned char *)(buf_ptr + packet->length);
-    if (compress) {
-      InputStats.nocompress_count = InputStats.nocompress_count + 1;
-      InputStats.nocompress_bytes = InputStats.nocompress_bytes + packet->length;
-      puVar1 = &(client->in_stats).nocompress_count;
-      *puVar1 = *puVar1 + 1;
-      (client->in_stats).nocompress_bytes = (client->in_stats).nocompress_bytes + packet->length;
-    }
-    else {
-      InputStats.notry_count = InputStats.notry_count + 1;
-      InputStats.notry_bytes = InputStats.notry_bytes + packet->length;
-      (client->in_stats).notry_count = (client->in_stats).notry_count + 1;
-      (client->in_stats).notry_bytes = (client->in_stats).notry_bytes + packet->length;
-    }
+    InputStats.notry_count++;
+    InputStats.notry_bytes += packet->length;
+    client->in_stats.notry_count++;
+    client->in_stats.notry_bytes += packet->length;
   }
-  while (buf_ptr + 4 < buf_end) {
-    if (client->InArgListSize <= i) {
-      pRVar14 = realloc(client->InArgList, (MaxInArgs + client->InArgListSize) * sizeof(RouterArgument));
-      client->InArgList = pRVar14;
-      if (pRVar14 == NULL) {
+
+  for (i = 0; p + 4 < end; i++) {
+    if (i >= client->InArgListSize) {
+      client->InArgList = realloc(client->InArgList,
+                                  (client->InArgListSize + MaxInArgs) * sizeof(RouterArgument));
+      if (client->InArgList == NULL)
         RouterMemError();
-      }
-      client->InArgListSize = MaxInArgs + client->InArgListSize;
-      for (j = i; j < client->InArgListSize; j = j + 1) {
-        client->InArgList[j].clas = 0;
-        client->InArgList[j].val = 0;
-        client->InArgList[j].fre = 0;
-        client->InArgList[j].size = 0;
-      }
+      client->InArgListSize += MaxInArgs;
+      for (j = i; j < client->InArgListSize; j++)
+        memset(&client->InArgList[j],0,sizeof(RouterArgument));
     }
-    class_size = get_be32(buf_ptr);
-    buf_ptr = buf_ptr + 4;
-    client->InArgList[i].clas = class_size >> 0x18;
-    client->InArgList[i].size = class_size & 0xffffff;
-    if (client->InArgList[i].clas == 0) {
-      client->InArgList[i].size = 0;
+    arg = &client->InArgList[i];
+    class_size = get_be32(p);
+    p += 4;
+    arg->clas = class_size >> 24;
+    arg->size = class_size & 0xffffff;
+    if (arg->clas == 0) {
+      arg->size = 0;
       /* the original read inline values with ntohl (so i386 peers see them byte-swapped) */
-      uVar15 = get_be32(buf_ptr);
-      buf_ptr = buf_ptr + 4;
-      client->InArgList[i].val = uVar15;
+      arg->val = get_be32(p);
+      p += 4;
     }
     else {
-      if (buf_end < buf_ptr + client->InArgList[i].size) break;
-      pvVar16 = malloc(client->InArgList[i].size);
-      client->InArgList[i].val = (uintptr_t)pvVar16;
-      if (pvVar16 == NULL) {
+      if (p + arg->size > end)
+        break;
+      arg->val = (uintptr_t)malloc(arg->size);
+      if (arg->val == 0) {
         RouterFreeArguments(i,client->InArgList);
         RouterMemError();
       }
-      memcpy((void *)client->InArgList[i].val,buf_ptr,client->InArgList[i].size);
-      buf_ptr = buf_ptr + ((client->InArgList[i].size + 3U) & 0xfffffffc);
-      client->InArgList[i].fre = 1;
+      memcpy((void *)arg->val,p,arg->size);
+      p += (arg->size + 3U) & ~3U;
+      arg->fre = 1;
     }
-    i = i + 1;
   }
-  if ((compress) && ((packet->config & 0x80) != 0)) {
-    BuffFree(ubuf_ptr);
-  }
+  if (ubuf != NULL)
+    BuffFree(ubuf);
   return i;
 }
 
+/* ---- statistics ---- */
+
+/* queue statistics for one connection, or all (client NULL); buf NULL: malloc()ed */
 char *RouterDumpQStats(char *buf, RouterClient *client)
 {
-  char *__s;
-  size_t sVar1;
-  char *rptr;
-  RouterClient *lclient;
-  
+  RouterClient *stop;
+  char *p;
+
   if (client == NULL) {
     client = ClientList.head;
-    lclient = NULL;
+    stop = NULL;
   }
   else {
-    lclient = client->next;
+    stop = client->next;
   }
-  if (buf == NULL) {
-    buf = malloc(ClientList.total * 0x8c);
-  }
-  rptr = buf;
+  if (buf == NULL)
+    buf = malloc(ClientList.total * 140);
   if (client == NULL) {
     sprintf(buf,"RouterDumpQStats:  no clients!\n");
+    return buf;
   }
-  else {
-    do {
-      sprintf(rptr,"0x%08x    IN:    cur %d/%d    max %d/%d    total %d\n",client,
-              (client->in_queue).total,(client->in_queue).bytes,(client->in_queue).total_max,
-              (client->in_queue).bytes_max,client->in_pkts);
-      sVar1 = strlen(rptr);
-      __s = rptr + sVar1;
-      sprintf(__s,"              OUT:   cur %d/%d    max %d/%d   total %d\n",
-              (client->out_queue).total,(client->out_queue).bytes,(client->out_queue).total_max,
-              (client->out_queue).bytes_max,client->out_pkts);
-      sVar1 = strlen(__s);
-      rptr = __s + sVar1;
-      client = client->next;
-    } while (client != lclient);
-  }
+  p = buf;
+  do {
+    p += sprintf(p,"0x%08lx    IN:    cur %d/%d    max %d/%d    total %d\n",
+                 (unsigned long)(uintptr_t)client,client->in_queue.total,client->in_queue.bytes,
+                 client->in_queue.total_max,client->in_queue.bytes_max,client->in_pkts);
+    p += sprintf(p,"              OUT:   cur %d/%d    max %d/%d   total %d\n",
+                 client->out_queue.total,client->out_queue.bytes,client->out_queue.total_max,
+                 client->out_queue.bytes_max,client->out_pkts);
+    client = client->next;
+  } while (client != stop);
   return buf;
 }
 
 void RouterResetQStats(RouterClient *client)
 {
-  RouterClient *lclient;
-  
+  RouterClient *stop;
+
   if (client == NULL) {
     client = ClientList.head;
-    lclient = NULL;
+    stop = NULL;
   }
   else {
-    lclient = client->next;
+    stop = client->next;
   }
-  if (client != NULL) {
-    do {
-      (client->in_queue).total_max = 0;
-      (client->in_queue).bytes_max = 0;
-      client->in_pkts = 0;
-      (client->out_queue).total_max = 0;
-      (client->out_queue).bytes_max = 0;
-      client->out_pkts = 0;
-      client = client->next;
-    } while (client != lclient);
-  }
-  return;
+  if (client == NULL)
+    return;
+  do {
+    client->in_queue.total_max = 0;
+    client->in_queue.bytes_max = 0;
+    client->in_pkts = 0;
+    client->out_queue.total_max = 0;
+    client->out_queue.bytes_max = 0;
+    client->out_pkts = 0;
+    client = client->next;
+  } while (client != stop);
 }
 
 void RouterDebugStats(int reset)
 {
   RouterPrintProcessStats(stdout,reset);
-  return;
 }
 
 void RouterPrintProcessStats(FILE *fd, int reset)
@@ -1724,498 +1349,363 @@ void RouterPrintProcessStats(FILE *fd, int reset)
     fprintf(fd,"\nOUTPUT SIDE STATISTICS:\n");
     RouterPrintStats(fd,&OutputStats);
   }
-  if (reset != 0) {
-    memset(&InputStats,0,sizeof(RouterCompressStats));
-    memset(&OutputStats,0,sizeof(RouterCompressStats));
+  if (reset) {
+    memset(&InputStats,0,sizeof(InputStats));
+    memset(&OutputStats,0,sizeof(OutputStats));
   }
-  return;
 }
 
 void RouterPrintAllStats(FILE *fd, int reset)
 {
-  RouterClient *cptr;
-  
-  for (cptr = ClientList.head; cptr != NULL; cptr = cptr->next) {
-    if (fd != NULL) {
-      fprintf(fd,"*** Router Statistics for client %#x\n",cptr);
-    }
-    RouterPrintClientStats(cptr,fd,reset);
+  RouterClient *client;
+
+  for (client = ClientList.head; client != NULL; client = client->next) {
+    if (fd != NULL)
+      fprintf(fd,"*** Router Statistics for client %#lx\n",(unsigned long)(uintptr_t)client);
+    RouterPrintClientStats(client,fd,reset);
   }
-  return;
 }
 
 void RouterPrintClientStats(RouterClient *client, FILE *fd, int reset)
 {
-  RouterCompressStats *s;
-  
   if (fd != NULL) {
     fprintf(fd,"\nINPUT SIDE STATISTICS:\n");
     RouterPrintStats(fd,&client->in_stats);
     fprintf(fd,"\nOUTPUT SIDE STATISTICS:\n");
     RouterPrintStats(fd,&client->out_stats);
   }
-  if (reset != 0) {
+  if (reset) {
     memset(&client->in_stats,0,sizeof(client->in_stats));
     memset(&client->out_stats,0,sizeof(client->out_stats));
   }
-  return;
 }
 
 static void RouterPrintStats(FILE *fd, RouterCompressStats *s)
 {
-  unsigned int uVar1;
-  int ratio;
-  
+  unsigned int ratio;
+
   fprintf(fd,"                        transfers         bytes   \n");
   fprintf(fd,"                       -----------     -----------\n");
-  fprintf(fd,"No compress attempted: %11d    %11d\n",s->notry_count,s->notry_bytes);
-  fprintf(fd,"Too small to compress: %11d    %11d\n",s->toosmall_count,s->toosmall_bytes);
-  fprintf(fd,"Larger after compress: %11d    %11d  (%d after compress)\n",s->nocompress_count,
+  fprintf(fd,"No compress attempted: %11u    %11u\n",s->notry_count,s->notry_bytes);
+  fprintf(fd,"Too small to compress: %11u    %11u\n",s->toosmall_count,s->toosmall_bytes);
+  fprintf(fd,"Larger after compress: %11u    %11u  (%u after compress)\n",s->nocompress_count,
           s->nocompress_bytes,s->nocompress_compressed_bytes);
-  fprintf(fd,"Compressed:            %11d    %11d  (%d before compress)\n",s->compress_count,
+  fprintf(fd,"Compressed:            %11u    %11u  (%u before compress)\n",s->compress_count,
           s->compress_bytes,s->uncompressed_bytes);
   if (s->compress_bytes != 0) {
-    uVar1 = (s->uncompressed_bytes * 100) / s->compress_bytes;
-    fprintf(fd,"*** Compression ratio is %d.%.2d:1\n",(int)uVar1 / 100,(int)uVar1 % 100);
+    ratio = s->uncompressed_bytes * 100 / s->compress_bytes;
+    fprintf(fd,"*** Compression ratio is %d.%.2d:1\n",(int)ratio / 100,(int)ratio % 100);
   }
-  return;
 }
 
+/* ---- queues ---- */
+
+/* append entry; with use_priority, ahead of the entries of lower priority */
 static void RouterQStore(RouterQ *queue, RouterQEntry *entry, int use_priority)
 {
-  unsigned int uVar1;
-  int cnt;
-  RouterQEntry *e;
-  RouterQEntry *pe;
-  
-  if (((queue->tail == NULL) || (use_priority == 0)) ||
-     (entry->priority <= queue->tail->priority)) {
-    pe = queue->tail;
-    e = NULL;
-  }
-  else if ((queue->head == NULL) || (entry->priority <= queue->head->priority)) {
-    e = queue->head;
-    pe = NULL;
-    for (; (e != NULL && (entry->priority <= e->priority)); e = e->next) {
-      pe = e;
-    }
-  }
-  else {
-    pe = NULL;
-    e = queue->head;
-  }
-  if ((pe == NULL) && (e == NULL)) {
-    queue->head = entry;
-    queue->tail = entry;
-  }
-  else if ((pe == NULL) || (e != NULL)) {
-    if ((pe == NULL) && (e != NULL)) {
-      entry->next = queue->head;
+  RouterQEntry **link;
+
+  if (queue->tail == NULL || !use_priority || entry->priority <= queue->tail->priority) {
+    if (queue->tail == NULL)
       queue->head = entry;
-    }
-    else {
-      pe->next = entry;
-      entry->next = e;
-    }
-  }
-  else {
-    queue->tail->next = entry;
+    else
+      queue->tail->next = entry;
     queue->tail = entry;
   }
-  queue->total = queue->total + 1;
-  if (queue->total_max < queue->total) {
+  else {
+    /* after the entries of the same or higher priority */
+    for (link = &queue->head; *link != NULL && entry->priority <= (*link)->priority;
+         link = &(*link)->next)
+      ;
+    entry->next = *link;
+    *link = entry;
+  }
+  queue->total++;
+  if (queue->total > queue->total_max)
     queue->total_max = queue->total;
-  }
-  queue->bytes = queue->bytes + (entry->header).length;
-  if (queue->bytes_max < queue->bytes) {
+  queue->bytes += entry->header.length;
+  if (queue->bytes > queue->bytes_max)
     queue->bytes_max = queue->bytes;
-  }
-  return;
 }
 
 static RouterQEntry *RouterQRetrieve(RouterQ *queue)
 {
-  unsigned int uVar1;
-  RouterQEntry *pRVar2;
-  RouterQEntry *entry;
-  
-  pRVar2 = queue->head;
-  if (pRVar2 == NULL) {
-    pRVar2 = NULL;
+  RouterQEntry *entry = queue->head;
+
+  if (entry == NULL)
+    return NULL;
+  if (queue->head == queue->tail) {
+    queue->head = NULL;
+    queue->tail = NULL;
   }
   else {
-    if (queue->head == queue->tail) {
-      queue->tail = NULL;
-      queue->head = NULL;
-    }
-    else {
-      queue->head = pRVar2->next;
-    }
-    queue->total = queue->total + -1;
-    queue->bytes = queue->bytes - (pRVar2->header).length;
+    queue->head = entry->next;
   }
-  return pRVar2;
+  queue->total--;
+  queue->bytes -= entry->header.length;
+  /* (the original kept the stale link: a sent request moved to in_queue still
+   * pointed into out_queue, and freeing both queues freed entries twice) */
+  entry->next = NULL;
+  return entry;
 }
 
+/* drop the requests in a queue (reliable ones go back to their error callbacks) */
 static void RouterQRemoveRequests(RouterClient *client, RouterQ *queue)
 {
-  struct _RouterQEntry *p_Var1;
-  unsigned int uVar2;
-  int plen;
-  RouterQEntry *req_entry;
-  RouterQEntry *last_entry;
-  RouterQEntry *entry;
-  
-  last_entry = NULL;
-  entry = queue->head;
-  while (entry != NULL) {
-    if (((entry->header).clas == 0x10) || ((entry->header).clas == 0x20)) {
-      if (entry == queue->head) {
-        if (entry->next == NULL) {
-          queue->tail = NULL;
-          queue->head = NULL;
-        }
-        else {
-          queue->head = entry->next;
-        }
-      }
-      else if (entry == queue->tail) {
-        queue->tail = last_entry;
-        queue->tail->next = NULL;
-      }
-      else {
-        last_entry->next = entry->next;
-      }
-      p_Var1 = entry->next;
-      queue->total = queue->total + -1;
-      queue->bytes = queue->bytes - (entry->header).length;
-      RouterFreeEntry(client,entry,1);
-      entry = p_Var1;
+  RouterQEntry **link = &queue->head;
+  RouterQEntry *entry, *prev = NULL;
+
+  while ((entry = *link) != NULL) {
+    if (!is_request(entry)) {
+      prev = entry;
+      link = &entry->next;
+      continue;
     }
-    else {
-      last_entry = entry;
-      entry = entry->next;
-    }
+    *link = entry->next;
+    if (queue->tail == entry)
+      queue->tail = prev;
+    queue->total--;
+    queue->bytes -= entry->header.length;
+    RouterFreeEntry(client,entry,1);
   }
-  return;
 }
+
+/* ---- freeing ---- */
 
 void RouterFreeArguments(int argcount, RouterArgument *arglist)
 {
   int i;
-  
-  for (i = 0; i < argcount; i = i + 1) {
-    if (((arglist[i].clas == 1) && (arglist[i].fre != 0)) && (arglist[i].val != 0)) {
+
+  for (i = 0; i < argcount; i++)
+    if (arglist[i].clas == 1 && arglist[i].fre && arglist[i].val != 0)
       free((void *)arglist[i].val);
-    }
-  }
-  return;
 }
 
 void RouterFreeClient(RouterClient *client, int return_rel_request)
 {
   RouterFreeGroups(client);
-  if (client->in_buf != NULL) {
-    free(client->in_buf);
-  }
-  if (client->in_cfg != NULL) {
-    free(client->in_cfg);
-  }
-  if ((client->out_cfg != NULL) && (client->out_cfg != client->in_cfg)) {
+  free(client->in_buf);
+  free(client->in_cfg);
+  if (client->out_cfg != client->in_cfg)
     free(client->out_cfg);
-  }
   RouterFreeQueue(client,&client->in_queue,return_rel_request);
   RouterFreeEntry(client,client->out_buf,return_rel_request);
   RouterFreeQueue(client,&client->out_queue,return_rel_request);
-  if (client->InArgList != NULL) {
-    free(client->InArgList);
-  }
-  if ((client->error_cb == NULL) && (ClientFreeCB != NULL)) {
-    (*ClientFreeCB)(client);
-  }
+  free(client->InArgList);
+  if (client->error_cb == NULL && ClientFreeCB != NULL)
+    ClientFreeCB(client);
   free(client);
-  return;
 }
 
 void RouterFreeGroups(RouterClient *client)
 {
-  if ((client->groups).bits != NULL) {
-    free((client->groups).bits);
-  }
-  (client->groups).count = 0;
-  (client->groups).bits = NULL;
-  return;
+  free(client->groups.bits);
+  client->groups.count = 0;
+  client->groups.bits = NULL;
 }
 
 static void RouterFreeQueue(RouterClient *client, RouterQ *queue, int return_rel_request)
 {
-  struct _RouterQEntry *p_Var1;
-  RouterQEntry *next;
-  RouterQEntry *qptr;
-  
-  qptr = queue->head;
-  while (qptr != NULL) {
-    p_Var1 = qptr->next;
-    RouterFreeEntry(client,qptr,return_rel_request);
-    qptr = p_Var1;
+  RouterQEntry *entry, *next;
+
+  for (entry = queue->head; entry != NULL; entry = next) {
+    next = entry->next;
+    RouterFreeEntry(client,entry,return_rel_request);
   }
-  return;
 }
 
+/* free a queue entry; with return_rel_request a reliable request's arguments
+ * go to its error callback first */
 static void RouterFreeEntry(RouterClient *client, RouterQEntry *entry, int return_rel_request)
 {
   int argcountin;
-  
-  if (entry != NULL) {
-    if (entry->packet != NULL) {
-      if (((return_rel_request != 0) && ((entry->header).clas == 0x20)) &&
-         (entry->error_cb != NULL)) {
-        argcountin = RouterUnpack(client,entry->packet);
-        (*entry->error_cb)(client,entry->error_data,argcountin,client->InArgList);
-        RouterFreeArguments(argcountin,client->InArgList);
-      }
-      free(entry->packet);
+
+  if (entry == NULL)
+    return;
+  if (entry->packet != NULL) {
+    if (return_rel_request && entry->header.clas == RC_REL_REQUEST && entry->error_cb != NULL) {
+      /* (a sent packet's header is in wire order: RouterUnpack needs the host
+       * order one. The original unpacked the wire header.) */
+      memcpy(entry->packet,&entry->header,sizeof(RouterHeader));
+      argcountin = RouterUnpack(client,entry->packet);
+      entry->error_cb(client,entry->error_data,argcountin,client->InArgList);
+      RouterFreeArguments(argcountin,client->InArgList);
     }
-    free(entry);
+    free(entry->packet);
   }
-  return;
+  free(entry);
 }
 
 static void RouterFreePacket(RouterQEntry *entry)
 {
-  if ((entry != NULL) && (entry->packet != NULL)) {
+  if (entry != NULL && entry->packet != NULL) {
     free(entry->packet);
     entry->packet = NULL;
   }
-  return;
 }
+
+/* ---- event loop hooks ---- */
 
 static void RouterAddInput(RouterClient *client)
 {
-  EventID EVar1;
-  
-  EVar1 = EventAddInput(client->socket,RouterInput,(EventData)client,"RouterAddInput");
-  client->input_id = EVar1;
-  return;
+  client->input_id = EventAddInput(client->socket,RouterInput,(EventData)client,"RouterAddInput");
 }
 
 static void RouterRemoveInput(RouterClient *client)
 {
   EventRemoveInput(client->input_id);
-  return;
 }
 
 static void RouterAddOutput(RouterClient *client)
 {
-  EventID EVar1;
-  
-  EVar1 = EventAddOutput(client->socket,RouterOutput,(EventData)client,"RouterAddOutput");
-  client->output_id = EVar1;
-  return;
+  client->output_id = EventAddOutput(client->socket,RouterOutput,(EventData)client,
+                                     "RouterAddOutput");
 }
 
 static void RouterRemoveOutput(RouterClient *client)
 {
   EventRemoveOutput(client->output_id);
-  return;
 }
 
 void RouterAddTimer(RouterClient *client, RouterFunc (*timer_func)(), int timeout)
 {
-  EventID EVar1;
-  
-  if (client->timer_id != 0) {
+  if (client->timer_id != 0)
     EventRemoveTimeOut(client->timer_id);
-  }
-  EVar1 = EventAddTimeOut(timeout,0,timer_func,(EventData)client,"RouterAddTimer");
-  client->timer_id = EVar1;
-  return;
+  client->timer_id = EventAddTimeOut(timeout,0,timer_func,(EventData)client,"RouterAddTimer");
 }
 
 void RouterRemoveTimer(RouterClient *client)
 {
   EventRemoveTimeOut(client->timer_id);
   client->timer_id = 0;
-  return;
 }
+
+/* ---- errors ---- */
 
 void RouterLogError(int msgnbr, char *func_name, int errnbr, RouterClient *client, char *format)
 {
-  va_list args;
-  
-  LoggerLogMessage(msgnbr,func_name,errnbr,(client->id).hostname,client->port,(client->id).procname,
+  LoggerLogMessage(msgnbr,func_name,errnbr,client->id.hostname,client->port,client->id.procname,
                    format);
-  return;
 }
 
 int RouterCheckOutput(RouterClient *client, char *func_name)
 {
-  int iVar1;
-  
-  if ((client->use & 4U) == 0) {
-    LogError(-0x136,func_name,0,"");
-    iVar1 = -1;
+  if (!(client->use & RU_CONNECTED)) {
+    LogError(ROUTER_ERR_NO_OUTPUT,func_name,0,"");
+    return -1;
   }
-  else {
-    iVar1 = 0;
+  return 0;
+}
+
+/* the connection's error number for a lost connection, a timeout and other
+ * errors, by state */
+static int state_error(RouterClient *client, int connecting, int other)
+{
+  switch (client->use & RU_STATE) {
+  case RU_CONNECTING:
+    return connecting;
+  case RU_DISCONNECTING:
+    return ROUTER_ERR_CLOSED_LOCAL;
+  case RU_DISCONNECTED:
+    return ROUTER_ERR_CLOSED_REMOTE;
+  default:
+    return other;
   }
-  return iVar1;
 }
 
 void RouterConnectionLost(RouterClient *client)
 {
-  unsigned int uVar1;
-  int msgnbr;
-  
-  uVar1 = client->use & 0x3f;
-  if (uVar1 == 8) {
-    msgnbr = -0x132;
-  }
-  else {
-    if (uVar1 < 9) {
-      if (uVar1 == 1) {
-        if ((client->use & 0xc0U) == 0x80) {
-          client->error_cb = NULL;
-        }
-        msgnbr = -300;
-        goto LAB_08078ec0;
-      }
-    }
-    else if (uVar1 == 0x10) {
-      msgnbr = -0x133;
-      goto LAB_08078ec0;
-    }
-    msgnbr = -0x12f;
-  }
-LAB_08078ec0:
-  RouterClientError(client,msgnbr);
-  return;
+  /* a client that drops during our server's handshake is no error */
+  if ((client->use & RU_STATE) == RU_CONNECTING && (client->use & RU_SIDE) == RU_SERVER)
+    client->error_cb = NULL;
+  RouterClientError(client,state_error(client,ROUTER_ERR_CONNECT_FAILED,ROUTER_ERR_LOST));
 }
 
 void RouterConnectionTimeout(RouterClient *client)
 {
-  unsigned int uVar1;
-  int msgnbr;
-  
-  uVar1 = client->use & 0x3f;
-  if (uVar1 == 8) {
-    msgnbr = -0x132;
+  if ((client->use & RU_STATE) == RU_CONNECTING && (client->use & RU_SIDE) == RU_SERVER) {
+    RouterClose(client);
+    return;
   }
-  else {
-    if (uVar1 < 9) {
-      if (uVar1 == 1) {
-        if ((client->use & 0xc0U) == 0x80) {
-          RouterClose(client);
-          return;
-        }
-        msgnbr = -0x12d;
-        goto LAB_08078f60;
-      }
-    }
-    else if (uVar1 == 0x10) {
-      msgnbr = -0x133;
-      goto LAB_08078f60;
-    }
-    msgnbr = -0x130;
-  }
-LAB_08078f60:
-  RouterClientError(client,msgnbr);
-  return;
+  RouterClientError(client,state_error(client,ROUTER_ERR_CONNECT_TIMEOUT,ROUTER_ERR_TIMEOUT));
 }
 
 void RouterConnectionError(RouterClient *client)
 {
-  unsigned int uVar1;
   int msgnbr;
-  
-  uVar1 = client->use & 0x3f;
-  if (uVar1 == 8) {
-LAB_08078fb0:
-    msgnbr = -0x134;
+
+  switch (client->use & RU_STATE) {
+  case RU_CONNECTING:
+    msgnbr = ROUTER_ERR_CONNECT_ERROR;
+    break;
+  case RU_DISCONNECTING:
+  case RU_DISCONNECTED:
+    msgnbr = ROUTER_ERR_CLOSE_ERROR;
+    break;
+  default:
+    msgnbr = ROUTER_ERR_ERROR;
+    break;
   }
-  else {
-    if (uVar1 < 9) {
-      if (uVar1 == 1) {
-        msgnbr = -0x12e;
-        goto LAB_08078fd0;
-      }
-    }
-    else if (uVar1 == 0x10) goto LAB_08078fb0;
-    msgnbr = -0x131;
-  }
-LAB_08078fd0:
   RouterClientError(client,msgnbr);
-  return;
 }
 
+/* report to the error callback, then close */
 void RouterClientError(RouterClient *client, int msgnbr)
 {
-  client->use = client->use & 0xffffffc0;
-  if (client->error_cb != NULL) {
-    (*client->error_cb)(client,msgnbr,&client->id,client->port,client->retrys);
-  }
+  client->use &= ~RU_STATE;
+  if (client->error_cb != NULL)
+    client->error_cb(client,msgnbr,&client->id,client->port,client->retrys);
   RouterClose(client);
-  return;
 }
 
+/* a packet of the wrong class: a known class at the wrong time is
+ * "unexpected", anything else "invalid" */
 void RouterBadClass(RouterClient *client, char *func_name)
 {
-  unsigned char bVar1;
-  
-  bVar1 = client->in_buf->clas;
-  if (bVar1 < 0x13) {
-    if ((bVar1 < 0x10) && (bVar1 != 4)) {
-      if (bVar1 < 5) {
-        if ((2 < bVar1) || (bVar1 == 0)) {
-LAB_080790c0:
-          RouterLogError(-0x139,func_name,0,client,"");
-          goto LAB_080790e0;
-        }
-      }
-      else if (bVar1 != 8) goto LAB_080790c0;
-    }
+  switch (client->in_buf->clas) {
+  case RC_PASSWORD_REQ:
+  case RC_PASSWORD:
+  case RC_ACCEPT:
+  case RC_CLIENT_ID:
+  case RC_REQUEST:
+  case RC_DISCONNECT_REQ:
+  case RC_DISCONNECT_RSP:
+  case RC_REL_REQUEST:
+  case RC_RESPONSE:
+  case RC_EVENT:
+    RouterLogError(ROUTER_ERR_UNEXPECTED_CLASS,func_name,0,client,"");
+    break;
+  default:
+    RouterLogError(ROUTER_ERR_BAD_CLASS,func_name,0,client,"");
+    break;
   }
-  else if (bVar1 != 0x40) {
-    if (bVar1 < 0x41) {
-      if (bVar1 != 0x20) goto LAB_080790c0;
-    }
-    else if (bVar1 != 0x80) goto LAB_080790c0;
-  }
-  RouterLogError(-0x138,func_name,0,client,"");
-LAB_080790e0:
   RouterConnectionError(client);
-  return;
 }
 
+/* out of memory: report, drop every connection, and stop */
 void RouterMemError(void)
 {
   MemUsage();
   RouterShutDownClients();
-  LogError(-0x137,"",0,"");
-  if (FatalCB != NULL) {
-    (*FatalCB)(0xfffffec9);
-  }
+  LogError(ROUTER_ERR_MALLOC,"",0,"");
+  if (FatalCB != NULL)
+    FatalCB(ROUTER_ERR_MALLOC);
   abort();
 }
 
 int RouterClose(RouterClient *client)
 {
-  int iVar1;
-  
-  iVar1 = RouterDoClose(client,1);
-  return iVar1;
+  return RouterDoClose(client,1);
 }
 
 int RouterDoClose(RouterClient *client, int return_rel_request)
 {
-  int rvalue;
-  
-  rvalue = 0;
-  if (0 < client->socket) {
+  int rvalue = 0;
+
+  if (client->socket > 0) {
     RouterRemoveInput(client);
-    if ((0 < client->out_bytesleft) && (client->out_stopped == '\0')) {
+    if (client->out_bytesleft > 0 && !client->out_stopped)
       RouterRemoveOutput(client);
-    }
     rvalue = SocketClose(client->socket);
   }
   RouterRemoveClient(client,return_rel_request);

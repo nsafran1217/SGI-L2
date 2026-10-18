@@ -81,6 +81,9 @@ Per file:
 - drop `#include "decomp.h"` and the "needed by the reconstruction" includes
   that are no longer needed.
 
+When phase 2 is done: drop s390x from `make check-all` (endianness is
+settled; it is the slowest build).
+
 ### 3. Structure (after the code reads cleanly)
 - L1 transport interface under `l3/l2/l1.c` (sgil1 driver, L1 network link,
   serial/PPP) and a libusb backend: `l2` without the kernel driver.

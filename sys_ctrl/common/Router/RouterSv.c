@@ -3,26 +3,23 @@
  *
  * Reconstructed from the STABS debug info and Ghidra decompilation of l2.
  * Original: /data/cf/sysco/scs123.patch/sys_ctrl/common/Router/RouterSv.c
+ *
+ * The server side of Router connections (see Router.c): listen on a TCP
+ * port (and its local socket), and run the handshake with each client.
+ * validate_cb(client, addr, id) decides: 1 accept (RC_ACCEPT; the client
+ * answers with RC_CLIENT_ID), 2 ask for a password (RC_PASSWORD_REQ; the
+ * client's connect_cb(client, 2, process_id, retrys, argc, argv) judges the
+ * answer the same way), 3 refuse (RC_DENIED), anything else drop.
  */
 
+#include <stdlib.h>
 #include <string.h>
-#include "RouterSv.h"   /* needed by the reconstruction */
-#include "../../l3/l2/discover.h"   /* needed by the reconstruction */
+#include "RouterSv.h"
 #include "Router.h"
-#include <stdio.h>
-#include <stddef.h>
-#include <stdarg.h>
 #include "RouterInt.h"
-#include "Event.h"
-#include <time.h>
-#include <sys/time.h>
 #include "RouterMsg.h"
-#include "../sys/Logger.h"
-#include "../../l3/sys/LoggerMsg.h"
+#include "Event.h"
 #include "Socket.h"
-#include <signal.h>
-#include <malloc.h>
-#include "decomp.h"     /* Ghidra types/macros; remove once the file is cleaned up */
 
 static RouterServer *RouterMakeServer(int inet_socket, int unix_socket, int port, int (*validate_cb)(), void (*error_cb)());
 static void RouterAddServer(RouterServer *server);
@@ -30,674 +27,478 @@ static void RouterRemoveServer(RouterServer *server);
 static RouterFunc RouterAcceptInetConnection(RouterServer *server);
 static RouterFunc RouterAcceptUnixConnection(RouterServer *server);
 static void RouterValidateConnection(RouterServer *server, RouterClient *client);
-static void RouterStartConnection(RouterClient *client, int class);
+static void RouterStartConnection(RouterClient *client, int clas);
 static int RouterGetConResponse(RouterClient *client);
 static int RouterAcceptClient(RouterClient *client, int argcountin);
 static int RouterCheckPassword(RouterClient *client, int argcountin);
-static void RouterSendConRequest(RouterClient *client, int class);
+static void RouterSendConRequest(RouterClient *client, int clas);
 static int RouterGetClientArguments(RouterClient *client);
 static void RouterAddInetServer(RouterServer *server);
 static void RouterRemoveInetServer(RouterServer *server);
 static void RouterAddUnixServer(RouterServer *server);
 static void RouterRemoveUnixServer(RouterServer *server);
 
+/* validate_cb's and connect_cb's verdicts */
+enum { VERDICT_ACCEPT = 1, VERDICT_PASSWORD = 2, VERDICT_DENY = 3 };
+
+/* serve port; NULL if a server already answers there (or on error) */
 RouterServer *RouterStartServer(int port, int (*validate_cb)(), void (*error_cb)())
 {
-  RouterServer *server_00;
-  int inet_socket;
-  int iVar1;
   RouterServer *server;
-  int unix_socket;
   char *localhost;
-  char *func_name;
-  
-  func_name = "RouterStartServer";
-  unix_socket = -1;
+  int inet_socket;
+  int unix_socket = -1;
+
   if (validate_cb == NULL) {
-    LogError(-0x13d,"RouterStartServer",0,"");
-    server_00 = NULL;
+    LogError(ROUTER_ERR_PROTOCOL,"RouterStartServer",0,"");
+    return NULL;
   }
-  else {
-    inet_socket = SocketGetHostName(&localhost);
-    if (inet_socket == 0) {
-      iVar1 = SocketMakeInetConnection(localhost,port,0);
-      if (iVar1 < 0) {
-        iVar1 = SocketExportInetConnection(port);
-        if (iVar1 < 0) {
-          server_00 = NULL;
-        }
-        else if ((UseUnix == 0) ||
-                (unix_socket = SocketExportUnixConnection(port), -1 < unix_socket)) {
-          server_00 = RouterMakeServer(iVar1,unix_socket,port,validate_cb,error_cb);
-          RouterAddServer(server_00);
-          RouterAddInetServer(server_00);
-          if (UseUnix != 0) {
-            RouterAddUnixServer(server_00);
-          }
-        }
-        else {
-          SocketClose(iVar1);
-          server_00 = NULL;
-        }
-      }
-      else {
-        LogErrorHost(-0x135,"",0,localhost,port,"");
-        SocketClose(iVar1);
-        server_00 = NULL;
-      }
-    }
-    else {
-      server_00 = NULL;
+  if (SocketGetHostName(&localhost) != 0)
+    return NULL;
+  inet_socket = SocketMakeInetConnection(localhost,port,0);
+  if (inet_socket >= 0) {
+    LogErrorHost(ROUTER_ERR_SERVER_RUNNING,"",0,localhost,port,"");
+    SocketClose(inet_socket);
+    return NULL;
+  }
+  inet_socket = SocketExportInetConnection(port);
+  if (inet_socket < 0)
+    return NULL;
+  if (UseUnix) {
+    unix_socket = SocketExportUnixConnection(port);
+    if (unix_socket < 0) {
+      SocketClose(inet_socket);
+      return NULL;
     }
   }
-  return server_00;
+  server = RouterMakeServer(inet_socket,unix_socket,port,validate_cb,error_cb);
+  RouterAddServer(server);
+  RouterAddInetServer(server);
+  if (UseUnix)
+    RouterAddUnixServer(server);
+  return server;
 }
 
+/* does a server answer on port (TCP or local socket)? */
 int RouterCheckServer(int port)
 {
-  int iVar1;
   char *localhost;
-  int unix_socket;
-  int inet_socket;
-  char *func_name;
-  
-  func_name = "RouterCheckServer";
-  inet_socket = -1;
-  unix_socket = -1;
-  iVar1 = SocketGetHostName(&localhost);
-  if (iVar1 == 0) {
-    inet_socket = SocketMakeInetConnection(localhost,port,0);
-    if (inet_socket < 0) {
-      unix_socket = SocketMakeUnixConnection(port,0);
-      if (unix_socket < 0) {
-        iVar1 = 0;
-      }
-      else {
-        SocketClose(unix_socket);
-        iVar1 = 1;
-      }
-    }
-    else {
-      SocketClose(inet_socket);
-      iVar1 = 1;
-    }
-  }
-  else {
-    iVar1 = 1;
-  }
-  return iVar1;
+  int sock;
+
+  if (SocketGetHostName(&localhost) != 0)
+    return 1;
+  sock = SocketMakeInetConnection(localhost,port,0);
+  if (sock < 0)
+    sock = SocketMakeUnixConnection(port,0);
+  if (sock < 0)
+    return 0;
+  SocketClose(sock);
+  return 1;
 }
 
 void RouterStopServer(RouterServer *server)
 {
-  if (-1 < server->inet_socket) {
+  if (server->inet_socket >= 0) {
     RouterRemoveInetServer(server);
     SocketClose(server->inet_socket);
   }
-  if (-1 < server->unix_socket) {
+  if (server->unix_socket >= 0) {
     RouterRemoveUnixServer(server);
     SocketCloseUnixServer(server->unix_socket,server->port);
   }
   RouterRemoveServer(server);
-  return;
 }
 
 int RouterGetClients(RouterID **buf)
 {
-  int iVar1;
-  
-  iVar1 = RouterGetIDClients(-1,buf);
-  return iVar1;
+  return RouterGetIDClients(-1,buf);
 }
 
+/* is client a persistent connection to our server, of process_id (-1: any)? */
+static int listed_client(RouterClient *client, int process_id)
+{
+  return (client->use & RU_ACCEPTED) && (client->use & RU_SIDE) == RU_SERVER &&
+         (client->use & RU_KIND) == RU_PERSISTENT &&
+         (client->process_id == process_id || process_id == -1);
+}
+
+/* the RouterIDs of those clients, in a buffer valid until the next call */
 int RouterGetIDClients(int process_id, RouterID **buf)
 {
   static RouterID *client_id_buf;
-  int iVar1;
-  RouterID *pRVar2;
-  RouterID *pRVar3;
-  int i;
-  int clients;
-  RouterClient *client_ptr;
-  
-  clients = 0;
-  i = 0;
-  if (client_id_buf != NULL) {
-    free(client_id_buf);
-    client_id_buf = NULL;
-  }
-  for (client_ptr = ClientList.head; client_ptr != NULL;
-      client_ptr = client_ptr->next) {
-    if (((((client_ptr->use & 2U) != 0) && ((client_ptr->use & 0xc0U) == 0x80)) &&
-        ((client_ptr->use & 0x600U) == 0x200)) &&
-       ((client_ptr->process_id == process_id || (process_id == -1)))) {
-      clients = clients + 1;
-    }
-  }
+  RouterClient *client;
+  int clients = 0;
+  int i = 0;
+
+  free(client_id_buf);
+  client_id_buf = NULL;
+  for (client = ClientList.head; client != NULL; client = client->next)
+    if (listed_client(client,process_id))
+      clients++;
   if (clients == 0) {
     *buf = NULL;
+    return 0;
   }
-  else {
-    client_id_buf = calloc(clients, sizeof(RouterID));
-    if (client_id_buf == NULL) {
-      RouterMemError();
-    }
-    for (client_ptr = ClientList.head; client_ptr != NULL;
-        client_ptr = client_ptr->next) {
-      if ((((client_ptr->use & 2U) != 0) && ((client_ptr->use & 0xc0U) == 0x80)) &&
-         (((client_ptr->use & 0x600U) == 0x200 &&
-          ((client_ptr->process_id == process_id || (process_id == -1)))))) {
-        pRVar2 = &client_ptr->id;
-        pRVar3 = client_id_buf + i;
-        for (iVar1 = 0x20; iVar1 != 0; iVar1 = iVar1 + -1) {
-          *(uint32_t *)pRVar3->hostname = *(uint32_t *)pRVar2->hostname;
-          pRVar2 = (RouterID *)(pRVar2->hostname + 4);
-          pRVar3 = (RouterID *)(pRVar3->hostname + 4);
-        }
-        i = i + 1;
-      }
-    }
-    *buf = client_id_buf;
-  }
+  client_id_buf = calloc(clients,sizeof(RouterID));
+  if (client_id_buf == NULL)
+    RouterMemError();
+  for (client = ClientList.head; client != NULL; client = client->next)
+    if (listed_client(client,process_id))
+      client_id_buf[i++] = client->id;
+  *buf = client_id_buf;
   return clients;
 }
 
 void RouterShutDownServers(void)
 {
-  while (ServerList.head != NULL) {
+  while (ServerList.head != NULL)
     RouterStopServer(ServerList.head);
-  }
-  return;
 }
 
 void RouterCloseOnlyServers(void)
 {
-  while (ServerList.head != NULL) {
+  while (ServerList.head != NULL)
     RouterCloseOnlyServer(ServerList.head);
-  }
-  return;
 }
 
+/* close without shutdown() or removing the local socket (for a forked child) */
 void RouterCloseOnlyServer(RouterServer *server)
 {
-  if (-1 < server->inet_socket) {
+  if (server->inet_socket >= 0) {
     RouterRemoveInetServer(server);
     SocketCloseOnly(server->inet_socket);
   }
-  if (-1 < server->unix_socket) {
+  if (server->unix_socket >= 0) {
     RouterRemoveUnixServer(server);
     SocketCloseOnly(server->unix_socket);
   }
   RouterRemoveServer(server);
-  return;
 }
 
 static RouterServer *RouterMakeServer(int inet_socket, int unix_socket, int port, int (*validate_cb)(), void (*error_cb)())
 {
-  RouterServer *pRVar1;
   RouterServer *server;
-  
-  pRVar1 = malloc(sizeof(RouterServer));
-  if (pRVar1 == NULL) {
+
+  server = malloc(sizeof(RouterServer));
+  if (server == NULL)
     RouterMemError();
-  }
-  pRVar1->inet_socket = inet_socket;
-  pRVar1->unix_socket = unix_socket;
-  pRVar1->inet_id = 0;
-  pRVar1->unix_id = 0;
-  pRVar1->port = port;
-  pRVar1->cpp_hook = NULL;
-  pRVar1->validate_cb = validate_cb;
-  pRVar1->error_cb = error_cb;
-  pRVar1->next = NULL;
-  return pRVar1;
+  server->inet_socket = inet_socket;
+  server->unix_socket = unix_socket;
+  server->inet_id = 0;
+  server->unix_id = 0;
+  server->port = port;
+  server->cpp_hook = NULL;
+  server->validate_cb = validate_cb;
+  server->error_cb = error_cb;
+  server->next = NULL;
+  return server;
 }
 
 static void RouterAddServer(RouterServer *server)
 {
-  if (ServerList.tail == NULL) {
+  if (ServerList.tail == NULL)
     ServerList.head = server;
-  }
-  else {
-    (ServerList.tail)->next = server;
-  }
+  else
+    ServerList.tail->next = server;
   ServerList.tail = server;
   server->next = NULL;
-  ServerList.total = ServerList.total + 1;
-  return;
+  ServerList.total++;
 }
 
 static void RouterRemoveServer(RouterServer *server)
 {
-  RouterServer *last_server;
-  RouterServer *server_ptr;
-  
-  server_ptr = ServerList.head;
-  last_server = NULL;
-  while( true ) {
-    if (server_ptr == NULL) {
-      return;
-    }
-    if (server_ptr == server) break;
-    last_server = server_ptr;
-    server_ptr = server_ptr->next;
-  }
-  if (server_ptr == ServerList.head) {
-    if (server_ptr->next == NULL) {
-      ServerList.head = NULL;
-      ServerList.tail = NULL;
-    }
-    else {
-      ServerList.head = server_ptr->next;
-    }
-  }
-  else if (server_ptr == ServerList.tail) {
-    ServerList.tail = last_server;
-    last_server->next = NULL;
-  }
-  else {
-    last_server->next = server_ptr->next;
-  }
+  RouterServer *prev = NULL;
+  RouterServer *s;
+
+  for (s = ServerList.head; s != NULL && s != server; s = s->next)
+    prev = s;
+  if (s == NULL)
+    return;
+  if (prev == NULL)
+    ServerList.head = s->next;
+  else
+    prev->next = s->next;
+  if (ServerList.tail == s)
+    ServerList.tail = prev;
   free(server);
-  ServerList.total = ServerList.total + -1;
-  return;
+  ServerList.total--;
 }
 
+/* server, if it still exists */
 RouterServer *RouterFindServer(RouterServer *server)
 {
-  RouterServer *last_server;
-  RouterServer *server_ptr;
-  
-  server_ptr = ServerList.head;
-  while( true ) {
-    if (server_ptr == NULL) {
-      return NULL;
-    }
-    if (server_ptr == server) break;
-    server_ptr = server_ptr->next;
-  }
-  return server;
+  RouterServer *s;
+
+  for (s = ServerList.head; s != NULL; s = s->next)
+    if (s == server)
+      return server;
+  return NULL;
 }
 
+/* a client connected over TCP */
 static RouterFunc RouterAcceptInetConnection(RouterServer *server)
 {
-  int iVar1;
-  char *__src;
   RouterClient *client;
-  int nodelay;
-  int use;
   Hostname conn_host;
   uint32_t conn_addr;
   int conn_socket;
-  
+
   conn_socket = SocketAcceptInetConnection(server->inet_socket,1);
-  if (-1 < conn_socket) {
-    if (((SocketSendBufsize == 0) && (SocketReceiveBufsize == 0)) ||
-       (iVar1 = SocketSetBufferSize(conn_socket,SocketSendBufsize,SocketReceiveBufsize), -1 < iVar1)
-       ) {
-      iVar1 = SocketGetPeerAddr(conn_socket,&conn_addr);
-      if (iVar1 == 0) {
-        iVar1 = SocketGetName(conn_addr,conn_host,0x41);
-        if (iVar1 != 0) {
-          __src = SocketAddrStr(conn_addr);
-          strcpy(conn_host,__src);
-        }
-        client = RouterMakeClient(conn_socket,conn_addr,server->port,0,0x9081,server,conn_host,
-                                  RouterGetConResponse);
-        RouterValidateConnection(server,client);
-      }
-      else {
-        SocketClose(conn_socket);
-      }
-    }
-    else {
-      SocketCloseOnly(conn_socket);
-    }
+  if (conn_socket < 0)
+    return;
+  if ((SocketSendBufsize != 0 || SocketReceiveBufsize != 0) &&
+      SocketSetBufferSize(conn_socket,SocketSendBufsize,SocketReceiveBufsize) < 0) {
+    SocketCloseOnly(conn_socket);
+    return;
   }
-  return;
+  if (SocketGetPeerAddr(conn_socket,&conn_addr) != 0) {
+    SocketClose(conn_socket);
+    return;
+  }
+  if (SocketGetName(conn_addr,conn_host,sizeof(conn_host)) != 0)
+    strcpy(conn_host,SocketAddrStr(conn_addr));
+  client = RouterMakeClient(conn_socket,conn_addr,server->port,0,
+                            RU_INORDER | RU_INET | RU_SERVER | RU_CONNECTING,server,conn_host,
+                            RouterGetConResponse);
+  RouterValidateConnection(server,client);
 }
 
+/* a client connected through the local socket */
 static RouterFunc RouterAcceptUnixConnection(RouterServer *server)
 {
-  int iVar1;
   RouterClient *client;
-  int nodelay;
-  int use;
   uint32_t localaddr;
   char *localhost;
   int conn_socket;
-  
+
   conn_socket = SocketAcceptUnixConnection(server->unix_socket,1);
-  if (-1 < conn_socket) {
-    if (((SocketSendBufsize == 0) && (SocketReceiveBufsize == 0)) ||
-       (iVar1 = SocketSetBufferSize(conn_socket,SocketSendBufsize,SocketReceiveBufsize), -1 < iVar1)
-       ) {
-      iVar1 = SocketGetHostName(&localhost);
-      if (iVar1 == 0) {
-        iVar1 = SocketGetAddr(localhost,&localaddr);
-        if (iVar1 == 0) {
-          client = RouterMakeClient(conn_socket,localaddr,server->port,0,0x2081,server,localhost,
-                                    RouterGetConResponse);
-          RouterValidateConnection(server,client);
-        }
-        else {
-          LogErrorHost(-0x13b,"",0,localhost,0,"");
-          SocketClose(conn_socket);
-        }
-      }
-      else {
-        SocketClose(conn_socket);
-      }
-    }
-    else {
-      SocketCloseOnly(conn_socket);
-    }
+  if (conn_socket < 0)
+    return;
+  if ((SocketSendBufsize != 0 || SocketReceiveBufsize != 0) &&
+      SocketSetBufferSize(conn_socket,SocketSendBufsize,SocketReceiveBufsize) < 0) {
+    SocketCloseOnly(conn_socket);
+    return;
   }
-  return;
+  if (SocketGetHostName(&localhost) != 0) {
+    SocketClose(conn_socket);
+    return;
+  }
+  if (SocketGetAddr(localhost,&localaddr) != 0) {
+    LogErrorHost(ROUTER_ERR_HOST_ADDR,"",0,localhost,0,"");
+    SocketClose(conn_socket);
+    return;
+  }
+  client = RouterMakeClient(conn_socket,localaddr,server->port,0,
+                            RU_UNIX | RU_SERVER | RU_CONNECTING,server,localhost,
+                            RouterGetConResponse);
+  RouterValidateConnection(server,client);
 }
 
+/* ask validate_cb what to do with a new client */
 static void RouterValidateConnection(RouterServer *server, RouterClient *client)
 {
-  int iVar1;
-  int class;
-  char *func_name;
-  
-  iVar1 = (*server->validate_cb)(client,client->addr,&client->id);
-  if (iVar1 == 2) {
+  switch (server->validate_cb(client,client->addr,&client->id)) {
+  case VERDICT_ACCEPT:
+    client->accepted = 1;
+    RouterStartConnection(client,RC_ACCEPT);
+    return;
+  case VERDICT_PASSWORD:
     if (client->connect_cb != NULL) {
-      class = 1;
-      goto LAB_0807a720;
-    }
-    LogError(-0x13d,"RouterValidateConnection",0,"");
-  }
-  else if (iVar1 < 3) {
-    if (iVar1 == 1) {
-      client->accepted = 1;
-      class = 4;
-LAB_0807a720:
-      RouterStartConnection(client,class);
+      RouterStartConnection(client,RC_PASSWORD_REQ);
       return;
     }
-  }
-  else if (iVar1 == 3) {
-    class = 0x22;
-    goto LAB_0807a720;
+    LogError(ROUTER_ERR_PROTOCOL,"RouterValidateConnection",0,"");
+    break;
+  case VERDICT_DENY:
+    RouterStartConnection(client,RC_DENIED);
+    return;
   }
   SocketClose(client->socket);
   RouterFreeClient(client,1);
-  return;
 }
 
-static void RouterStartConnection(RouterClient *client, int class)
+static void RouterStartConnection(RouterClient *client, int clas)
 {
   RouterAddClient(client);
   RouterStartInput(client);
-  RouterSendConRequest(client,class);
-  return;
+  RouterSendConRequest(client,clas);
 }
 
+/* the input handler until the client is accepted: its password or its ID */
 static int RouterGetConResponse(RouterClient *client)
 {
-  unsigned char bVar1;
-  int iVar2;
-  int rvalue;
   int argcountin;
-  char *func_name;
-  
-  client->process_id = (unsigned int)client->in_buf->opcode;
-  bVar1 = client->in_buf->clas;
-  if (bVar1 == 2) {
+  int rvalue;
+
+  client->process_id = client->in_buf->opcode;
+  switch (client->in_buf->clas) {
+  case RC_PASSWORD:
     argcountin = RouterUnpack(client,client->in_buf);
     rvalue = RouterCheckPassword(client,argcountin);
-  }
-  else {
-    if (bVar1 != 8) {
-      RouterBadClass(client,"RouterGetConResponse");
-      return -1;
-    }
+    break;
+  case RC_CLIENT_ID:
     argcountin = RouterUnpack(client,client->in_buf);
     rvalue = RouterAcceptClient(client,argcountin);
-  }
-  RouterFreeArguments(argcountin,client->InArgList);
-  if (rvalue == 0) {
-    iVar2 = 0;
-  }
-  else {
-    RouterClose(client);
-    iVar2 = -1;
-  }
-  return iVar2;
-}
-
-static int RouterAcceptClient(RouterClient *client, int argcountin)
-{
-  int iVar1;
-  char *func_name;
-  
-  if (client->accepted == 0) {
-    LogError(-0x13d,"RouterAcceptClient",0,"");
+    break;
+  default:
+    RouterBadClass(client,"RouterGetConResponse");
     return -1;
   }
-  if (argcountin == 2) {
-    iVar1 = RouterGetClientArguments(client);
-    if (iVar1 != 0) {
-      return -1;
-    }
+  RouterFreeArguments(argcountin,client->InArgList);
+  if (rvalue != 0) {
+    RouterClose(client);
+    return -1;
   }
-  else {
-    if (argcountin != 3) {
-      LogError(-0x13e,"RouterAcceptClient",0,"");
-      return -1;
-    }
-    iVar1 = RouterGetClientArguments(client);
-    if (iVar1 != 0) {
-      return -1;
-    }
-    if (client->InArgList[2].clas != 1) {
-      LogError(-0x13f,"RouterAcceptClient",0,"");
-      return -1;
-    }
-    if ((unsigned int)client->InArgList[2].size != ((client->groups).count + 7) >> 3) {
-      LogError(-0x140,"RouterAcceptClient",0,"");
-      return -1;
-    }
-    (client->groups).bits = (char *)client->InArgList[2].val;
-    client->InArgList[2].clas = 0;
-    client->InArgList[2].val = 0;
-    client->InArgList[2].fre = 0;
-    client->InArgList[2].size = 0;
+  return 0;
+}
+
+/* the accepted client's RC_CLIENT_ID: type, RouterID and maybe group bits */
+static int RouterAcceptClient(RouterClient *client, int argcountin)
+{
+  RouterArgument *groups;
+
+  if (!client->accepted) {
+    LogError(ROUTER_ERR_PROTOCOL,"RouterAcceptClient",0,"");
+    return -1;
   }
-  if ((client->use & 0x4000U) != 0) {
+  if (argcountin != 2 && argcountin != 3) {
+    LogError(ROUTER_ERR_ARG_COUNT,"RouterAcceptClient",0,"");
+    return -1;
+  }
+  if (RouterGetClientArguments(client) != 0)
+    return -1;
+  if (argcountin == 3) {
+    groups = &client->InArgList[2];
+    if (groups->clas != 1) {
+      LogError(ROUTER_ERR_ARG_CLASS,"RouterAcceptClient",0,"");
+      return -1;
+    }
+    if ((unsigned int)groups->size != (client->groups.count + 7) >> 3) {
+      LogError(ROUTER_ERR_ARG_SIZE,"RouterAcceptClient",0,"");
+      return -1;
+    }
+    client->groups.bits = (char *)groups->val;  /* taken over */
+    memset(groups,0,sizeof(*groups));
+  }
+  if (client->use & RU_CONFIGURE)
     RouterConfigure(client);
-  }
-  if (client->connect_cb != NULL) {
-    (*client->connect_cb)(client,1,client->process_id,0,0,0);
-  }
+  if (client->connect_cb != NULL)
+    client->connect_cb(client,1,client->process_id,0,0,0);
   client->in_handler = RouterProcessPacket;
   return 0;
 }
 
+/* the client's password, judged by its connect_cb */
 static int RouterCheckPassword(RouterClient *client, int argcountin)
 {
-  int iVar1;
-  int class;
-  char *func_name;
-  
   if (client->connect_cb == NULL) {
-    LogError(-0x13d,"RouterCheckPassword",0,"");
+    LogError(ROUTER_ERR_PROTOCOL,"RouterCheckPassword",0,"");
     return -1;
   }
-  iVar1 = (*client->connect_cb)
-                    (client,2,client->process_id,client->retrys,argcountin,client->InArgList);
-  if (iVar1 == 2) {
-    client->retrys = client->retrys + 1;
-    class = 1;
-LAB_0807ab17:
-    RouterSendConRequest(client,class);
-    iVar1 = 0;
+  switch (client->connect_cb(client,2,client->process_id,client->retrys,argcountin,
+                             client->InArgList)) {
+  case VERDICT_ACCEPT:
+    client->accepted = 1;
+    RouterSendConRequest(client,RC_ACCEPT);
+    return 0;
+  case VERDICT_PASSWORD:        /* try again */
+    client->retrys++;
+    RouterSendConRequest(client,RC_PASSWORD_REQ);
+    return 0;
+  case VERDICT_DENY:
+    RouterSendConRequest(client,RC_DENIED);
+    return 0;
+  default:
+    return -1;
   }
-  else {
-    if (iVar1 < 3) {
-      if (iVar1 == 1) {
-        client->accepted = 1;
-        class = 4;
-        goto LAB_0807ab17;
-      }
-    }
-    else if (iVar1 == 3) {
-      class = 0x22;
-      goto LAB_0807ab17;
-    }
-    iVar1 = -1;
-  }
-  return iVar1;
 }
 
-static void RouterSendConRequest(RouterClient *client, int class)
+/* RC_ACCEPT carries our RouterID; the others nothing */
+static void RouterSendConRequest(RouterClient *client, int clas)
 {
-  unsigned char *__dest;
-  size_t sVar1;
-  unsigned char tbuf [128];
   RouterArgument arglist;
-  RouterID client_id;
-  unsigned char *tptr;
-  
-  if (class == 4) {
-    RouterSetClientID(&client_id);
-    sVar1 = strlen(client_id.procname);
-    memcpy(tbuf,client_id.procname,sVar1 + 1);
-    sVar1 = strlen(client_id.procname);
-    tptr = tbuf + sVar1 + 1;
-    sVar1 = strlen(client_id.username);
-    memcpy(tptr,client_id.username,sVar1 + 1);
-    sVar1 = strlen(client_id.username);
-    __dest = tptr + sVar1 + 1;
-    sVar1 = strlen(client_id.fullname);
-    memcpy(__dest,client_id.fullname,sVar1 + 1);
-    sVar1 = strlen(client_id.fullname);
-    memcpy(__dest + sVar1 + 1,&client_id.ipaddr,4);
-    arglist.val = (uintptr_t)tbuf;
-    arglist.fre = 1;
-    arglist.clas = 1;
-    arglist.size = (int)((__dest + sVar1 + 1 + 4) - (unsigned char *)tbuf);
-    RouterDoOutput(client,ProcessID,4,1,&arglist,NULL,NULL,
-                   NULL,NULL,0,NULL);
-  }
-  else {
-    RouterDoOutput(client,ProcessID,class,0,NULL,NULL,NULL,
-                   NULL,NULL,0,NULL);
-  }
-  return;
-}
+  RouterID server_id;
+  unsigned char tbuf[128];
 
-static int RouterGetClientArguments(RouterClient *client)
-{
-  unsigned char *__s;
-  unsigned char bVar1;
-  unsigned char bVar2;
-  unsigned char bVar3;
-  uintptr_t uVar4;
-  char *__s_00;
-  size_t sVar5;
-  int iVar6;
-  unsigned int uVar7;
-  int idsize;
-  unsigned char *tptro;
-  RouterClientType client_type;
-  char *func_name;
-  unsigned char *tptr;
-  
-  if ((client->InArgList->clas == 1) && (client->InArgList[1].clas == 1)) {
-    uVar4 = client->InArgList->val;
-    uVar7 = (unsigned int)*(unsigned char *)(uVar4 + 2) << 8;
-    bVar1 = *(unsigned char *)(uVar4 + 5);
-    bVar2 = *(unsigned char *)(uVar4 + 6);
-    bVar3 = *(unsigned char *)(uVar4 + 7);
-    client->use = (client->use & 0x3000U) | (uVar7 & 0x4000);
-    if ((uVar7 & 0x600) == 0x200) {
-      client->use = client->use | 0x286;
-    }
-    else {
-      client->use = client->use | 0x482;
-    }
-    iVar6 = client->InArgList[1].size;   /* original: *(int *) word >> 8 */
-    __s_00 = (char *)client->InArgList[1].val;
-    sVar5 = strlen(__s_00);
-    memcpy((client->id).procname,__s_00,sVar5 + 1);
-    sVar5 = strlen(__s_00);
-    tptr = (unsigned char *)(__s_00 + sVar5 + 1);
-    sVar5 = strlen((char *)tptr);
-    memcpy((client->id).username,tptr,sVar5 + 1);
-    sVar5 = strlen((char *)tptr);
-    __s = tptr + sVar5 + 1;
-    sVar5 = strlen((char *)__s);
-    memcpy((client->id).fullname,__s,sVar5 + 1);
-    sVar5 = strlen((char *)__s);
-    if ((int)((__s + sVar5 + 1) - (unsigned char *)__s_00) < iVar6) {
-      memcpy(&(client->id).ipaddr,__s + sVar5 + 1,4);
-    }
-    (client->groups).count = (unsigned int)bVar1 << 0x10 | (unsigned int)bVar2 << 8 | (unsigned int)bVar3;
-    iVar6 = 0;
+  if (clas != RC_ACCEPT) {
+    RouterDoOutput(client,ProcessID,clas,0,NULL,NULL,NULL,NULL,NULL,0,NULL);
+    return;
   }
-  else {
-    LogError(-0x13f,"RouterGetClientArguments",0,"");
-    iVar6 = -1;
-  }
-  return iVar6;
-}
-
-void RouterConfigure(RouterClient *client)
-{
-  unsigned char *tptr;
-  unsigned char tbuf [72];
-  RouterArgument arglist;
-  
-  tbuf[0] = (unsigned char)(RouterLocalConfig.rev >> 0x18);
-  tbuf[1] = (unsigned char)(RouterLocalConfig.rev >> 0x10);
-  tbuf[2] = (unsigned char)(RouterLocalConfig.rev >> 8);
-  tbuf[3] = (unsigned char)RouterLocalConfig.rev;
-  tbuf[4] = (unsigned char)(RouterLocalConfig.flags >> 0x18);
-  tbuf[5] = (unsigned char)(RouterLocalConfig.flags >> 0x10);
-  tbuf[6] = (unsigned char)(RouterLocalConfig.flags >> 8);
-  tbuf[7] = (unsigned char)RouterLocalConfig.flags;
+  RouterSetClientID(&server_id);
   arglist.val = (uintptr_t)tbuf;
   arglist.fre = 1;
   arglist.clas = 1;
-  arglist.size = 8;
-  RouterDoOutput(client,0,0x14,1,&arglist,NULL,NULL,NULL,
-                 NULL,0,NULL);
+  arglist.size = RouterPackID(&server_id,tbuf);
+  RouterDoOutput(client,ProcessID,RC_ACCEPT,1,&arglist,NULL,NULL,NULL,NULL,0,NULL);
+}
+
+/*
+ * The client's type (RouterClientType, big-endian: use, group count) and
+ * RouterID. Clients send only RU_CONFIGURE of their use (RouterCl.c), so the
+ * kind test never finds RU_PERSISTENT: every accepted connection is set up as
+ * a transaction connection.
+ */
+static int RouterGetClientArguments(RouterClient *client)
+{
+  unsigned char *type;
+  unsigned int use;
+
+  if (client->InArgList[0].clas != 1 || client->InArgList[1].clas != 1) {
+    LogError(ROUTER_ERR_ARG_CLASS,"RouterGetClientArguments",0,"");
+    return -1;
+  }
+  type = (unsigned char *)client->InArgList[0].val;
+  use = type[2] << 8;
+  client->use = (client->use & (RU_INET | RU_UNIX)) | (use & RU_CONFIGURE);
+  if ((use & RU_KIND) == RU_PERSISTENT)
+    client->use |= RU_PERSISTENT | RU_SERVER | RU_CONNECTED | RU_ACCEPTED;
+  else
+    client->use |= RU_TRANSACTION | RU_SERVER | RU_ACCEPTED;
+  RouterUnpackID(&client->id,(char *)client->InArgList[1].val,client->InArgList[1].size);
+  client->groups.count = type[5] << 16 | type[6] << 8 | type[7];
+  return 0;
+}
+
+/* send our RouterConfig (8 bytes, big-endian: rev, flags) and flush it */
+void RouterConfigure(RouterClient *client)
+{
+  RouterArgument arglist;
+  unsigned char tbuf[8];
+
+  tbuf[0] = RouterLocalConfig.rev >> 24;
+  tbuf[1] = RouterLocalConfig.rev >> 16;
+  tbuf[2] = RouterLocalConfig.rev >> 8;
+  tbuf[3] = RouterLocalConfig.rev;
+  tbuf[4] = RouterLocalConfig.flags >> 24;
+  tbuf[5] = RouterLocalConfig.flags >> 16;
+  tbuf[6] = RouterLocalConfig.flags >> 8;
+  tbuf[7] = RouterLocalConfig.flags;
+  arglist.val = (uintptr_t)tbuf;
+  arglist.fre = 1;
+  arglist.clas = 1;
+  arglist.size = sizeof(tbuf);
+  RouterDoOutput(client,0,RC_CONFIG_INIT,1,&arglist,NULL,NULL,NULL,NULL,0,NULL);
   RouterFlushOutput(client,0);
-  return;
 }
 
 static void RouterAddInetServer(RouterServer *server)
 {
-  EventID EVar1;
-  
-  EVar1 = EventAddInput(server->inet_socket,RouterAcceptInetConnection,(EventData)server,
-                        "RouterAddInetServer");
-  server->inet_id = EVar1;
-  return;
+  server->inet_id = EventAddInput(server->inet_socket,RouterAcceptInetConnection,
+                                  (EventData)server,"RouterAddInetServer");
 }
 
 static void RouterRemoveInetServer(RouterServer *server)
 {
   EventRemoveInput(server->inet_id);
-  return;
 }
 
 static void RouterAddUnixServer(RouterServer *server)
 {
-  EventID EVar1;
-  
-  EVar1 = EventAddInput(server->unix_socket,RouterAcceptUnixConnection,(EventData)server,
-                        "RouterAddUnixServer");
-  server->unix_id = EVar1;
-  return;
+  server->unix_id = EventAddInput(server->unix_socket,RouterAcceptUnixConnection,
+                                  (EventData)server,"RouterAddUnixServer");
 }
 
 static void RouterRemoveUnixServer(RouterServer *server)
 {
   EventRemoveInput(server->unix_id);
-  return;
 }
