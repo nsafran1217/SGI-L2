@@ -694,7 +694,7 @@ static int l2cmd_l2dbg(CmdData *cptr, char **results)
     }
     else if (uVar6 == 0xb) {
       pcVar2 = response(results,0x1000);
-      gettimeofday((struct timeval *)&cur_time,(__timezone_ptr_t)0x0);
+      gettimeofday((struct timeval *)&cur_time,NULL);
       sprintf(pcVar2,"%4d.%06d CURRENT TIME\n",cur_time.tv_sec,cur_time.tv_usec);
       sVar3 = strlen(pcVar2);
       pcVar2 = pcVar2 + sVar3;

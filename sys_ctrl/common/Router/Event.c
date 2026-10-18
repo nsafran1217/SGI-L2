@@ -313,7 +313,7 @@ int EventCreateTimeOut(EventTimerEntry *entry, long unsigned int seconds, long u
   struct timeval cur_time;
   char *func_name;
   
-  gettimeofday((struct timeval *)&cur_time,(__timezone_ptr_t)0x0);
+  gettimeofday((struct timeval *)&cur_time,NULL);
   (entry->timer_value).tv_sec = seconds + cur_time.tv_sec;
   (entry->timer_value).tv_usec = microseconds + cur_time.tv_usec;
   while (999999 < (entry->timer_value).tv_usec) {
@@ -419,7 +419,7 @@ LAB_08073508:
     tpcnt = tcnt;
     next_time.tv_sec = 0x7fffffff;
     next_time.tv_usec = 0;
-    gettimeofday((struct timeval *)&cur_time,(__timezone_ptr_t)0x0);
+    gettimeofday((struct timeval *)&cur_time,NULL);
     for (; 999999 < cur_time.tv_usec; cur_time.tv_usec = cur_time.tv_usec + -1000000) {
       cur_time.tv_sec = cur_time.tv_sec + 1;
     }
@@ -453,7 +453,7 @@ LAB_08073508:
     } while( true );
   }
   if (EventTimerQueue != NULL) {
-    gettimeofday((struct timeval *)&cur_time,(__timezone_ptr_t)0x0);
+    gettimeofday((struct timeval *)&cur_time,NULL);
     for (; 999999 < cur_time.tv_usec; cur_time.tv_usec = cur_time.tv_usec + -1000000) {
       cur_time.tv_sec = cur_time.tv_sec + 1;
     }
@@ -525,8 +525,8 @@ LAB_08073810:
     timeout = (struct timeval *)&wait_time;
   }
 LAB_080738ba:
-  fdset_and(&EventReadMask,&EventReadSet,rd_subset);
-  fdset_and(&EventWriteMask,&EventWriteSet,wr_subset);
+  EventReadMask = fdset_and(&EventReadSet,rd_subset);
+  EventWriteMask = fdset_and(&EventWriteSet,wr_subset);
   if ((oneshot != 0) &&
      ((timeout == NULL || (10 < timeout->tv_sec * 1000000 + timeout->tv_usec)))) {
     timeout = (struct timeval *)&wait_time;

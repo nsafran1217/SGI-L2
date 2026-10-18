@@ -98,7 +98,7 @@ void lpbk(int session, IRAddress addr, int length, int count, SMP *smp)
       iVar2 = rand();
       Lpbk[session].bptr[n] = (uchar)iVar2;
     }
-    gettimeofday((struct timeval *)&Lpbk[session].start_time,(__timezone_ptr_t)0x0);
+    gettimeofday((struct timeval *)&Lpbk[session].start_time,NULL);
     lpbk_process_request(session);
   }
   return;
@@ -120,7 +120,7 @@ static void lpbk_process_request(int session)
   argv[1]._val = (uint32)Lpbk[session].bptr;
   argv[1]._size = (uint16)Lpbk[session].blen;
   p = IRouterMakePacket(&l2_lpbk_id,&l1addr,0,0,0,2,2,argv);
-  gettimeofday((struct timeval *)&Lpbk[session].pkt_start_time,(__timezone_ptr_t)0x0);
+  gettimeofday((struct timeval *)&Lpbk[session].pkt_start_time,NULL);
   IRouterSendPacket(NULL,p);
   return;
 }
@@ -164,7 +164,7 @@ void lpbk_process_response(IRPacket *p)
       smp_output(Lpbk[session].smp,buff,sVar3);
     }
     IRouterFreePacket(p);
-    gettimeofday((struct timeval *)&end_time,(__timezone_ptr_t)0x0);
+    gettimeofday((struct timeval *)&end_time,NULL);
     tdiff.tv_sec = end_time.tv_sec - Lpbk[session].pkt_start_time.tv_sec;
     tdiff.tv_usec = end_time.tv_usec - Lpbk[session].pkt_start_time.tv_usec;
     if (tdiff.tv_usec < 0) {
