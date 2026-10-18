@@ -124,7 +124,7 @@ static int IRouterCreatePacket(IRPacket **rpkt, int clas, int eframe, int pdata,
       maxframesize = 0x3000;
       if ((0x7f < (uint)pktsize / 0x2fec) && (maxframesize = 0x3400, 0x7f < (uint)pktsize / 0x33ec))
       {
-        errcode._0_1_ = '\x1b';
+        errcode = 0x1b;
         pktsize = 0x14;
         for (arg = 0; arg < argcount; arg = arg + 1) {
           if ((arglist[arg]._clas & 8) != 0) {
@@ -395,6 +395,9 @@ IRPacket *IRouterMakePacket(IRIdent *id, IRAddress *toaddr, int pdata, int opcod
 
 int IRouterReadPacket(IRIdent *id, int (*rfcn)(), void *fd, IRPacket **pkt)
 {
+  IRFrame *frame;
+  IRFrame *next;
+  int rval;
   byte *pbVar1;
   IRFrame *pIVar2;
   int iVar3;
@@ -424,13 +427,13 @@ int IRouterReadPacket(IRIdent *id, int (*rfcn)(), void *fd, IRPacket **pkt)
       rtime.tv_usec = 0;
       status = 0;
       FD_ZERO(&rdset);
-      FD_SET(fd, &rdset);
-      iVar3 = select((int)fd + 1,(fd_set *)&rdset,NULL,NULL,(struct timeval *)&rtime);
+      FD_SET((int)(intptr_t)fd, &rdset);
+      iVar3 = select((int)(intptr_t)fd + 1,(fd_set *)&rdset,NULL,NULL,(struct timeval *)&rtime);
       if (iVar3 < 0) {
         status = -0x267;
       }
       if ((status == 0) &&
-         (FD_ISSET(fd, &rdset) == 0)) {
+         (FD_ISSET((int)(intptr_t)fd, &rdset) == 0)) {
         status = -0x268;
       }
       if (status != 0) {
@@ -486,20 +489,19 @@ int IRouterReadPacket(IRIdent *id, int (*rfcn)(), void *fd, IRPacket **pkt)
     }
   }
   if (status == -0x25c) {
-    __d1 = -0x25c;
+    rval = -0x25c;
   }
   else if (status == 0) {
-    __d1 = -0x26d;
+    rval = -0x26d;
   }
   else {
-    __d1 = -0x264;
+    rval = -0x264;
   }
   if (firstframe != NULL) {
-    __d0 = (int)firstframe->_next_frame;
-    while (__d0 != 0) {
-      iVar3 = *(int *)__d0;
-      free((void *)__d0);
-      __d0 = iVar3;
+    /* free the frames received so far */
+    for (frame = firstframe->_next_frame; frame != NULL; frame = next) {
+      next = frame->_next_frame;
+      free(frame);
     }
     firstframe->_next_frame = NULL;
   }
@@ -510,7 +512,7 @@ int IRouterReadPacket(IRIdent *id, int (*rfcn)(), void *fd, IRPacket **pkt)
     firstframe = firstframe->_next_frame;
     free(pIVar2);
   }
-  return __d1;
+  return rval;
 }
 
 int IRouterWritePacket(IRIdent *id, int (*wfcn)(), void *fd, IRPacket *pkt)

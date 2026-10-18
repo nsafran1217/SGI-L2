@@ -199,13 +199,29 @@ void discover_response(void *cd, int sd)
   }
   else {
     src = inet_ntoa(*(struct in_addr *)&cliaddr.sin_addr.s_addr);
-    ppuVar10 = &PTR_s_128_162_241_129_0808c050;
-    ppcVar11 = ips;
-    for (iVar9 = 0x12; iVar9 != 0; iVar9 = iVar9 + -1) {
-      *ppcVar11 = *ppuVar10;
-      ppuVar10 = ppuVar10 + 1;
-      ppcVar11 = ppcVar11 + 1;
-    }
+    /* debug filter: only answer these (SGI-internal, 128.162/16) addresses.
+     * The original copied the initializer for a local 'char *ips[18]'. */
+    static char *const ips_init[18] = {
+      "128.162.241.129",
+      "128.162.241.140",
+      "128.162.241.139",
+      "128.162.241.130",
+      "128.162.241.133",
+      "128.162.241.134",
+      "128.162.241.131",
+      "128.162.241.132",
+      "128.162.241.135",
+      "128.162.241.136",
+      "128.162.241.137",
+      "128.162.241.138",
+      "128.162.241.142",
+      "128.162.241.141",
+      "128.162.241.143",
+      "128.162.241.154",
+      "137.38.82.14",
+      "137.38.82.15"
+    };
+    memcpy(ips, ips_init, sizeof(ips_init));
     match = false;
     for (ip = 0; (!match && (ip < 0x12)); ip = ip + 1) {
       iVar9 = strcmp(src,ips[ip]);

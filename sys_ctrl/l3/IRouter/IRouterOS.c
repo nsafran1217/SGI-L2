@@ -7,7 +7,6 @@
 
 #include "../l2/smp.h"   /* needed by the reconstruction */
 #include "../sys/syslogLib.h"   /* needed by the reconstruction */
-#include "../utils/l2term.h"   /* needed by the reconstruction */
 #include <stdio.h>
 #include <stddef.h>
 #include <stdarg.h>
@@ -284,9 +283,9 @@ static int rd(int fd, unsigned char *bptr, int blen)
 
 static int pipe_in(int fd, unsigned char **pptr, int plen)
 {
-  static unsigned char *iptr = &ibuf.22;
-  static int ioff;
   static unsigned char ibuf[128];
+  static unsigned char *iptr = ibuf;
+  static int ioff;
   static int ilen;
   int chunk_type;
   int frame_size;

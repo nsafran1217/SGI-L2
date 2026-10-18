@@ -167,7 +167,7 @@ char *LoggerDefaultMessage(int msgnbr)
   int iVar2;
   static char message[80];
   char *pcVar3;
-  undefined4 uVar4;
+  char *uVar4;
   int tmp;
   int msgidx;
   int modidx;
@@ -183,12 +183,12 @@ char *LoggerDefaultMessage(int msgnbr)
   }
   if ((tmp < 1) || (299 < tmp)) {
     if ((iVar2 < -299) && (-0x3e9 < iVar2)) {
-      if (*(int *)(&DAT_0808f95c + iVar1 * -0xc) < -(msgnbr % 100)) {
+      if (LoggerErrorRange[-iVar1].count < -(msgnbr % 100)) {
         pcVar3 = LoggerModuleMessage(msgnbr);
         sprintf((char *)&message,"Unknown %s message %d",pcVar3,msgnbr);
       }
       else {
-        uVar4 = *(undefined4 *)(*(int *)(&DAT_0808f960 + iVar1 * -0xc) + (msgnbr % 100) * -4);
+        uVar4 = LoggerErrorRange[-iVar1].message[-(msgnbr % 100)];
         pcVar3 = LoggerModuleMessage(msgnbr);
         sprintf((char *)&message,"%s:%s",pcVar3,uVar4);
       }
@@ -233,11 +233,11 @@ char *LoggerErrorMessage(int msgnbr)
   iVar2 = (msgnbr / 100) * 100;
   iVar1 = (iVar2 + 300) / 100;
   if ((iVar2 < -299) && (-0x3e9 < iVar2)) {
-    if (*(int *)(&DAT_0808f95c + iVar1 * -0xc) < -(msgnbr % 100)) {
+    if (LoggerErrorRange[-iVar1].count < -(msgnbr % 100)) {
       pcVar3 = "Unknown Message";
     }
     else {
-      pcVar3 = *(char **)(*(int *)(&DAT_0808f960 + iVar1 * -0xc) + (msgnbr % 100) * -4);
+      pcVar3 = LoggerErrorRange[-iVar1].message[-(msgnbr % 100)];
     }
   }
   else {
