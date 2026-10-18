@@ -58,6 +58,10 @@ Router), common/IRouter, common/sys (Cmd, Logger, PPP, brick_types, minfo),
 l3/main (nvram, SysCfg), l3/api (SCapi*, L1Direct), l3/IRouter, then l3/l2
 (smallest first, l2cmd.c last) and l3/utils. l3/gui is already hand-written.
 
+Code the differential tests do not reach gets a unit test in `tests/unit/`
+that compiles `main`'s version next to the new one and compares them on many
+inputs (`buff_test.sh` is the model); `make check` runs them.
+
 Per file:
 - name every temporary after what it holds, or fold it away
   (`iVar2 = strcmp(...); if (iVar2 == 0)` → `if (strcmp(...) == 0)`);
@@ -83,5 +87,5 @@ Per file:
 |---|---|
 | 0 | done: warning-free with `-Wall -Wextra` (less `-Wunused-parameter`), `-Werror` (`WERROR=` to drop it); `tools/objcmp.sh` proves mechanical commits; `make check` / `check-all` |
 | 1 | done: Ghidra type names (`ulong` by hand, the rest with `tools/retoken.py`), decompiler notes, decimal syslog lines, small char constants, `CONCAT11` → `IR_SEQNUM()`, `code` pointers typed; `compat/decomp.h` is down to three standard includes. Left for phase 2 (needs types/meaning per site): `'\0'` compared with non-character values, `'\x80'`+ constants |
-| 2 | |
+| 2 | started: common/Router/Buff.c (pilot) |
 | 3 | |

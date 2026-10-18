@@ -203,6 +203,7 @@ test:
 # builds, and s390x when ../retools/setup_s390x.sh has been run.
 CHECK_BIN = $(abspath $(B))/$(if $(QEMU),qemu-bin,bin)
 check: all
+	$(if $(QEMU),,for t in tests/unit/*_test.sh; do $$t || exit 1; done)
 	NEW_BIN=$(CHECK_BIN) tests/difftest.sh
 	NEW_BIN=$(CHECK_BIN) tests/l2term_test.py
 	NEW_BIN=$(CHECK_BIN) tests/nvram_test.py
