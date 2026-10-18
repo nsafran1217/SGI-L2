@@ -24,6 +24,7 @@
 #include "../../common/main/L1Cfg.h"
 #include "../../common/sys/syslog.h"
 #include "decomp.h"     /* Ghidra types/macros; remove once the file is cleaned up */
+void pkt_timeout(EventData client_data);   /* defined below; not in a header (a static of this name exists elsewhere) */
 
 static int send_packet(IRClient *client, IRIdent *id, IRPacket *pkt);
 static void rtr_set_input_func(RouterClient *client);
@@ -359,20 +360,17 @@ int rtr_connected(RouterClient *client, int opcode, RouterArgument **arglistout)
   if (opcode == 2) {
     pw = "";
     pwarg[0].val = 0;
-    INSERT(0,0,1,7);
-    INSERT(pwarg[0]._0_1_,0,0,1);
+    pwarg[0].clas = 0;
+    pwarg[0].fre = 0;
     pwarg[0].size = 0;
     if (get_password != NULL) {
       pw = (*get_password)(client);
     }
     if (pw != NULL) {
-      INSERT(pwarg[0]._0_4_,0,1,7);
-      INSERT(pwarg[0]._0_4_,1,1,7);
+      pwarg[0].clas = 1;
       pwarg[0].val = (ulong)strdup(pw);
-      pwarg[0]._0_4_ = pwarg[0]._0_4_ | 1;
-      sVar1 = strlen(pw);
-      pwarg[0]._0_4_ = pwarg[0]._0_4_ & 0xff;
-      pwarg[0]._0_4_ = pwarg[0]._0_4_ | (sVar1 + 1) * 0x100;
+      pwarg[0].fre = 1;
+      pwarg[0].size = strlen(pw) + 1;
     }
     *arglistout = (RouterArgument *)&pwarg;
     iVar2 = 1;
