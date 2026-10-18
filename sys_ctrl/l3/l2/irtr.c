@@ -415,7 +415,7 @@ LAB_08063c00:
                 goto joined_r0x08063b0e;
               }
               if ((pkt->_argv[0]._clas & 7) == 0) {
-                pvVar4 = (void *)IR_VAL_PTR(pkt->_argv[0]._val);
+                pvVar4 = (void *)(uintptr_t)pkt->_argv[0]._val;   /* the purge key is a number */
               }
               else {
                 pvVar4 = (void *)IRArg(pkt,0);
@@ -465,7 +465,7 @@ code_r0x08063e97:
         if (task == 5) {
           if (pkt->_opcode == 1) {
             if ((pkt->_argv[0]._clas & 7) == 0) {
-              pvVar4 = (void *)IR_VAL_PTR(pkt->_argv[0]._val);
+              pvVar4 = (void *)(uintptr_t)pkt->_argv[0]._val;   /* the purge key is a number */
             }
             else {
               pvVar4 = (void *)IRArg(pkt,0);
