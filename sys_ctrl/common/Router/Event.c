@@ -456,7 +456,7 @@ static fd_set fdset_and(fd_set *fd1, fd_set *fd2)
 void event_process(int oneshot, fd_set *rd_subset, fd_set *wr_subset, EventTimerEntry *tlist, int tcnt)
 {
   EventData *ppcVar1;
-  stabs_func_51 **ppsVar2;
+  code **ppsVar2;
   static struct timeval cur_time;
   static struct timeval wait_time;
   static struct timeval *timeout;

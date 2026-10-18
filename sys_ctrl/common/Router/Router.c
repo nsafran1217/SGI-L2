@@ -798,25 +798,18 @@ LAB_08076364:
   }
   if (client->in_bytesneeded < 1) {
     if (client->in_hostbyteorder == 0) {
-      pRVar4 = client->in_buf;
-      thdr.opcode = CONCAT11((char)pRVar4->opcode,*(undefined1 *)((int)&pRVar4->opcode + 1));
-      thdr.clas = pRVar4->clas;
-      thdr.id = pRVar4->id;
-      thdr.length = 0;
-      thdr.config = pRVar4->config;
-      thdr._4_4_ = thdr._4_4_ |
-                   ((uint)(byte)pRVar4->length << 0x10 |
-                    (uint)*(byte *)((int)&pRVar4->length + 1) << 8 |
-                   (uint)*(byte *)((int)&pRVar4->length + 2)) << 8;
+      /* header arrives big-endian: opcode(2) clas(1) id(1) config(1) length(3) */
+      uint8 *b = (uint8 *)client->in_buf;
+      thdr.opcode = (b[0] << 8) | b[1];
+      thdr.clas = b[2];
+      thdr.id = b[3];
+      thdr.config = b[4];
+      thdr.length = (b[5] << 16) | (b[6] << 8) | b[7];
       memcpy(client->in_buf,&thdr,8);
       client->in_hostbyteorder = 1;
     }
-    uVar1._0_1_ = client->in_buf->config;
-    uVar1._1_3_ = client->in_buf->length;
-    if ((uint)((int)client->in_bufptr - (int)client->in_buf) < (uVar1 >> 8) + 8) {
-      uVar2._0_1_ = client->in_buf->config;
-      uVar2._1_3_ = client->in_buf->length;
-      client->in_bytesneeded = uVar2 >> 8;
+    if ((uint)((int)client->in_bufptr - (int)client->in_buf) < client->in_buf->length + 8) {
+      client->in_bytesneeded = client->in_buf->length;
       buf_bytesneeded = client->in_bytesneeded + 8;
       if (client->in_bufsize < buf_bytesneeded) {
         pRVar4 = realloc(client->in_buf,buf_bytesneeded);
@@ -989,9 +982,7 @@ static int RouterProcessResponse(RouterClient *client, int argcountin)
     }
     piVar1 = &(client->in_queue).total;
     *piVar1 = *piVar1 + -1;
-    uVar2._0_1_ = (response->header).config;
-    uVar2._1_3_ = (response->header).length;
-    (client->in_queue).bytes = (client->in_queue).bytes - (uVar2 >> 8);
+    (client->in_queue).bytes = (client->in_queue).bytes - (response->header).length;
   }
   if (response->response_cb != NULL) {
     (*response->response_cb)(client,response->response_data,argcountin,client->InArgList);
@@ -1044,7 +1035,9 @@ static int RouterProcessConfigInit(RouterClient *client, int argcountin)
   
   if (argcountin == 1) {
     uVar1 = client->InArgList->val;
-    arglist._0_4_ = (*(int *)client->InArgList >> 8) << 8 | 3;
+    arglist.fre = 1;
+    arglist.clas = 1;
+    arglist.size = client->InArgList->size;
     arglist.val = uVar1;
     RouterDoOutput(client,0,0x18,1,&arglist,NULL,NULL,NULL,
                    NULL,0,NULL);
@@ -1083,7 +1076,9 @@ static int RouterProcessConfigRequest(RouterClient *client, int argcountin)
   
   if (argcountin == 1) {
     uVar1 = client->InArgList->val;
-    arglist._0_4_ = (*(int *)client->InArgList >> 8) << 8 | 3;
+    arglist.fre = 1;
+    arglist.clas = 1;
+    arglist.size = client->InArgList->size;
     arglist.val = uVar1;
     RouterDoOutput(client,0,0x21,1,&arglist,NULL,NULL,NULL,
                    NULL,0,NULL);
@@ -1217,9 +1212,7 @@ void RouterPurge(RouterClient *client, int (*purge_cb)(), void *purge_data)
       p_Var2 = entry->next;
       piVar1 = &(client->out_queue).total;
       *piVar1 = *piVar1 + -1;
-      uVar3._0_1_ = (entry->header).config;
-      uVar3._1_3_ = (entry->header).length;
-      (client->out_queue).bytes = (client->out_queue).bytes - (uVar3 >> 8);
+      (client->out_queue).bytes = (client->out_queue).bytes - (entry->header).length;
       RouterFreeEntry(client,entry,1);
       entry = p_Var2;
     }
@@ -1254,9 +1247,7 @@ static void RouterLoadOutput(RouterClient *client, RouterQEntry *entry)
   client->out_pkts = client->out_pkts + 1;
   client->out_buf = entry;
   client->out_bufptr = (char *)entry->packet;
-  uVar6._0_1_ = (entry->header).config;
-  uVar6._1_3_ = (entry->header).length;
-  client->out_bytesleft = (uVar6 >> 8) + 8;
+  client->out_bytesleft = (entry->header).length + 8;
   if (((entry->header).clas == 0x10) || ((entry->header).clas == 0x20)) {
     client->out_sequence = client->out_sequence + 1;
     uVar6 = client->out_sequence & 0xff;
@@ -1277,9 +1268,9 @@ static void RouterLoadOutput(RouterClient *client, RouterQEntry *entry)
   bptr[3] = (entry->header).id;
   bptr[4] = (entry->header).config;
   uVar3 = (entry->header).length;
-  bptr[5] = (uchar)((uint3)uVar3 >> 0x10);
+  bptr[5] = (uchar)(uVar3 >> 0x10);
   uVar4 = (entry->header).length;
-  bptr[6] = (uchar)((uint3)uVar4 >> 8);
+  bptr[6] = (uchar)(uVar4 >> 8);
   uVar5 = (entry->header).length;
   bptr[7] = (uchar)uVar5;
   return;
@@ -1459,15 +1450,8 @@ void RouterPack(RouterClient *client, int opcode, int class, int argcount, Route
     RouterMemError();
   }
   pRVar7 = (*entry)->packet;
-  uVar2._0_1_ = pRVar7->config;
-  uVar2._1_3_ = pRVar7->length;
-  pRVar7->config = (char)(uVar2 & 0xff);
-  pRVar7->length = (int3)((uVar2 & 0xff) >> 8);
-  uVar3._0_1_ = pRVar7->config;
-  uVar3._1_3_ = pRVar7->length;
-  uVar3 = uVar3 | size << 8;
-  pRVar7->config = (char)uVar3;
-  pRVar7->length = (int3)(uVar3 >> 8);
+  pRVar7->length = 0;
+  pRVar7->length = pRVar7->length | size;
   (*entry)->packet->opcode = (ushort)opcode;
   (*entry)->packet->clas = (byte)class;
   (*entry)->packet->id = 0;
@@ -1502,15 +1486,8 @@ void RouterPack(RouterClient *client, int opcode, int class, int argcount, Route
     if (csize < size) {
       memcpy(data_start,cbuf_ptr,csize);
       pRVar7 = (*entry)->packet;
-      uVar4._0_1_ = pRVar7->config;
-      uVar4._1_3_ = pRVar7->length;
-      pRVar7->config = (char)(uVar4 & 0xff);
-      pRVar7->length = (int3)((uVar4 & 0xff) >> 8);
-      uVar5._0_1_ = pRVar7->config;
-      uVar5._1_3_ = pRVar7->length;
-      uVar5 = uVar5 | csize << 8;
-      pRVar7->config = (char)uVar5;
-      pRVar7->length = (int3)(uVar5 >> 8);
+      pRVar7->length = 0;
+      pRVar7->length = pRVar7->length | csize;
       (*entry)->packet->config = (*entry)->packet->config | 0x80;
       OutputStats.compress_count = OutputStats.compress_count + 1;
       OutputStats.compress_bytes = OutputStats.compress_bytes + csize;
@@ -1569,59 +1546,39 @@ int RouterUnpack(RouterClient *client, RouterHeader *packet)
   if ((client->in_cfg != NULL) && ((client->in_cfg->flags & 0x80000000) != 0)) {
     compress = true;
   }
-  uVar2._0_1_ = packet->config;
-  uVar2._1_3_ = packet->length;
-  size = (uVar2 >> 8) - 8;
+  size = packet->length - 8;
   buf_ptr = (uchar *)(packet + 1);
-  uVar3._0_1_ = packet->config;
-  uVar3._1_3_ = packet->length;
-  buf_end = (uchar *)((int)&((RouterHeader *)buf_ptr)->opcode + (uVar3 >> 8));
+  buf_end = (uchar *)(buf_ptr + packet->length);
   if ((compress) && ((packet->config & 0x80) != 0)) {
-    uVar4._0_1_ = packet->config;
-    uVar4._1_3_ = packet->length;
-    iVar13 = BuffUncompress(buf_ptr,uVar4 >> 8,&ubuf_ptr,(uint *)&usize);
+    iVar13 = BuffUncompress(buf_ptr,packet->length,&ubuf_ptr,(uint *)&usize);
     if (iVar13 == -1) {
       RouterMemError();
     }
     buf_ptr = ubuf_ptr;
     buf_end = ubuf_ptr + usize;
     InputStats.compress_count = InputStats.compress_count + 1;
-    uVar5._0_1_ = packet->config;
-    uVar5._1_3_ = packet->length;
-    InputStats.compress_bytes = InputStats.compress_bytes + (uVar5 >> 8);
+    InputStats.compress_bytes = InputStats.compress_bytes + packet->length;
     InputStats.uncompressed_bytes = InputStats.uncompressed_bytes + usize;
     puVar1 = &(client->in_stats).compress_count;
     *puVar1 = *puVar1 + 1;
-    uVar6._0_1_ = packet->config;
-    uVar6._1_3_ = packet->length;
-    (client->in_stats).compress_bytes = (client->in_stats).compress_bytes + (uVar6 >> 8);
+    (client->in_stats).compress_bytes = (client->in_stats).compress_bytes + packet->length;
     (client->in_stats).uncompressed_bytes = usize + (client->in_stats).uncompressed_bytes;
   }
   else {
     buf_ptr = (uchar *)(packet + 1);
-    uVar7._0_1_ = packet->config;
-    uVar7._1_3_ = packet->length;
-    buf_end = (uchar *)((int)&((RouterHeader *)buf_ptr)->opcode + (uVar7 >> 8));
+    buf_end = (uchar *)(buf_ptr + packet->length);
     if (compress) {
       InputStats.nocompress_count = InputStats.nocompress_count + 1;
-      uVar10._0_1_ = packet->config;
-      uVar10._1_3_ = packet->length;
-      InputStats.nocompress_bytes = InputStats.nocompress_bytes + (uVar10 >> 8);
+      InputStats.nocompress_bytes = InputStats.nocompress_bytes + packet->length;
       puVar1 = &(client->in_stats).nocompress_count;
       *puVar1 = *puVar1 + 1;
-      uVar11._0_1_ = packet->config;
-      uVar11._1_3_ = packet->length;
-      (client->in_stats).nocompress_bytes = (client->in_stats).nocompress_bytes + (uVar11 >> 8);
+      (client->in_stats).nocompress_bytes = (client->in_stats).nocompress_bytes + packet->length;
     }
     else {
       InputStats.notry_count = InputStats.notry_count + 1;
-      uVar8._0_1_ = packet->config;
-      uVar8._1_3_ = packet->length;
-      InputStats.notry_bytes = InputStats.notry_bytes + (uVar8 >> 8);
+      InputStats.notry_bytes = InputStats.notry_bytes + packet->length;
       (client->in_stats).notry_count = (client->in_stats).notry_count + 1;
-      uVar9._0_1_ = packet->config;
-      uVar9._1_3_ = packet->length;
-      (client->in_stats).notry_bytes = (client->in_stats).notry_bytes + (uVar9 >> 8);
+      (client->in_stats).notry_bytes = (client->in_stats).notry_bytes + packet->length;
     }
   }
   while (buf_ptr + 4 < buf_end) {
@@ -1859,9 +1816,7 @@ static void RouterQStore(RouterQ *queue, RouterQEntry *entry, int use_priority)
   if (queue->total_max < queue->total) {
     queue->total_max = queue->total;
   }
-  uVar1._0_1_ = (entry->header).config;
-  uVar1._1_3_ = (entry->header).length;
-  queue->bytes = queue->bytes + (uVar1 >> 8);
+  queue->bytes = queue->bytes + (entry->header).length;
   if (queue->bytes_max < queue->bytes) {
     queue->bytes_max = queue->bytes;
   }
@@ -1887,9 +1842,7 @@ static RouterQEntry *RouterQRetrieve(RouterQ *queue)
       queue->head = pRVar2->next;
     }
     queue->total = queue->total + -1;
-    uVar1._0_1_ = (pRVar2->header).config;
-    uVar1._1_3_ = (pRVar2->header).length;
-    queue->bytes = queue->bytes - (uVar1 >> 8);
+    queue->bytes = queue->bytes - (pRVar2->header).length;
   }
   return pRVar2;
 }
@@ -1925,9 +1878,7 @@ static void RouterQRemoveRequests(RouterClient *client, RouterQ *queue)
       }
       p_Var1 = entry->next;
       queue->total = queue->total + -1;
-      uVar2._0_1_ = (entry->header).config;
-      uVar2._1_3_ = (entry->header).length;
-      queue->bytes = queue->bytes - (uVar2 >> 8);
+      queue->bytes = queue->bytes - (entry->header).length;
       RouterFreeEntry(client,entry,1);
       entry = p_Var1;
     }
@@ -2066,7 +2017,7 @@ void RouterAddTimer(RouterClient *client, RouterFunc (*timer_func)(), int timeou
   if (client->timer_id != 0) {
     EventRemoveTimeOut(client->timer_id);
   }
-  EVar1 = EventAddTimeOut(timeout,0,(stabs_func_51 *)timer_func,(EventData)client,"RouterAddTimer");
+  EVar1 = EventAddTimeOut(timeout,0,timer_func,(EventData)client,"RouterAddTimer");
   client->timer_id = EVar1;
   return;
 }

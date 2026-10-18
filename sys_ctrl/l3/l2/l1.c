@@ -914,7 +914,7 @@ int l1_read_socket(int fd, unsigned char *bptr, int blen)
 int l1_read_ppp(int fd, unsigned char **bptr, int32 blen)
 {
   int status;
-  stabs_func_63 *rfcn;
+  code *rfcn;
   
   if (l2_l1_conn_mode == 3) {
     rfcn = l1_read_raw;
@@ -987,7 +987,7 @@ void l1_read_packet(int port, int fd)
   int task;
   int type;
   IRPacket *p;
-  stabs_func_63 *rfcn;
+  code *rfcn;
   
   rfcn = NULL;
   if (l1_throttle_timerid != 0) {
@@ -1163,7 +1163,7 @@ int l1_write_socket(int fd, unsigned char *bptr, int blen)
 int l1_write_ppp(int fd, unsigned char *bptr, int blen)
 {
   int status;
-  stabs_func_63 *wfcn;
+  code *wfcn;
   
   if (l2_l1_conn_mode == 3) {
     wfcn = l1_write_raw;
@@ -1195,7 +1195,7 @@ void l1_write_packet(int fd, IRPacket *p)
   char *pcVar1;
   char *pcVar2;
   IRAddress IVar3;
-  stabs_func_63 *wfcn;
+  code *wfcn;
   IRAddress dest;
   
   wfcn = NULL;

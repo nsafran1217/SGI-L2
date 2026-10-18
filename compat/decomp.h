@@ -24,7 +24,7 @@ typedef uint16_t undefined2;
 typedef uint32_t undefined3;
 typedef uint32_t undefined4;
 typedef uint64_t undefined8;
-typedef void code(void);
+typedef void code();      /* unspecified parameters: Ghidra calls through it with any arguments */
 
 /* CONCATxy(a, b): a (x bytes) is the high part, b (y bytes) the low part */
 #define CONCAT11(a, b) ((uint16_t)(((uint16_t)(uint8_t)(a) << 8) | (uint8_t)(b)))
