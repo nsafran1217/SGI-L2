@@ -3,137 +3,125 @@
  *
  * Reconstructed from the STABS debug info and Ghidra decompilation of l2term.
  * Original: /data/cf/sysco/scs123.patch/sys_ctrl/l3/main/SysCfg.c
+ *
+ * The system configuration as an L3 tool sees it: the L2's configuration
+ * event (L2CfgMCfgL2()) gives every L2 and the L1s behind them, kept as
+ * lists for printing and addressing. With conn NULL the functions use the
+ * process' one connection (SCapi.c) and the globals here; otherwise the
+ * connection's own copies (SCapiConn.c).
  */
 
+#include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
-#include "../../common/Router/Socket.h"   /* needed by the reconstruction */
-#include "../sys/syslogLib.h"   /* needed by the reconstruction */
-#include "../../common/sys/syslog.h"
 #include <string.h>
-#include <stddef.h>
-#include "../api/SCapi.h"
-#include "../IRouter/IRouterL3.h"
-#include "../../common/Router/Router.h"
-#include "../../common/IRouter/IRouter.h"
-#include "../../common/sys/sysutils.h"
-#include <pthread.h>
-#include <errno.h>
-#include "../../common/sys/Logger.h"
-#include "../sys/LoggerMsg.h"
-#include "../../common/IRouter/IRouter2Router.h"
-#include "../IRouter/IRouterOS.h"
-#include "../api/SCapiConn.h"
-#include "../../common/main/L1Cfg.h"
-#include "../../common/main/L2Cfg.h"
-#include "../../common/sys/brick_types.h"
+#include <unistd.h>
 #include "SysCfg.h"
-#include "decomp.h"     /* Ghidra types/macros; remove once the file is cleaned up */
+#include "../../common/IRouter/IRouter.h"
+#include "../../common/Router/Socket.h"
+#include "../../common/main/L2Cfg.h"
+#include "../../common/sys/Logger.h"
+#include "../api/SCapi.h"
+#include "../api/SCapiConn.h"
+#include "../sys/syslogLib.h"
+
+#define SYSCFG_REV          2   /* the newest configuration event we understand */
+#define SYSCFG_TIMEOUT      30  /* seconds, for the configuration command */
+#define SYSCFG_L1_MAX       1024        /* SysCfgL1List */
+#define SYSCFG_L2_MAX       128         /* SysCfgL2List */
+
+/* the L2's configuration task (rack and slot all ones) */
+#define L2_CFG_ADDR IR_ADDR_MAKE(IR_ADDR_L2, 0x3ff, 0x3f, 0, IR_L2_CFG)
 
 SysCfgL2 *SysCfgFull = &L2CfgLocal;
 int SysCfgL1Count;
 int SysCfgL2Count;
-SysCfgL1 *SysCfgL1List[1024];
-SysCfgL2 *SysCfgL2List[128];
-static char *SysCfgQuery;
+SysCfgL1 *SysCfgL1List[SYSCFG_L1_MAX];
+SysCfgL2 *SysCfgL2List[SYSCFG_L2_MAX];
+static char *SysCfgQuery;       /* the last configuration's query string (rev 2) */
 
+/* the IRouter client of the connection */
+static IRClient *conn_client(sn1SCConn *conn)
+{
+  return conn == NULL ? sn1SCClient() : sn1SCConnClient(conn);
+}
+
+/* fetch the configuration from the L2 now */
 void SysCfgConnInit(sn1SCConn *conn, char *user)
 {
-  IRClient *pIVar1;
-  char *pcVar2;
-  int iVar3;
+  IRClient *client = conn_client(conn);
+  IRAddress addr = L2_CFG_ADDR;
+  IRArgument av[3];
   IRPacket *pkt;
-  IRAddress addr;
-  IRArgument av [3];
   int rval;
-  int serial;
-  
-  if (((conn == NULL) && (pIVar1 = sn1SCClient(), pIVar1 == NULL)) ||
-     ((conn != NULL && (pIVar1 = sn1SCConnClient(conn), pIVar1 == NULL)))) {
+
+  if (client == NULL) {
     syslog(3,"SysCfg.c",38,0,"%s: SysCfgConnInit: no connection to system controller network!\n",
            user);
-  }
-  else {
-    if (conn == NULL) {
-      pIVar1 = sn1SCClient();
-      L2CfgMInitL3(&L2CfgLocal,pIVar1);
-    }
-    else {
-      pIVar1 = sn1SCConnClient(conn);
-      L2CfgMInitL3(&conn->SysCfgFull,pIVar1);
-    }
-    addr = 0x1ffff004;
-    av[0]._clas = '\0';
-    av[0]._frame = '\0';
-    av[0]._val = 0;
-    av[0]._size = 0;
-    if (conn == NULL) {
-      rval = sn1SCCmd(&addr,0,1,av,&pkt,0x1e);
-    }
-    else {
-      rval = sn1SCConnCmd(conn,&addr,0,1,av,&pkt,0x1e);
-    }
-    if (rval == 0) {
-      iVar3 = SysCfgConnProcessEvent(conn,user,pkt);
-      if (iVar3 < 0) {
-        syslog(3,"SysCfg.c",89,0,"%s: SysCfgConnInit: error updating System Configuration!\n",user
-              );
-      }
-    }
-    else {
-      pcVar2 = LoggerDefaultMessage(rval);
-      syslog(3,"SysCfg.c",58,0,"%s: config command failed: %s\n",user,pcVar2);
-    }
-  }
-  return;
-}
-
-void SysCfgConnRequest(sn1SCConn *conn, char *user)
-{
-  int rval;
-  char *pcVar1;
-  int msgnbr;
-  IRAddress addr;
-  IRArgument av [2];
-  
-  addr = 0x1ffff004;
-  av[0]._clas = '\0';
-  av[0]._frame = '\0';
-  av[0]._val = 0;
-  av[0]._size = 0;
-  if ((conn == NULL) && (rval = sn1SCReq(&addr,0,1,av,NULL), rval != 0)) {
-    pcVar1 = LoggerDefaultMessage(rval);
-    syslog(3,"SysCfg.c",104,0,"%s: config request failed: %s\n",user,pcVar1);
     return;
   }
-  if ((conn != NULL) &&
-     (msgnbr = sn1SCConnReq(conn,&addr,0,1,av,NULL), msgnbr != 0)) {
-    pcVar1 = LoggerDefaultMessage(msgnbr);
-    syslog(3,"SysCfg.c",107,0,"%s: config request failed: %s\n",user,pcVar1);
+  L2CfgMInitL3(conn == NULL ? &L2CfgLocal : &conn->SysCfgFull,client);
+  memset(&av[0],0,sizeof(av[0]));
+  if (conn == NULL)
+    rval = sn1SCCmd(&addr,0,1,av,&pkt,SYSCFG_TIMEOUT);
+  else
+    rval = sn1SCConnCmd(conn,&addr,0,1,av,&pkt,SYSCFG_TIMEOUT);
+  if (rval != 0) {
+    syslog(3,"SysCfg.c",58,0,"%s: config command failed: %s\n",user,LoggerDefaultMessage(rval));
+    return;
   }
-  return;
+  if (SysCfgConnProcessEvent(conn,user,pkt) < 0)
+    syslog(3,"SysCfg.c",89,0,"%s: SysCfgConnInit: error updating System Configuration!\n",user);
 }
 
+/* ask for the configuration; it comes as an event */
+void SysCfgConnRequest(sn1SCConn *conn, char *user)
+{
+  IRAddress addr = L2_CFG_ADDR;
+  IRArgument av[2];
+  int rval;
+
+  memset(&av[0],0,sizeof(av[0]));
+  if (conn == NULL) {
+    rval = sn1SCReq(&addr,0,1,av,NULL);
+    if (rval != 0)
+      syslog(3,"SysCfg.c",104,0,"%s: config request failed: %s\n",user,LoggerDefaultMessage(rval));
+  }
+  else {
+    rval = sn1SCConnReq(conn,&addr,0,1,av,NULL);
+    if (rval != 0)
+      syslog(3,"SysCfg.c",107,0,"%s: config request failed: %s\n",user,LoggerDefaultMessage(rval));
+  }
+}
+
+/* has the list an L1 with this one's rack, slot and type? */
+static int listed_l1(L2CfgL1 **l1list, int l1cnt, L2CfgL1 *l1cfg)
+{
+  int s;
+
+  for (s = 0; s < l1cnt; s++)
+    if (l1list[s]->rack == l1cfg->rack && l1list[s]->slot == l1cfg->slot &&
+        l1list[s]->type == l1cfg->type)
+      return 1;
+  return 0;
+}
+
+/*
+ * A configuration (the response to SysCfgConnInit(), or an event): its
+ * arguments are a (skipped) argument, the revision and, from rev 2, a query
+ * string that is the same while nothing changed. Rebuilds the lists of L2s
+ * and of the configured L1s (each rack, slot and type once).
+ */
 int SysCfgConnProcessEvent(sn1SCConn *conn, char *user, IRPacket *pkt)
 {
   char **query;
-  int *l1cnt;
-  int *l2cnt;
+  int *l1cnt, *l2cnt;
   L2CfgL1 **l1list;
   L2Cfg **l2list;
-  char *pcVar1;
-  int rev;
-  char *cptr;
-  int iVar2;
-  L2CfgL1 *l1cfg;
-  int s;
-  int l1;
-  int port;
-  L2Cfg *cfghead;
-  int err;
-  int status;
   L2Cfg *l2;
-  
+  L2CfgPort *port;
+  int rev, p, l1;
+  char *cptr;
+
   if (conn == NULL) {
     query = &SysCfgQuery;
     l1cnt = &SysCfgL1Count;
@@ -144,75 +132,53 @@ int SysCfgConnProcessEvent(sn1SCConn *conn, char *user, IRPacket *pkt)
   }
   else {
     query = &conn->SysCfgQuery;
-    l2 = &conn->SysCfgFull;
     l1cnt = &conn->SysCfgL1Count;
     l2cnt = &conn->SysCfgL2Count;
     l1list = conn->SysCfgL1List;
     l2list = conn->SysCfgL2List;
+    l2 = &conn->SysCfgFull;
   }
   if (pkt->_err != 0) {
-    pcVar1 = IRFmtError((unsigned int)pkt->_err);
-    syslog(3,"SysCfg.c",132,0,"%s: SysCfgConnProcessEvent: packet error - %s\n",user,pcVar1);
+    syslog(3,"SysCfg.c",132,0,"%s: SysCfgConnProcessEvent: packet error - %s\n",user,
+           IRFmtError((unsigned int)pkt->_err));
     return -1;
   }
-  if ((pkt->_argv[0]._clas & 7) != 0) {
-    IRArg(pkt,0);
+  if (pkt->_argv[0]._clas & 7)
+    IRArg(pkt,0);               /* (the original fetched it and did not look) */
+  rev = (pkt->_argv[1]._clas & 7) == 0 ? (int)pkt->_argv[1]._val : (int)IRArg(pkt,1);
+  cptr = (pkt->_argv[2]._clas & 7) == 0 ? (char *)IR_VAL_PTR(pkt->_argv[2]._val)
+                                        : (char *)IRArg(pkt,2);
+  if (rev > SYSCFG_REV) {
+    syslog(3,"SysCfg.c",160,0,
+           "%s: SysCfgConnProcessEvent: revision mismatch, L3 client is older that L2 server\n",
+           user);
+    return -1;
   }
-  if ((pkt->_argv[1]._clas & 7) == 0) {
-    rev = (int)pkt->_argv[1]._val;
-  }
-  else {
-    rev = IRArg(pkt,1);
-  }
-  if ((pkt->_argv[2]._clas & 7) == 0) {
-    cptr = (char *)IR_VAL_PTR(pkt->_argv[2]._val);
-  }
-  else {
-    cptr = (char *)IRArg(pkt,2);
-  }
-  if (1 < rev) {
-    if (2 < rev) {
-      syslog(3,"SysCfg.c",160,0,
-             "%s: SysCfgConnProcessEvent: revision mismatch, L3 client is older that L2 server\n",
-             user);
-      return -1;
-    }
-    if ((uint8 *)cptr == NULL) {
+  if (rev == SYSCFG_REV) {
+    if (cptr == NULL)
       return 0;
-    }
     if (*query != NULL) {
-      iVar2 = strcmp(*query,cptr);
-      if (iVar2 == 0) {
-        return 0;
-      }
+      if (strcmp(*query,cptr) == 0)
+        return 0;               /* unchanged */
       free(*query);
     }
-    pcVar1 = strdup(cptr);
-    *query = pcVar1;
+    *query = strdup(cptr);
   }
+
   L2CfgMCfgL2(l2,pkt);
   *l1cnt = 0;
   *l2cnt = 0;
-  for (; l2 != NULL; l2 = (L2Cfg *)(l2->net).next) {
-    l2list[*l2cnt] = l2;
-    *l2cnt = *l2cnt + 1;
-    for (port = 0; port < 0x28; port = port + 1) {
-      if ((l2->port_list[port].state != 0) && (l2->port_list[port].state == 2)) {
-        for (l1 = 0; l1 < l2->port_list[port].l1count; l1 = l1 + 1) {
-          if (l2->port_list[port].l1cfg[l1].configured != '\0') {
-            l1cfg = l2->port_list[port].l1cfg + l1;
-            s = 0;
-            while ((s < *l1cnt &&
-                   (((l1list[s]->rack != l1cfg->rack || (l1list[s]->slot != l1cfg->slot)) ||
-                    (l1list[s]->type != l1cfg->type))))) {
-              s = s + 1;
-            }
-            if (*l1cnt <= s) {
-              l1list[*l1cnt] = l1cfg;
-              *l1cnt = *l1cnt + 1;
-            }
-          }
-        }
+  /* (the original did not bound the lists) */
+  for (; l2 != NULL && *l2cnt < SYSCFG_L2_MAX - 1; l2 = (L2Cfg *)l2->net.next) {
+    l2list[(*l2cnt)++] = l2;
+    for (p = 0; p < L2CFG_PORTS; p++) {
+      port = &l2->port_list[p];
+      if (port->state != L2CFG_PORT_CONFIGURED)
+        continue;
+      for (l1 = 0; l1 < port->l1count; l1++) {
+        if (port->l1cfg[l1].configured && !listed_l1(l1list,*l1cnt,&port->l1cfg[l1]) &&
+            *l1cnt < SYSCFG_L1_MAX - 1)
+          l1list[(*l1cnt)++] = &port->l1cfg[l1];
       }
     }
   }
@@ -221,101 +187,46 @@ int SysCfgConnProcessEvent(sn1SCConn *conn, char *user, IRPacket *pkt)
   return 0;
 }
 
+/* "001.05.1   BSN: ... SSN: ..." for each L1, to fd */
 void SysCfgConnPrintL1(sn1SCConn *conn, int fd)
 {
-  size_t sVar1;
-  char *pcVar2;
-  char *pcVar3;
-  L2CfgL1 **l1;
-  char part [16];
-  char buff [256];
-  
-  if (conn == NULL) {
-    l1 = SysCfgL1List;
-  }
-  else {
-    l1 = conn->SysCfgL1List;
-  }
-  for (; *l1 != NULL; l1 = l1 + 1) {
-    if ((*l1)->partition == '\0') {
+  L2CfgL1 **l1 = conn == NULL ? SysCfgL1List : conn->SysCfgL1List;
+  char part[16];
+  char buff[256];
+
+  for (; *l1 != NULL; l1++) {
+    if ((*l1)->partition == 0)
       strcpy(part,"    ");
-    }
-    else {
+    else
       sprintf(part,".%-3d",(unsigned int)(*l1)->partition);
-    }
-    sVar1 = strlen((*l1)->system_sn);
-    if (sVar1 == 0) {
-      pcVar2 = "unknown";
-    }
-    else {
-      pcVar2 = (*l1)->system_sn;
-    }
-    sVar1 = strlen((*l1)->brick_sn);
-    if (sVar1 == 0) {
-      pcVar3 = "unknown";
-    }
-    else {
-      pcVar3 = (*l1)->brick_sn;
-    }
-    sprintf(buff,"%03d.%02d%s BSN: %s SSN: %s\n",(unsigned int)(*l1)->rack,(unsigned int)(*l1)->slot,part,pcVar3,
-            pcVar2);
-    sVar1 = strlen(buff);
-    write(fd,buff,sVar1);
+    snprintf(buff,sizeof(buff),"%03d.%02d%s BSN: %s SSN: %s\n",(unsigned int)(*l1)->rack,
+             (unsigned int)(*l1)->slot,part,
+             (*l1)->brick_sn[0] != '\0' ? (*l1)->brick_sn : "unknown",
+             (*l1)->system_sn[0] != '\0' ? (*l1)->system_sn : "unknown");
+    write(fd,buff,strlen(buff));
   }
-  return;
 }
 
+/* "Rack n IP: a.b.c.d SSN: ..." for each L2, to fd */
 void SysCfgConnPrintL2(sn1SCConn *conn, int fd)
 {
-  char *pcVar1;
-  char *pcVar2;
-  size_t __n;
-  L2Cfg **l2;
-  char buff [256];
-  
-  if (conn == NULL) {
-    l2 = SysCfgL2List;
+  L2Cfg **l2 = conn == NULL ? SysCfgL2List : conn->SysCfgL2List;
+  char buff[256];
+
+  for (; *l2 != NULL; l2++) {
+    snprintf(buff,sizeof(buff),"Rack %-6d IP: %-15s SSN: %s\n",(*l2)->rack,
+             SocketAddrStr((*l2)->net.ip_addr),(*l2)->ssn[0] != '\0' ? (*l2)->ssn : "unknown");
+    write(fd,buff,strlen(buff));
   }
-  else {
-    l2 = conn->SysCfgL2List;
-  }
-  for (; *l2 != NULL; l2 = l2 + 1) {
-    if ((*l2)->ssn[0] == '\0') {
-      pcVar1 = "unknown";
-    }
-    else {
-      pcVar1 = (*l2)->ssn;
-    }
-    pcVar2 = SocketAddrStr(((*l2)->net).ip_addr);
-    sprintf(buff,"Rack %-6d IP: %-15s SSN: %s\n",(*l2)->rack,pcVar2,pcVar1);
-    __n = strlen(buff);
-    write(fd,buff,__n);
-  }
-  return;
 }
 
 char *SysCfgConnAddrStr(sn1SCConn *conn, IRAddress addr, int verbose)
 {
-  L2Cfg *cfghead;
-  char *pcVar1;
-  
-  cfghead = SysCfgFull;
-  if (conn != NULL) {
-    cfghead = &conn->SysCfgFull;
-  }
-  pcVar1 = L2CfgMAddrStr(cfghead,addr,verbose);
-  return pcVar1;
+  return L2CfgMAddrStr(conn == NULL ? SysCfgFull : &conn->SysCfgFull,addr,verbose);
 }
 
+/* the system console of a partition */
 IRAddress SysCfgConsole(sn1SCConn *conn, int partition)
 {
-  SysCfgL2 *head;
-  IRAddress IVar1;
-  
-  head = SysCfgFull;
-  if (conn != NULL) {
-    head = &conn->SysCfgFull;
-  }
-  IVar1 = L2CfgMGetConsole(head,partition);
-  return IVar1;
+  return L2CfgMGetConsole(conn == NULL ? SysCfgFull : &conn->SysCfgFull,partition);
 }

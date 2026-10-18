@@ -34,6 +34,14 @@ struct _L2CfgL1 {
     char system_sn[12];
 };
 typedef struct _L2CfgL1 L2CfgL1;
+/* L2CfgPort.state (the numbers are SGI's; the names were added by the
+ * reconstruction) */
+enum {
+    L2CFG_PORT_FREE = 0,
+    L2CFG_PORT_OPEN = 1,            /* added (L2CfgMAddPort()), no L1 config yet */
+    L2CFG_PORT_CONFIGURED = 2,      /* the L1s' configuration has arrived */
+};
+#define L2CFG_PORTS 40              /* L2Cfg.port_list */
 struct _L2CfgPort {
     int state;
     int type;

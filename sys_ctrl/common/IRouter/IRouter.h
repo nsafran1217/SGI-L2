@@ -150,6 +150,10 @@ enum {
     IR_ADDR_L1 = 0, IR_ADDR_L2 = 1, IR_ADDR_L3 = 2, IR_ADDR_C = 3, IR_ADDR_I = 4,
     IR_ADDR_CI = 5, IR_ADDR_CC = 6, IR_ADDR_IP = 0xe, IR_ADDR_IP_OTHER = 0xf,
 };
+/* a (non-IP) address from its fields */
+#define IR_ADDR_MAKE(type, rack, slot, num, task) \
+    ((IRAddress)(type) << 28 | (IRAddress)(rack) << 18 | (IRAddress)(slot) << 12 | \
+     (IRAddress)(num) << 5 | (IRAddress)(task))
 #define IR_ADDR_IS_IP(a)   (((a) & 0x80000000) != 0)
 #define IR_ADDR_TYPE(a)    (!IR_ADDR_IS_IP(a) ? (int)((a) >> 28) : ((a) >> 30) == 2 ? IR_ADDR_IP : IR_ADDR_IP_OTHER)
 #define IR_ADDR_TASK(a)    (!IR_ADDR_IS_IP(a) ? (int)((a) & 0x1f) : (int)(((a) >> 24) & 0x3f))
