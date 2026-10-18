@@ -88,7 +88,6 @@ static void format_l1(char *rptr, L2CfgNode *l2node, int port, int l1, int mode)
 static void format_l2(char *rptr, L2CfgNode *l2node, L2Cfg *head, int mode, int show_l1);
 static int l1l2(L2CfgPort *l2port, int l1, int index, char *cfgp, int size);
 static int attached_io_type(L2CfgPort *port, int index);
-static int BRICK_TASKNUM_SUBCHAN(int btype, int tasknum);
 
 int L2CfgDebug;
 int L2CfgDebugX;
@@ -135,7 +134,6 @@ int L2CfgInitLocal(uint32 ip_addr, RouterClient *client)
     pcVar2 = (char *)nvramGet(4);
     strcpy(L2CfgLocal.sysname,pcVar2);
     uVar3 = nvramGet(9);
-    L2CfgLocal._340_1_ = L2CfgLocal._340_1_ & 0xfe;
     L2CfgLocal.l2dsp_disabled = uVar3;
     L2CfgLocal.syscon = malloc(0x400);
     memset(L2CfgLocal.syscon,0,0x400);
@@ -1533,27 +1531,24 @@ void L2CfgMCfgL2_rev1(L2Cfg *head, IRPacket *pkt)
   if ((pkt->_argv[0]._clas & 7) != 0) {
     IRArg(pkt,0);
   }
-  if (((uint)pkt[1]._next_frame & 7) != 0) {
+  if ((pkt->_argv[1]._clas & 7) != 0) {
     IRArg(pkt,1);
   }
-  if (((uint)pkt[1]._arg_data & 7) == 0) {
-    l2s = (int)pkt[1]._client_data;
+  if ((pkt->_argv[2]._clas & 7) == 0) {
+    l2s = (int)pkt->_argv[2]._val;
   }
   else {
     l2s = IRArg(pkt,2);
   }
   for (l2i = 0; l2i < l2s; l2i = l2i + 1) {
-    if ((pkt[1]._argv[l2i * 2 + -3]._val & 7) == 0) {
-      pIVar1 = pkt[1]._argv + l2i * 2 + -2;
-      ports._0_1_ = pIVar1->_clas;
-      ports._1_1_ = pIVar1->_frame;
-      ports._2_2_ = pIVar1->_size;
+    if ((pkt->_argv[l2i * 2 + 3]._clas & 7) == 0) {
+      ports = pkt->_argv[l2i * 2 + 3]._val;
     }
     else {
       ports = IRArg(pkt,l2i * 2 + 3);
     }
-    if ((pkt[1]._argv[l2i * 2 + -2]._val & 7) == 0) {
-      l2cfg = *(L2CfgIRouter **)(pkt[1]._argv + l2i * 2 + -1);
+    if ((pkt->_argv[l2i * 2 + 4]._clas & 7) == 0) {
+      l2cfg = (L2CfgIRouter *)pkt->_argv[l2i * 2 + 4]._val;
     }
     else {
       l2cfg = (L2CfgIRouter *)IRArg(pkt,l2i * 2 + 4);
@@ -1631,7 +1626,7 @@ void L2CfgMCfgL2(L2Cfg *head, IRPacket *p)
   l2node = NULL;
   l2 = NULL;
   bVar2 = p->_argc;
-  if (((uint)p[1]._next_frame & 7) == 0) {
+  if ((p->_argv[1]._clas & 7) == 0) {
     rev = (int)p->_argv[1]._val;
   }
   else {
@@ -2245,9 +2240,9 @@ int L2CfgMCfgPort(L2Cfg *head, int port, IRPacket *p)
     l2port_00->state = 2;
     if (uVar2 == 6) {
       for (l1 = 0; l1 < 4; l1 = l1 + 1) {
-        uVar1 = *(ushort *)((int)&p[1]._argv[l1 + -5]._val + 2);
-        if ((p[1]._argv[l1 + -5]._val & 7) == 0) {
-          cfgp = *(char **)(p[1]._argv + l1 + -4);
+        uVar1 = p->_argv[l1 + 1]._size;
+        if ((p->_argv[l1 + 1]._clas & 7) == 0) {
+          cfgp = (char *)p->_argv[l1 + 1]._val;
         }
         else {
           cfgp = (char *)IRArg(p,l1 + 1);
@@ -2256,34 +2251,29 @@ int L2CfgMCfgPort(L2Cfg *head, int port, IRPacket *p)
       }
     }
     else if (uVar2 == 7) {
-      if (((uint)p[1]._next_frame & 7) != 0) {
+      if ((p->_argv[1]._clas & 7) != 0) {
         IRArg(p,1);
       }
-      if (((uint)p[1]._arg_data & 7) == 0) {
-        count = (int)p[1]._client_data;
+      if ((p->_argv[2]._clas & 7) == 0) {
+        count = (int)p->_argv[2]._val;
       }
       else {
         count = IRArg(p,2);
       }
-      if ((p[1]._size & 7) == 0) {
-        rsp._0_1_ = p[1]._seqnum0;
-        rsp._1_1_ = p[1]._fnum;
-        rsp._2_1_ = p[1]._clas;
-        rsp._3_1_ = p[1]._pdata_auth;
+      if ((p->_argv[3]._clas & 7) == 0) {
+        rsp = p->_argv[3]._val;
       }
       else {
         rsp = IRArg(p,3);
       }
-      if ((p[1]._dest & 7) == 0) {
-        idxp = (char *)p[1]._src;
+      if ((p->_argv[4]._clas & 7) == 0) {
+        idxp = (char *)p->_argv[4]._val;
       }
       else {
         idxp = (char *)IRArg(p,4);
       }
-      if ((p[1]._argc & 7) == 0) {
-        uVar2._0_1_ = p[1]._argv[0]._clas;
-        uVar2._1_1_ = p[1]._argv[0]._frame;
-        uVar2._2_2_ = p[1]._argv[0]._size;
+      if ((p->_argv[5]._clas & 7) == 0) {
+        uVar2 = p->_argv[5]._val;
       }
       else {
         uVar2 = IRArg(p,5);
@@ -3104,32 +3094,3 @@ int L2CfgMAdviseConsole(L2Cfg *head, char *rptr, int partition, IRAddress addr)
   return iVar1;
 }
 
-static int BRICK_TASKNUM_SUBCHAN(int btype, int tasknum)
-{
-  int iVar1;
-  int iStack_8;
-  
-  if (btype == 0x36) {
-    iVar1 = ((tasknum / 6 + (tasknum >> 0x1f) >> 2) - (tasknum >> 0x1f)) * -0x18;
-  }
-  else {
-    if (btype < 0x37) {
-      if (btype == 0x2e) {
-        iStack_8 = tasknum;
-        if (tasknum < 0) {
-          iStack_8 = tasknum + 0x1f;
-        }
-        return tasknum + (iStack_8 >> 5) * -0x20;
-      }
-    }
-    else if (btype == 0x40) {
-      return tasknum % 0x14;
-    }
-    iStack_8 = tasknum;
-    if (tasknum < 0) {
-      iStack_8 = tasknum + 0x1f;
-    }
-    iVar1 = (iStack_8 >> 5) * -0x20;
-  }
-  return tasknum + iVar1;
-}

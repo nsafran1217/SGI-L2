@@ -641,21 +641,21 @@ void cfg_console_subchannel(IRPacket *p)
   IRAddress addr;
   int part;
   
-  if (((uint)p[1]._next_frame & 7) == 0) {
+  if ((p->_argv[1]._clas & 7) == 0) {
     rack = (int)p->_argv[1]._val;
   }
   else {
     rack = IRArg(p,1);
   }
-  if (((uint)p[1]._arg_data & 7) == 0) {
-    slot = (int)p[1]._client_data;
+  if ((p->_argv[2]._clas & 7) == 0) {
+    slot = (int)p->_argv[2]._val;
   }
   else {
     slot = IRArg(p,2);
   }
   cfg = L2CfgMFindBrickCfg(&L2CfgLocal,rack,slot,0);
   if (cfg != NULL) {
-    if ((p[1]._size & 7) == 0) {
+    if ((p->_argv[3]._clas & 7) == 0) {
       uVar1 = p->_argv[3]._val;   /* bytes 64..67 of the packet */
     }
     else {
@@ -675,22 +675,22 @@ void cfg_console_enable(IRPacket *p)
   int rack;
   uint8 uStack_11;
   
-  if (((uint)p[1]._next_frame & 7) == 0) {
+  if ((p->_argv[1]._clas & 7) == 0) {
     rack_00 = (uint)p->_argv[1]._val;
   }
   else {
     rack_00 = IRArg(p,1);
   }
-  if (((uint)p[1]._arg_data & 7) == 0) {
-    slot = (int)p[1]._client_data;
+  if ((p->_argv[2]._clas & 7) == 0) {
+    slot = (int)p->_argv[2]._val;
   }
   else {
     slot = IRArg(p,2);
   }
   cfg = L2CfgMFindBrickCfg(&L2CfgLocal,rack_00,slot,0);
   if (cfg != NULL) {
-    if ((p[1]._size & 7) == 0) {
-      uStack_11 = p[1]._seqnum0;
+    if ((p->_argv[3]._clas & 7) == 0) {
+      uStack_11 = (uint8)p->_argv[3]._val;
     }
     else {
       rack = IRArg(p,3);
@@ -709,22 +709,22 @@ void cfg_power_state(IRPacket *p)
   int rack;
   uint8 uStack_11;
   
-  if (((uint)p[1]._next_frame & 7) == 0) {
+  if ((p->_argv[1]._clas & 7) == 0) {
     rack_00 = (uint)p->_argv[1]._val;
   }
   else {
     rack_00 = IRArg(p,1);
   }
-  if (((uint)p[1]._arg_data & 7) == 0) {
-    slot = (int)p[1]._client_data;
+  if ((p->_argv[2]._clas & 7) == 0) {
+    slot = (int)p->_argv[2]._val;
   }
   else {
     slot = IRArg(p,2);
   }
   cfg = L2CfgMFindBrickCfg(&L2CfgLocal,rack_00,slot,0);
   if (cfg != NULL) {
-    if ((p[1]._size & 7) == 0) {
-      uStack_11 = p[1]._seqnum0;
+    if ((p->_argv[3]._clas & 7) == 0) {
+      uStack_11 = (uint8)p->_argv[3]._val;
     }
     else {
       rack = IRArg(p,3);
@@ -743,22 +743,22 @@ void cfg_margin_state(IRPacket *p)
   int rack;
   uint8 uStack_11;
   
-  if (((uint)p[1]._next_frame & 7) == 0) {
+  if ((p->_argv[1]._clas & 7) == 0) {
     rack_00 = (uint)p->_argv[1]._val;
   }
   else {
     rack_00 = IRArg(p,1);
   }
-  if (((uint)p[1]._arg_data & 7) == 0) {
-    slot = (int)p[1]._client_data;
+  if ((p->_argv[2]._clas & 7) == 0) {
+    slot = (int)p->_argv[2]._val;
   }
   else {
     slot = IRArg(p,2);
   }
   cfg = L2CfgMFindBrickCfg(&L2CfgLocal,rack_00,slot,0);
   if (cfg != NULL) {
-    if ((p[1]._size & 7) == 0) {
-      uStack_11 = p[1]._seqnum0;
+    if ((p->_argv[3]._clas & 7) == 0) {
+      uStack_11 = (uint8)p->_argv[3]._val;
     }
     else {
       rack = IRArg(p,3);
@@ -779,20 +779,20 @@ void cfg_partition(IRPacket *p)
   IRAddress addr;
   uint8 new_part;
   
-  if (((uint)p[1]._next_frame & 7) == 0) {
+  if ((p->_argv[1]._clas & 7) == 0) {
     rack = (int)p->_argv[1]._val;
   }
   else {
     rack = IRArg(p,1);
   }
-  if (((uint)p[1]._arg_data & 7) == 0) {
-    slot = (int)p[1]._client_data;
+  if ((p->_argv[2]._clas & 7) == 0) {
+    slot = (int)p->_argv[2]._val;
   }
   else {
     slot = IRArg(p,2);
   }
-  if ((p[1]._size & 7) == 0) {
-    new_part = p[1]._seqnum0;
+  if ((p->_argv[3]._clas & 7) == 0) {
+    new_part = (uint8)p->_argv[3]._val;
   }
   else {
     uVar1 = IRArg(p,3);
@@ -812,22 +812,22 @@ void cfg_system_sn(IRPacket *p)
   L2CfgL1 *cfg;
   char *__src;
   
-  if (((uint)p[1]._next_frame & 7) == 0) {
+  if ((p->_argv[1]._clas & 7) == 0) {
     rack = (int)p->_argv[1]._val;
   }
   else {
     rack = IRArg(p,1);
   }
-  if (((uint)p[1]._arg_data & 7) == 0) {
-    slot = (int)p[1]._client_data;
+  if ((p->_argv[2]._clas & 7) == 0) {
+    slot = (int)p->_argv[2]._val;
   }
   else {
     slot = IRArg(p,2);
   }
   cfg = L2CfgMFindBrickCfg(&L2CfgLocal,rack,slot,0);
   if (cfg != NULL) {
-    if ((p[1]._size & 7) == 0) {
-      __src = *(char **)&p[1]._seqnum0;
+    if ((p->_argv[3]._clas & 7) == 0) {
+      __src = (char *)p->_argv[3]._val;
     }
     else {
       __src = (char *)IRArg(p,3);
@@ -845,19 +845,19 @@ void cfg_environmental(IRPacket *p)
   L2CfgL1 *cfg;
   IRAddress addr;
   
-  if (((uint)p[1]._next_frame & 7) == 0) {
+  if ((p->_argv[1]._clas & 7) == 0) {
     rack = (int)p->_argv[1]._val;
   }
   else {
     rack = IRArg(p,1);
   }
-  if (((uint)p[1]._arg_data & 7) == 0) {
-    slot = (int)p[1]._client_data;
+  if ((p->_argv[2]._clas & 7) == 0) {
+    slot = (int)p->_argv[2]._val;
   }
   else {
     slot = IRArg(p,2);
   }
-  if ((p[1]._size & 7) == 0) {
+  if ((p->_argv[3]._clas & 7) == 0) {
     state = p->_argv[3]._val;   /* bytes 64..67 of the packet */
   }
   else {

@@ -1936,7 +1936,7 @@ int pbay_rsp(IRPacket *rsp, L2CMD *c, IRAddress *dest, int pktsleft, cmd_respons
         uVar3 = IRArg(rsp,0);
       }
       if (uVar3 != 0) {
-        if (((uint)rsp[1]._next_frame & 7) == 0) {
+        if ((rsp->_argv[1]._clas & 7) == 0) {
           pcVar4 = (char *)rsp->_argv[1]._val;
         }
         else {
@@ -1957,7 +1957,7 @@ int pbay_rsp(IRPacket *rsp, L2CMD *c, IRAddress *dest, int pktsleft, cmd_respons
       sprintf(emsg,"%s:  Pbay busy initializing or PBay communication failure\n",pcVar4);
     }
     else if (*(int *)((int)data + 0x14) == 0) {
-      if (((uint)rsp[1]._next_frame & 7) == 0) {
+      if ((rsp->_argv[1]._clas & 7) == 0) {
         pcVar4 = (char *)rsp->_argv[1]._val;
       }
       else {
@@ -3515,7 +3515,7 @@ static int ver_summary_rsp(IRPacket *rsp, L2CMD *c, IRAddress *dest, int pktslef
       uVar5 = IRArg(rsp,0);
     }
     if (uVar5 == 0) {
-      if (((uint)rsp[1]._next_frame & 7) == 0) {
+      if ((rsp->_argv[1]._clas & 7) == 0) {
         pcVar6 = (char *)rsp->_argv[1]._val;
       }
       else {
@@ -3545,7 +3545,7 @@ static int ver_summary_rsp(IRPacket *rsp, L2CMD *c, IRAddress *dest, int pktslef
       }
     }
     else {
-      if (((uint)rsp[1]._next_frame & 7) == 0) {
+      if ((rsp->_argv[1]._clas & 7) == 0) {
         uVar5 = (uint)rsp->_argv[1]._val;
       }
       else {

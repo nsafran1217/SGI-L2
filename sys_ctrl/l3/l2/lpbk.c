@@ -140,7 +140,7 @@ void lpbk_process_response(IRPacket *p)
   if ((p->_argv[0]._clas & 7) != 0) {
     IRArg(p,0);
   }
-  if (((uint)p[1]._next_frame & 7) != 0) {
+  if ((p->_argv[1]._clas & 7) != 0) {
     IRArg(p,1);
   }
   buff[0] = '\0';
@@ -151,7 +151,7 @@ void lpbk_process_response(IRPacket *p)
     else {
       session = IRArg(p,0);
     }
-    if (((uint)p[1]._next_frame & 7) == 0) {
+    if ((p->_argv[1]._clas & 7) == 0) {
       arg = (uchar *)p->_argv[1]._val;
     }
     else {

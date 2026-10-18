@@ -156,14 +156,14 @@ int SysCfgConnProcessEvent(sn1SCConn *conn, char *user, IRPacket *pkt)
   if ((pkt->_argv[0]._clas & 7) != 0) {
     IRArg(pkt,0);
   }
-  if (((uint)pkt[1]._next_frame & 7) == 0) {
+  if ((pkt->_argv[1]._clas & 7) == 0) {
     rev = (int)pkt->_argv[1]._val;
   }
   else {
     rev = IRArg(pkt,1);
   }
-  if (((uint)pkt[1]._arg_data & 7) == 0) {
-    cptr = (char *)pkt[1]._client_data;
+  if ((pkt->_argv[2]._clas & 7) == 0) {
+    cptr = (char *)pkt->_argv[2]._val;
   }
   else {
     cptr = (char *)IRArg(pkt,2);

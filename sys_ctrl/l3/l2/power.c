@@ -220,8 +220,8 @@ void power_process_response(IRPacket *p)
       fprintf(stderr,buff);
       nvramLogInsert(buff);
     }
-    if ((1 < p->_argc) && (((uint)p[1]._next_frame & 7) == 2)) {
-      if (((uint)p[1]._next_frame & 7) == 0) {
+    if ((1 < p->_argc) && ((p->_argv[1]._clas & 7) == 2)) {
+      if ((p->_argv[1]._clas & 7) == 0) {
         format = (char *)p->_argv[1]._val;
       }
       else {

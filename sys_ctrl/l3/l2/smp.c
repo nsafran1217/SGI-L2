@@ -1401,7 +1401,7 @@ LAB_08050790:
       }
       else {
         iVar1 = -1;
-        if (((uint)pkt[1]._next_frame & 7) == 0) {
+        if ((pkt->_argv[1]._clas & 7) == 0) {
           pcVar2 = (char *)pkt->_argv[1]._val;
         }
         else {
