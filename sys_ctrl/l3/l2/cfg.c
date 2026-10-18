@@ -3,72 +3,76 @@
  *
  * Reconstructed from the STABS debug info and Ghidra decompilation of l2.
  * Original: /data/cf/sysco/scs123.patch/sys_ctrl/l3/l2/cfg.c
+ *
+ * Keeping the system configuration (L2Cfg.c) current:
+ *  - each L1 port is asked for its bricks' configuration every
+ *    cfg_ping_l1_frequency seconds (cfg_ping_l1()), and L1 events update
+ *    single fields (cfg_process_event());
+ *  - L2s find each other by discovery broadcasts (cfg_l2ping()), connect,
+ *    and exchange configurations (cfg_ping_l2(), cfg_process_request()); an
+ *    L2 that stops answering is dropped;
+ *  - every few seconds the configuration is compared with the last one
+ *    sent, and a change goes to every client as an event
+ *    (cfg_configcheck()), at most every cfg_throttle_frequency seconds.
+ * Also the network server's callbacks: password check, connect, disconnect.
  */
 
-#include "../api/SCapiL2.h"   /* needed by the reconstruction */
-#include "discover.h"   /* needed by the reconstruction */
-#include "../sys/syslogLib.h"   /* needed by the reconstruction */
-#include <sys/socket.h>
-#include <netinet/in.h>
 #include <arpa/inet.h>
-#include "l2.h"
+#include <netinet/in.h>
 #include <stdio.h>
-#include <stdarg.h>
 #include <stdlib.h>
-#include <fcntl.h>
-#include <errno.h>
-#include <signal.h>
-#include <time.h>
-#include <termios.h>
-#include <unistd.h>
-#include <stddef.h>
-#include <getopt.h>
 #include <string.h>
-#include "../../common/Router/Socket.h"
-#include "../../common/Router/Event.h"
-#include <sys/time.h>
-#include "../../common/IRouter/IRouter.h"
-#include "../../common/sys/sysctl_types.h"
-#include "../../common/sys/sysutils.h"
-#include <pthread.h>
-#include "../../common/sys/Logger.h"
-#include "../sys/LoggerMsg.h"
-#include "../../common/IRouter/IRouter2Router.h"
-#include "../../common/Router/Router.h"
-#include "../../common/sys/PPP.h"
-#include "../../common/sys/brick_types.h"
-#include "../../common/main/EnetServer.h"
-#include "../../common/main/L2Cfg.h"
-#include "../../common/main/L1Cfg.h"
-#include "l2_rev.h"
+#include <time.h>
+#include <unistd.h>
+#include "l2.h"
+#include "cfg.h"
+#include "discover.h"
+#include "irtr.h"
 #include "l1.h"
 #include "smp.h"
-#include "l2cmd.h"
-#include "dest.h"
-#include "format.h"
-#include "irtr.h"
+#include "../api/SCapiL2.h"
 #include "../main/nvram.h"
-#include "../../common/sys/ipmi.h"
-#include "../../common/sys/syslog.h"
-#include "../api/SCapi.h"
-#include "cfg.h"
-#include "decomp.h"     /* Ghidra types/macros; remove once the file is cleaned up */
+#include "../sys/syslogLib.h"
+#include "../../common/sys/Logger.h"
+
+#define CONFIGCHECK_DELAY   7       /* seconds between configuration checks */
+#define L2_PEER_PORT        9001    /* plus IR_PORT_BIAS */
+#define L3_CMD_PORT         8000
+#define L3_QUIET_PORT       8002
+#define CFG_BLOCK           0xf800  /* configuration text in one response argument */
+#define CFG_ARGS            16
+
+/* the configuration request to the L1 at the far end of a port */
+#define L1_LOCAL_CFG        IR_ADDR_MAKE(IR_ADDR_L1,0x3ff,0x3f,0,IR_L1_CFG)
+#define CFG_QUERY_L1        6       /* its first argument */
+
+/* configuration request types (argument 0) and response format (1) */
+enum { CFG_REQ_QUERY = 0, CFG_REQ_EXCHANGE = 1 };
+#define CFG_FORMAT          2
+
+/* L1 configuration events (opcodes) */
+enum {
+    EV_SUBCHANNEL = 2, EV_CONSOLE_ENABLE = 3, EV_POWER = 4, EV_MARGIN = 5,
+    EV_PARTITION = 6, EV_SYSTEM_SN = 7, EV_ENVIRONMENT = 8,
+    EV_IGNORED = 100,
+    EV_L2_CONFIG = 1000,            /* an L2's configuration (cfg_configcheck()) */
+};
 
 static void cfg_configcheck_throttle(int start_timer);
 static void find_client_to_delete(RouterClient *client);
 
 int cfg_start_time;
-int cfg_auto_rescan = 1;
+int cfg_auto_rescan = 1;            /* "config auto" (0: "config manual") */
 int cfg_l2ping_sd = -1;
-static int cfg_configcheck_hold;
-static int cfg_configcheck_pending;
-int cfg_ping_response_minimum;
-int cfg_ping_response_maximum;
+static int cfg_configcheck_hold;    /* sent one recently */
+static int cfg_configcheck_pending; /* ... and another is due */
+int cfg_ping_response_minimum;      /* heartbeats an L2 must give per check */
+int cfg_ping_response_maximum;      /* pings between checks */
 int cfg_ping_l2_frequency;
 int cfg_ping_l1_frequency;
 int cfg_throttle_frequency;
-int cfg_ping_sender_valid;
-char cfg_client_id[30];
+int cfg_ping_sender_valid;          /* a discovery request counts as a heartbeat */
+char cfg_client_id[30];             /* "clientid:<ip>.<pid>" */
 RouterClient *del_client;
 uint32 del_addr;
 
@@ -85,1225 +89,730 @@ void cfg_ping_reset(void)
   cfg_throttle_frequency = 2;
   cfg_ping_sender_valid = 2;
   nvramSet(NVRAM_PING_SENDER,2);
-  return;
 }
 
+/* the ping settings from NVRAM; the defaults if any is unset */
 void cfg_ping_init(void)
 {
-  uint32 uVar1;
-  
-  uVar1 = nvramGet(NVRAM_PING_MIN);
-  if ((((uVar1 == 0) || (uVar1 = nvramGet(NVRAM_PING_MAX), uVar1 == 0)) || (uVar1 = nvramGet(NVRAM_PING_SENDER), uVar1 == 0))
-     || ((uVar1 = nvramGet(NVRAM_PING_L2FREQ), uVar1 == 0 || (uVar1 = nvramGet(NVRAM_PING_L1FREQ), uVar1 == 0)))) {
+  if (nvramGet(NVRAM_PING_MIN) == 0 || nvramGet(NVRAM_PING_MAX) == 0 ||
+      nvramGet(NVRAM_PING_SENDER) == 0 || nvramGet(NVRAM_PING_L2FREQ) == 0 ||
+      nvramGet(NVRAM_PING_L1FREQ) == 0)
     cfg_ping_reset();
-  }
   cfg_ping_response_minimum = nvramGet(NVRAM_PING_MIN);
   cfg_ping_response_maximum = nvramGet(NVRAM_PING_MAX);
   cfg_ping_l2_frequency = nvramGet(NVRAM_PING_L2FREQ);
   cfg_ping_l1_frequency = nvramGet(NVRAM_PING_L1FREQ);
   cfg_ping_sender_valid = nvramGet(NVRAM_PING_SENDER);
   cfg_throttle_frequency = 2;
-  return;
+}
+
+/* this L2's discovery request: its id, the system serial number in
+ * multi-system mode, and its role */
+static void discovery_request(char *client_data, int with_secondary)
+{
+  if (nvramGet(NVRAM_MULTISYS) == 1)
+    sprintf(client_data,"%s,ssn:%s",cfg_client_id,(char *)nvramGet(NVRAM_SERIAL));
+  else
+    strcpy(client_data,cfg_client_id);
+  if (L2CfgLocal.net.msmode == 2)
+    strcat(client_data,",l2pri:0");
+  else if (with_secondary && L2CfgLocal.net.msmode == 1)
+    strcat(client_data,",l2sec:0");
+  else
+    strcat(client_data,",l2:1");
+  if (discover_debug & 1)
+    fprintf(stderr,"sending L2 discover request: client_data=[%s]\n",client_data);
 }
 
 void cfg_init(void)
 {
-  int iVar1;
-  __pid_t _Var2;
-  char *pcVar3;
-  uint32 uVar4;
-  size_t sVar5;
-  char client_data [200];
+  char client_data[200];
   uint32 cfg_ip;
-  int sd;
-  
+
   cfg_start_time = time(NULL);
   cfg_ping_init();
-  iVar1 = SocketGetHostAddr(&cfg_ip);
-  if (iVar1 == 0) {
-    _Var2 = getpid();
-    pcVar3 = inet_ntoa(*(struct in_addr *)&cfg_ip);
-    sprintf(cfg_client_id,"clientid:%s.%d",pcVar3,_Var2);
-    cfg_setup_configcheck(7);
-    if ((l2_discover != 0) && (L2CfgLocal.net.msmode != 1)) {
-      uVar4 = nvramGet(NVRAM_MULTISYS);
-      if (uVar4 == 1) {
-        sprintf(client_data,"%s,ssn:%s",cfg_client_id,(char *)nvramGet(NVRAM_SERIAL));   /* (64-bit: was via a uint32) */
-      }
-      else {
-        strcpy(client_data,cfg_client_id);
-      }
-      if (L2CfgLocal.net.msmode == 2) {
-        pcVar3 = ",l2pri:0";
-        sVar5 = strlen(client_data);
-        sprintf(client_data + sVar5,pcVar3);
-      }
-      else if (L2CfgLocal.net.msmode == 1) {
-        pcVar3 = ",l2sec:0";
-        sVar5 = strlen(client_data);
-        sprintf(client_data + sVar5,pcVar3);
-      }
-      else {
-        strcat(client_data,",l2:1");
-      }
-      if ((discover_debug & 1U) != 0) {
-        fprintf(stderr,"sending L2 discover request: client_data=[%s]\n",client_data);
-      }
-      cfg_l2ping_sd = sn1SCDiscoverL2Start(-1,NULL,client_data);
-      if (cfg_l2ping_sd < 0) {
-        fprintf(stderr,"ERROR: can\'t attempt to find other L2\'s\n");
-      }
-      else {
-        EventAddInput(cfg_l2ping_sd,cfg_recv_l2ping,(EventData)0x0,"cfg_init");
-        cfg_setup_l2ping(cfg_ping_l2_frequency);
-      }
-    }
-  }
-  else {
+  if (SocketGetHostAddr(&cfg_ip) != 0) {
     syslog(2,"cfg.c",108,0,"cfg_init: couldn\'t get IP address for local host\n");
+    return;
   }
-  return;
+  sprintf(cfg_client_id,"clientid:%s.%d",inet_ntoa(*(struct in_addr *)&cfg_ip),getpid());
+  cfg_setup_configcheck(CONFIGCHECK_DELAY);
+  if (!l2_discover || L2CfgLocal.net.msmode == 1)
+    return;
+  discovery_request(client_data,1);
+  cfg_l2ping_sd = sn1SCDiscoverL2Start(-1,NULL,client_data);
+  if (cfg_l2ping_sd < 0) {
+    fprintf(stderr,"ERROR: can\'t attempt to find other L2\'s\n");
+    return;
+  }
+  EventAddInput(cfg_l2ping_sd,cfg_recv_l2ping,NULL,"cfg_init");
+  cfg_setup_l2ping(cfg_ping_l2_frequency);
 }
 
+/* ask the L1(s) on a port for their configuration (with auto rescans on),
+ * and come back in cfg_ping_l1_frequency seconds (2 until the port is
+ * configured) */
 void cfg_ping_l1(int device)
 {
-  size_t sVar1;
-  char *__dest;
+  IRArgument argv[3];
+  IRAddress toaddr = L1_LOCAL_CFG;
+  char desc[48];
+  char x[80];
   IRPacket *p;
-  EventID EVar2;
-  char *__src;
-  char desc [48];
-  int ping_delay;
-  char x [80];
-  IRAddress toaddr;
-  int fd;
   char *ssn;
   int port;
-  IRArgument argv [3];
-  
-  fd = -1;
-  toaddr = 0xffff00e;
-  if (cfg_auto_rescan == 0) goto LAB_0805270c;
-  switch(l2_l1_conn_mode) {
-  case 1:
-  case 2:
-  case 5:
-    fd = l2_l1_ports[device].fd;
+
+  switch (l2_l1_conn_mode) {
+  case L2_CONN_NET:
+  case L2_CONN_USB:
+  case L2_CONN_SIM:
     port = device;
     break;
-  case 3:
-  case 4:
+  case L2_CONN_SERIAL:
+  case L2_CONN_SERIAL_NET:
     port = 0;
-    fd = l2_l1_ports[0].fd;
     break;
   default:
-    goto switchD_08052562_default;
-  }
-  if (fd == -1) {
     return;
   }
-switchD_08052562_default:
-  if (fd == -1) {
-    return;
-  }
-  argv[0]._clas = '\0';
-  argv[0]._frame = '\0';
-  argv[0]._val = 6;
-  argv[0]._size = 0;
-  ssn = (char *)nvramGet(NVRAM_SERIAL);
-  sVar1 = strlen(ssn);
-  if (sVar1 == 0) {
-    argv[1]._clas = '\0';
-    argv[1]._frame = '\0';
-    argv[1]._val = 0;
-    argv[1]._size = 0;
-  }
-  else {
-    argv[1]._clas = '\t';
-    argv[1]._frame = '\0';
-    __src = ssn;
-    sVar1 = strlen(ssn);
-    __dest = malloc(sVar1 + 1);
-    argv[1]._val = IR_PTR_VAL(strcpy(__dest,__src));
-    sVar1 = strlen(ssn);
-    argv[1]._size = (short)sVar1 + 1;
-  }
-  argv[2]._clas = '\0';
-  argv[2]._frame = '\0';
-  argv[2]._val = 0;
-  argv[2]._size = 0;
-  p = IRouterMakePacket(&l2_cfg_id,&toaddr,0,0,0,2,3,argv);
-  if (p == NULL) {
-    fprintf(stderr,"ERROR: can\'t create packet for configuration request.\n");
-    return;
-  }
-  if ((irtr_debug & 8U) != 0) {
-    IRFmtPkt("L2",p,x);
-    fprintf(stderr,"%s (port %d)\n",x,port);
-  }
-  l1_write_packet(fd,p);
-LAB_0805270c:
-  if (0 < l2_l1_ports[port].fd) {
-    ping_delay = cfg_ping_l1_frequency;
-    if (L2CfgLocal.port_list[port].state != 2) {
-      ping_delay = 2;
+  /* (with rescans off the original rescheduled on a port it had not set) */
+  if (cfg_auto_rescan) {
+    if (l2_l1_ports[port].fd == -1)
+      return;
+    memset(argv,0,sizeof(argv));
+    argv[0]._val = CFG_QUERY_L1;
+    ssn = (char *)nvramGet(NVRAM_SERIAL);
+    if (*ssn != '\0') {
+      argv[1]._clas = IR_ARG_BYTES | IR_ARG_FREE;
+      argv[1]._val = IR_PTR_VAL(strdup(ssn));
+      argv[1]._size = strlen(ssn) + 1;
     }
-    sprintf(desc,"cfg_ping_l1 (%s)",l2_l1_ports[port].device);
-    EVar2 = EventAddTimeOut(ping_delay,0,cfg_ping_l1,(EventData)(intptr_t)device,desc);
-    l2_l1_ports[port].timer = EVar2;
+    p = IRouterMakePacket(&l2_cfg_id,&toaddr,0,0,IR_REQ,2,3,argv);
+    if (p == NULL) {
+      fprintf(stderr,"ERROR: can\'t create packet for configuration request.\n");
+      return;
+    }
+    if (irtr_debug & 8) {
+      IRFmtPkt("L2",p,x);
+      fprintf(stderr,"%s (port %d)\n",x,port);
+    }
+    l1_write_packet(l2_l1_ports[port].fd,p);
   }
-  return;
+  if (l2_l1_ports[port].fd > 0) {
+    sprintf(desc,"cfg_ping_l1 (%s)",l2_l1_ports[port].device);
+    l2_l1_ports[port].timer =
+        EventAddTimeOut(L2CfgLocal.port_list[port].state == L2CFG_PORT_CONFIGURED ? cfg_ping_l1_frequency : 2,
+                        0,cfg_ping_l1,(EventData)(intptr_t)device,desc);
+  }
 }
 
+/* a packet's argument as a number (data arguments: their address) */
+static uintptr_t arg_value(IRPacket *p, int arg)
+{
+  if (IR_ARG_TYPE(p->_argv[arg]) == IR_ARG_VALUE)
+    return p->_argv[arg]._val;
+  return IRArg(p,arg);
+}
+
+/* a copy of L2CfgMQuery()'s text, as a string argument freed once sent */
+static void query_arg(IRArgument *arg, int format)
+{
+  char *text = strdup(L2CfgMQuery(&L2CfgLocal,format,0));
+
+  arg->_clas = IR_ARG_STRING | IR_ARG_FREE;
+  arg->_frame = 0;
+  arg->_val = IR_PTR_VAL(text);
+  arg->_size = strlen(text) + 1;
+}
+
+/* send a newly connected L2 our configuration, and ask for its */
 void cfg_ping_l2(RouterClient *client)
 {
-  char *pcVar1;
-  char *pcVar2;
-  size_t sVar3;
-  uint32_t uVar4;
-  IRPacket *p;
-  int x;
+  IRArgument argv[4];
   IRAddress dst;
-  IRArgument argv [4];
-  char *s;
-  
-  dst = 0;
-  argv[0]._clas = '\0';
-  argv[0]._frame = '\0';
-  argv[0]._val = 1;
-  argv[0]._size = 0;
-  argv[1]._clas = '\0';
-  argv[1]._frame = '\0';
-  argv[1]._val = 2;
-  argv[1]._size = 0;
-  pcVar1 = L2CfgMQuery(&L2CfgLocal,0,0);
-  pcVar2 = L2CfgMQuery(&L2CfgLocal,0,0);
-  sVar3 = strlen(pcVar2);
-  pcVar2 = malloc(sVar3 + 1);
-  argv[2]._val = IR_PTR_VAL(strcpy(pcVar2,pcVar1));
-  argv[2]._clas = '\n';
-  argv[2]._frame = '\0';
-  sVar3 = strlen((char *)IR_VAL_PTR(argv[2]._val));
-  argv[2]._size = (short)sVar3 + 1;
-  pcVar1 = L2CfgMQuery(&L2CfgLocal,2,0);
-  pcVar2 = L2CfgMQuery(&L2CfgLocal,2,0);
-  sVar3 = strlen(pcVar2);
-  pcVar2 = malloc(sVar3 + 1);
-  argv[3]._val = IR_PTR_VAL(strcpy(pcVar2,pcVar1));
-  argv[3]._clas = '\n';
-  argv[3]._frame = '\0';
-  sVar3 = strlen((char *)IR_VAL_PTR(argv[3]._val));
-  argv[3]._size = (short)sVar3 + 1;
-  dst = (dst & 0xffffff) | 0x84000000;
-  if (IRByteOrder == 1) {
-    dst = (client->addr & 0xffffff) | 0x84000000;
-  }
-  else {
-    uVar4 = ntohl(client->addr);
-    dst = (dst & 0xff000000) | (uVar4 & 0xffffff);
-  }
-  p = IRouterMakePacket(&l2_cfg_id,&dst,0,0,0,2,4,argv);
-  if (p == NULL) {
+  IRPacket *p;
+
+  memset(argv,0,sizeof(argv));
+  argv[0]._val = CFG_REQ_EXCHANGE;
+  argv[1]._val = CFG_FORMAT;
+  query_arg(&argv[2],0);
+  query_arg(&argv[3],2);
+  dst = IR_ADDR_WITH_TASK(IR_ADDR_FROM_IP(client->addr),IR_L2_CFG);
+  p = IRouterMakePacket(&l2_cfg_id,&dst,0,0,IR_REQ,2,4,argv);
+  if (p == NULL)
     fprintf(stderr,"ERROR: can\'t create packet for configuration request.\n");
-  }
-  else {
+  else
     IRouterSendPacket(NULL,p);
-  }
-  return;
 }
 
+/* whether a packet is from an L2's configuration task */
+static int from_l2_cfg(IRAddress src)
+{
+  return (IR_ADDR_TYPE(src) == IR_ADDR_L2 || IR_ADDR_TYPE(src) == IR_ADDR_IP) &&
+         IR_ADDR_TASK(src) == IR_L2_CFG;
+}
+
+/*
+ * A configuration request: CFG_REQ_QUERY for this L2's configuration (as
+ * L3 tools ask), CFG_REQ_EXCHANGE from another L2 with its own. The answer
+ * carries the configuration in CFG_BLOCK pieces, then the events part. A
+ * request from an L2 goes on to the clients as an event.
+ */
 void cfg_process_request(IRPacket *req_p)
 {
-  int iVar1;
-  char *pcVar2;
-  char *local_EAX_1156;
-  size_t sVar3;
+  IRArgument argv[CFG_ARGS];
   IRPacket *rsp_p;
-  unsigned int uVar4;
-  size_t sStack_f8b0;
-  char *bptr;
-  char buff [63489];
-  int blk;
+  char *cfg;
+  char *evt;
+  int argc = 2;
   int blks;
   int clen;
-  IRAddress src;
-  char *evt;
-  char *cfg;
-  int argc;
-  IRArgument argv [16];
-  
-  argv[0]._clas = '\0';
-  argv[0]._frame = '\0';
-  argv[0]._val = 0;
-  argv[0]._size = 0;
-  argv[1]._clas = '\0';
-  argv[1]._frame = '\0';
-  argv[1]._val = 2;
-  argv[1]._size = 0;
-  argc = 2;
-  if ((req_p->_argv[0]._clas & 7) == 0) {
-    uVar4 = req_p->_argv[0]._val;
-  }
-  else {
-    uVar4 = IRArg(req_p,0);
-  }
-  if (uVar4 == 0) {
-    local_EAX_1156 = L2CfgMQuery(&L2CfgLocal,1,0);
-    pcVar2 = L2CfgMQuery(&L2CfgLocal,1,0);
-    sVar3 = strlen(pcVar2);
-    pcVar2 = malloc(sVar3 + 1);
-    cfg = strcpy(pcVar2,local_EAX_1156);
-    local_EAX_1156 = L2CfgMQuery(&L2CfgLocal,2,0);
-    pcVar2 = L2CfgMQuery(&L2CfgLocal,2,0);
-    sVar3 = strlen(pcVar2);
-    pcVar2 = malloc(sVar3 + 1);
-    evt = strcpy(pcVar2,local_EAX_1156);
-  }
-  else if (uVar4 == 1) {
-    local_EAX_1156 = L2CfgMQuery(&L2CfgLocal,0,0);
-    pcVar2 = L2CfgMQuery(&L2CfgLocal,0,0);
-    sVar3 = strlen(pcVar2);
-    pcVar2 = malloc(sVar3 + 1);
-    cfg = strcpy(pcVar2,local_EAX_1156);
-    local_EAX_1156 = L2CfgMQuery(&L2CfgLocal,2,0);
-    pcVar2 = L2CfgMQuery(&L2CfgLocal,2,0);
-    sVar3 = strlen(pcVar2);
-    pcVar2 = malloc(sVar3 + 1);
-    evt = strcpy(pcVar2,local_EAX_1156);
-    if (2 < req_p->_argc) {
+  int blk;
+
+  memset(argv,0,sizeof(argv));
+  argv[1]._val = CFG_FORMAT;
+  switch (arg_value(req_p,0)) {
+  case CFG_REQ_QUERY:
+    cfg = strdup(L2CfgMQuery(&L2CfgLocal,1,0));
+    evt = strdup(L2CfgMQuery(&L2CfgLocal,2,0));
+    break;
+  case CFG_REQ_EXCHANGE:
+    cfg = strdup(L2CfgMQuery(&L2CfgLocal,0,0));
+    evt = strdup(L2CfgMQuery(&L2CfgLocal,2,0));
+    if (req_p->_argc > 2) {
       smp_chkcon_changes(0);
       L2CfgMCfgL2(&L2CfgLocal,req_p);
       smp_chkcon_changes(1);
     }
+    break;
+  default:
+    IRouterFreePacket(req_p);   /* (the original went on with no text) */
+    return;
   }
   clen = strlen(cfg);
-  iVar1 = clen / 0xf800;
-  for (blk = 0; blk < iVar1 + 1; blk = blk + 1) {
-    memset(buff,0,0xf801);
-    if (clen < 0xf801) {
-      sStack_f8b0 = clen;
-    }
-    else {
-      sStack_f8b0 = 0xf800;
-    }
-    memcpy(buff,cfg + blk * 0xf800,sStack_f8b0);
-    clen = clen + -0xf800;
-    local_EAX_1156 = buff;
-    sVar3 = strlen(buff);
-    pcVar2 = malloc(sVar3 + 1);
-    local_EAX_1156 = strcpy(pcVar2,local_EAX_1156);
-    argv[argc]._clas = '\n';
-    argv[argc]._frame = '\0';
-    argv[argc]._val = IR_PTR_VAL(local_EAX_1156);
-    sVar3 = strlen(local_EAX_1156);
-    argv[argc]._size = (short)sVar3 + 1;
-    argc = argc + 1;
+  /* (one more block than full ones, perhaps empty; the original had room
+   * for 13) */
+  blks = clen / CFG_BLOCK + 1;
+  if (blks > CFG_ARGS - 3)
+    blks = CFG_ARGS - 3;
+  for (blk = 0; blk < blks; blk++) {
+    char *text = strndup(cfg + blk * CFG_BLOCK,CFG_BLOCK);
+    argv[argc]._clas = IR_ARG_STRING | IR_ARG_FREE;
+    argv[argc]._frame = 0;
+    argv[argc]._val = IR_PTR_VAL(text);
+    argv[argc]._size = strlen(text) + 1;
+    argc++;
   }
   free(cfg);
-  argv[argc]._clas = '\n';
-  argv[argc]._frame = '\0';
+  argv[argc]._clas = IR_ARG_STRING | IR_ARG_FREE;
+  argv[argc]._frame = 0;
   argv[argc]._val = IR_PTR_VAL(evt);
-  sVar3 = strlen(evt);
-  argv[argc]._size = (short)sVar3 + 1;
-  rsp_p = IRouterMakePacket(&l2_cfg_id,&req_p->_src,(unsigned int)(req_p->_pdata_auth >> 3),0,1,
-                            (unsigned int)req_p->_rev,argc + 1,argv);
-  if (rsp_p == NULL) {
+  argv[argc]._size = strlen(evt) + 1;
+  rsp_p = IRouterMakePacket(&l2_cfg_id,&req_p->_src,req_p->_pdata_auth >> 3,0,IR_RSP,req_p->_rev,
+                            argc + 1,argv);
+  if (rsp_p == NULL)
     fprintf(stderr,"ERROR: can\'t create packet for configuration response.\n");
-  }
   else {
     rsp_p->_seqnum0 = req_p->_seqnum0;
     rsp_p->_seqnum1 = req_p->_seqnum1;
     IRouterSendPacket(NULL,rsp_p);
   }
-  uVar4 = req_p->_src;
-  if (((uVar4 & 0x80000000) != 0) || (uVar4 >> 0x1c != 1)) {
-    if ((uVar4 & 0x80000000) == 0) {
-      if (uVar4 >> 0x1c != 0xe) goto LAB_080532b0;
-    }
-    else if (uVar4 >> 0x1e != 2) goto LAB_080532b0;
-  }
-  if ((uVar4 & 0x80000000) == 0) {
-    uVar4 = uVar4 & 0x1f;
-  }
-  else {
-    uVar4 = uVar4 >> 0x18 & 0x3f;
-  }
-  if (uVar4 == 4) {
-    req_p->_clas = 2;
+  if (from_l2_cfg(req_p->_src)) {
+    req_p->_clas = IR_EVT;
     IRouterSendBroadcastPacketToClients(&l2_cfg_id,req_p);
   }
-LAB_080532b0:
   IRouterFreePacket(req_p);
-  return;
 }
 
+/* a configuration response: an L1 port's bricks (the port in
+ * _client_data), or another L2's configuration */
 void cfg_process_response(IRPacket *p)
 {
-  uint8 *client_data;
-  unsigned int uVar1;
-  char *pcVar2;
-  int config_changed;
-  FILE *stream;
-  EventID EVar3;
-  IRAddress paddr;
-  char odname [60];
-  L2CfgPort *l2port;
-  int ostate;
-  int port;
-  IRAddress src;
-  
-  if (p->_err == '\0') {
-    if ((p->_src & 0x80000000) == 0) {
-      uVar1 = p->_src >> 0x1c;
+  int port = (int)(intptr_t)p->_client_data;
+  L2CfgPort *l2port = NULL;
+  char odname[60];
+  int ostate = 0;
+  int changed;
+
+  if (p->_err == 0 && IR_ADDR_TYPE(p->_src) == IR_ADDR_L1) {
+    if (l1usb_debug > 1) {
+      l2port = L2CfgMGetPort(&L2CfgLocal,port);
+      ostate = l2port->state;
+      strcpy(odname,L2CfgMDeviceName(&L2CfgLocal,l2port->fd));
     }
-    else if (p->_src >> 0x1e == 2) {
-      uVar1 = 0xe;
-    }
-    else {
-      uVar1 = 0xf;
-    }
-    if (uVar1 == 0) {
-      if (1 < l1usb_debug) {
-        l2port = L2CfgMGetPort(&L2CfgLocal,(int)(intptr_t)p->_client_data);
-        ostate = l2port->state;
-        pcVar2 = L2CfgMDeviceName(&L2CfgLocal,l2port->fd);
-        strcpy(odname,pcVar2);
-      }
-      smp_chkcon_changes(0);
-      config_changed = L2CfgMCfgPort(&L2CfgLocal,(int)(intptr_t)p->_client_data,p);
-      smp_chkcon_changes(1);
-      if (((1 < l1usb_debug) && (ostate != 2)) && (l2port->state == 2)) {
-        pcVar2 = L2CfgMDeviceName(&L2CfgLocal,l2port->fd);
-        stream = stderr;
-        if (l1usb_debug != 0) {
-          stream = NULL;
-        }
-        fprintf(stream,"INFO: USB device %s configured: %s\n",odname,pcVar2);
-      }
-      if (config_changed != 0) {
-        client_data = p->_client_data;
-        EventRemoveTimeOut(l2_l1_ports[(int)(intptr_t)client_data].timer);
-        EVar3 = EventAddTimeOut(1,0,cfg_ping_l1,(EventData)client_data,"extra cfg_ping_l1");
-        l2_l1_ports[(int)(intptr_t)client_data].timer = EVar3;
-        cfg_configcheck(1);
-      }
-    }
-    else if (uVar1 == 0xe) {
-      smp_chkcon_changes(0);
-      L2CfgMCfgL2(&L2CfgLocal,p);
-      smp_chkcon_changes(1);
+    smp_chkcon_changes(0);
+    changed = L2CfgMCfgPort(&L2CfgLocal,port,p);
+    smp_chkcon_changes(1);
+    /* (as a console event: the original's fprintf() to a NULL stream) */
+    if (l1usb_debug > 1 && ostate != L2CFG_PORT_CONFIGURED && l2port->state == L2CFG_PORT_CONFIGURED)
+      l2_console_printf("INFO: USB device %s configured: %s\n",odname,
+                        L2CfgMDeviceName(&L2CfgLocal,l2port->fd));
+    if (changed) {
+      /* ask again in a second */
+      EventRemoveTimeOut(l2_l1_ports[port].timer);
+      l2_l1_ports[port].timer = EventAddTimeOut(1,0,cfg_ping_l1,(EventData)(intptr_t)port,"extra cfg_ping_l1");
+      cfg_configcheck(1);
     }
   }
-  uVar1 = p->_src;
-  if (((uVar1 & 0x80000000) != 0) || (uVar1 >> 0x1c != 1)) {
-    if ((uVar1 & 0x80000000) == 0) {
-      if (uVar1 >> 0x1c != 0xe) goto LAB_08053588;
-    }
-    else if (uVar1 >> 0x1e != 2) goto LAB_08053588;
+  else if (p->_err == 0 && IR_ADDR_TYPE(p->_src) == IR_ADDR_IP) {
+    smp_chkcon_changes(0);
+    L2CfgMCfgL2(&L2CfgLocal,p);
+    smp_chkcon_changes(1);
   }
-  if ((uVar1 & 0x80000000) == 0) {
-    uVar1 = uVar1 & 0x1f;
-  }
-  else {
-    uVar1 = uVar1 >> 0x18 & 0x3f;
-  }
-  if (uVar1 == 4) {
-    p->_clas = 2;
+  if (from_l2_cfg(p->_src)) {
+    p->_clas = IR_EVT;
     IRouterSendBroadcastPacketToClients(&l2_cfg_id,p);
   }
-LAB_08053588:
   IRouterFreePacket(p);
-  return;
 }
 
+/* (debugging) a packet's data arguments */
 void pp(IRPacket *p)
 {
-  char *sptr;
-  int slen_;
-  char *sptr_;
-  int slen;
   int arg;
-  
-  for (arg = 0; arg < (int)(unsigned int)p->_argc; arg = arg + 1) {
-    if ((p->_argv[arg]._clas & 7) == 1) {
-      if ((p->_argv[arg]._clas & 7) == 0) {
-        sptr = (char *)IR_VAL_PTR(p->_argv[arg]._val);
-      }
-      else {
-        sptr = (char *)IRArg(p,arg);
-      }
-      fprintf(stderr,"%s\n",sptr);
-    }
-  }
-  return;
+
+  for (arg = 0; arg < p->_argc; arg++)
+    if (IR_ARG_TYPE(p->_argv[arg]) == IR_ARG_BYTES)
+      fprintf(stderr,"%s\n",(char *)IRArg(p,arg));
 }
 
+/* an L1 configuration event (or an L2's, EV_L2_CONFIG); after one from an
+ * L1's configuration task, that L1's port is asked again in a second */
 void cfg_process_event(IRPacket *p)
 {
-  unsigned short uVar1;
-  unsigned int uVar2;
-  L2CfgL1 *pLVar3;
-  EventID EVar4;
-  unsigned int uVar5;
-  L2CfgL1 *cfg;
+  IRAddress src = p->_src;
   L2CfgPort *l2port;
-  int ping_port;
-  int l1;
+  int ping_port = -1;
   int port;
-  int slot;
-  int rack;
-  IRAddress src;
-  
-  uVar2 = p->_src;
-  if (p->_err == '\0') {
-    uVar1 = p->_opcode;
-    if (uVar1 == 6) {
+  int l1;
+
+  if (p->_err == 0) {
+    switch (p->_opcode) {
+    case EV_SUBCHANNEL:
+      smp_chkcon_changes(0);
+      cfg_console_subchannel(p);
+      smp_chkcon_changes(1);
+      break;
+    case EV_CONSOLE_ENABLE:
+      cfg_console_enable(p);
+      break;
+    case EV_POWER:
+      cfg_power_state(p);
+      break;
+    case EV_MARGIN:
+      cfg_margin_state(p);
+      break;
+    case EV_PARTITION:
       smp_chkcon_changes(0);
       cfg_partition(p);
       smp_chkcon_changes(1);
-    }
-    else if (uVar1 < 7) {
-      if (uVar1 == 3) {
-        cfg_console_enable(p);
-      }
-      else if (uVar1 < 4) {
-        if (uVar1 == 2) {
-          smp_chkcon_changes(0);
-          cfg_console_subchannel(p);
-          smp_chkcon_changes(1);
-        }
-      }
-      else if (uVar1 == 4) {
-        cfg_power_state(p);
-      }
-      else if (uVar1 == 5) {
-        cfg_margin_state(p);
-      }
-    }
-    else if (uVar1 == 8) {
-      cfg_environmental(p);
-    }
-    else if (uVar1 < 8) {
+      break;
+    case EV_SYSTEM_SN:
       cfg_system_sn(p);
-    }
-    else {
-      if (uVar1 == 100) {
-        return;
-      }
-      if (uVar1 == 1000) {
-        smp_chkcon_changes(0);
-        L2CfgMCfgL2(&L2CfgLocal,p);
-        smp_chkcon_changes(1);
-      }
-    }
-  }
-  if ((uVar2 & 0x80000000) == 0) {
-    uVar5 = uVar2 & 0x1f;
-  }
-  else {
-    uVar5 = uVar2 >> 0x18 & 0x3f;
-  }
-  if (uVar5 == 0xe) {
-    ping_port = -1;
-    port = 0;
-    while ((port < 0x28 && (ping_port < 0))) {
-      if (L2CfgLocal.port_list[port].state == 2) {
-        l1 = 0;
-        while ((l1 < L2CfgLocal.port_list[port].l1count && (ping_port < 0))) {
-          pLVar3 = L2CfgLocal.port_list[port].l1cfg;
-          if ((pLVar3[l1].configured != '\0') &&
-             (((unsigned int)pLVar3[l1].rack == (uVar2 >> 0x12 & 0x3ff) &&
-              ((unsigned int)pLVar3[l1].slot == (uVar2 >> 0xc & 0x3f))))) {
-            ping_port = port;
-          }
-          l1 = l1 + 1;
-        }
-      }
-      port = port + 1;
-    }
-    if (-1 < ping_port) {
-      EventRemoveTimeOut(l2_l1_ports[ping_port].timer);
-      EVar4 = EventAddTimeOut(1,0,cfg_ping_l1,(EventData)(intptr_t)ping_port,"extra cfg_ping_l1");
-      l2_l1_ports[ping_port].timer = EVar4;
+      break;
+    case EV_ENVIRONMENT:
+      cfg_environmental(p);
+      break;
+    case EV_IGNORED:
+      return;
+    case EV_L2_CONFIG:
+      smp_chkcon_changes(0);
+      L2CfgMCfgL2(&L2CfgLocal,p);
+      smp_chkcon_changes(1);
+      break;
     }
   }
-  return;
+  if (IR_ADDR_TASK(src) != IR_L1_CFG)
+    return;
+  for (port = 0; port < L2CFG_PORTS && ping_port < 0; port++) {
+    l2port = &L2CfgLocal.port_list[port];
+    if (l2port->state != L2CFG_PORT_CONFIGURED)
+      continue;
+    for (l1 = 0; l1 < l2port->l1count && ping_port < 0; l1++)
+      if (l2port->l1cfg[l1].configured && l2port->l1cfg[l1].rack == (unsigned int)IR_ADDR_RACK(src) &&
+          l2port->l1cfg[l1].slot == (unsigned int)IR_ADDR_SLOT(src))
+        ping_port = port;
+  }
+  if (ping_port >= 0) {
+    EventRemoveTimeOut(l2_l1_ports[ping_port].timer);
+    l2_l1_ports[ping_port].timer =
+        EventAddTimeOut(1,0,cfg_ping_l1,(EventData)(intptr_t)ping_port,"extra cfg_ping_l1");
+  }
+}
+
+/* the brick an event (rack in argument 1, slot in 2) is about */
+static L2CfgL1 *event_brick(IRPacket *p)
+{
+  return L2CfgMFindBrickCfg(&L2CfgLocal,arg_value(p,1),arg_value(p,2),0);
 }
 
 void cfg_console_subchannel(IRPacket *p)
 {
-  int rack;
-  int slot;
-  L2CfgL1 *cfg;
-  uint32 uVar1;
-  IRAddress addr;
-  int part;
-  
-  if ((p->_argv[1]._clas & 7) == 0) {
-    rack = (int)p->_argv[1]._val;
-  }
-  else {
-    rack = IRArg(p,1);
-  }
-  if ((p->_argv[2]._clas & 7) == 0) {
-    slot = (int)p->_argv[2]._val;
-  }
-  else {
-    slot = IRArg(p,2);
-  }
-  cfg = L2CfgMFindBrickCfg(&L2CfgLocal,rack,slot,0);
+  L2CfgL1 *cfg = event_brick(p);
+
   if (cfg != NULL) {
-    if ((p->_argv[3]._clas & 7) == 0) {
-      uVar1 = p->_argv[3]._val;   /* bytes 64..67 of the packet */
-    }
-    else {
-      uVar1 = IRArg(p,3);
-    }
-    cfg->console_subchannel = uVar1;
+    cfg->console_subchannel = arg_value(p,3);
     L2CfgMGetConsole(&L2CfgLocal,-1);
   }
-  return;
 }
 
 void cfg_console_enable(IRPacket *p)
 {
-  unsigned int rack_00;
-  int slot;
-  L2CfgL1 *cfg;
-  int rack;
-  uint8 uStack_11;
-  
-  if ((p->_argv[1]._clas & 7) == 0) {
-    rack_00 = (unsigned int)p->_argv[1]._val;
-  }
-  else {
-    rack_00 = IRArg(p,1);
-  }
-  if ((p->_argv[2]._clas & 7) == 0) {
-    slot = (int)p->_argv[2]._val;
-  }
-  else {
-    slot = IRArg(p,2);
-  }
-  cfg = L2CfgMFindBrickCfg(&L2CfgLocal,rack_00,slot,0);
-  if (cfg != NULL) {
-    if ((p->_argv[3]._clas & 7) == 0) {
-      uStack_11 = (uint8)p->_argv[3]._val;
-    }
-    else {
-      rack = IRArg(p,3);
-      uStack_11 = (uint8)rack;
-    }
-    cfg->console_enabled = uStack_11;
-  }
-  return;
+  L2CfgL1 *cfg = event_brick(p);
+
+  if (cfg != NULL)
+    cfg->console_enabled = arg_value(p,3);
 }
 
 void cfg_power_state(IRPacket *p)
 {
-  unsigned int rack_00;
-  int slot;
-  L2CfgL1 *cfg;
-  int rack;
-  uint8 uStack_11;
-  
-  if ((p->_argv[1]._clas & 7) == 0) {
-    rack_00 = (unsigned int)p->_argv[1]._val;
-  }
-  else {
-    rack_00 = IRArg(p,1);
-  }
-  if ((p->_argv[2]._clas & 7) == 0) {
-    slot = (int)p->_argv[2]._val;
-  }
-  else {
-    slot = IRArg(p,2);
-  }
-  cfg = L2CfgMFindBrickCfg(&L2CfgLocal,rack_00,slot,0);
-  if (cfg != NULL) {
-    if ((p->_argv[3]._clas & 7) == 0) {
-      uStack_11 = (uint8)p->_argv[3]._val;
-    }
-    else {
-      rack = IRArg(p,3);
-      uStack_11 = (uint8)rack;
-    }
-    cfg->power_state = uStack_11;
-  }
-  return;
+  L2CfgL1 *cfg = event_brick(p);
+
+  if (cfg != NULL)
+    cfg->power_state = arg_value(p,3);
 }
 
 void cfg_margin_state(IRPacket *p)
 {
-  unsigned int rack_00;
-  int slot;
-  L2CfgL1 *cfg;
-  int rack;
-  uint8 uStack_11;
-  
-  if ((p->_argv[1]._clas & 7) == 0) {
-    rack_00 = (unsigned int)p->_argv[1]._val;
-  }
-  else {
-    rack_00 = IRArg(p,1);
-  }
-  if ((p->_argv[2]._clas & 7) == 0) {
-    slot = (int)p->_argv[2]._val;
-  }
-  else {
-    slot = IRArg(p,2);
-  }
-  cfg = L2CfgMFindBrickCfg(&L2CfgLocal,rack_00,slot,0);
-  if (cfg != NULL) {
-    if ((p->_argv[3]._clas & 7) == 0) {
-      uStack_11 = (uint8)p->_argv[3]._val;
-    }
-    else {
-      rack = IRArg(p,3);
-      uStack_11 = (uint8)rack;
-    }
-    cfg->margin_state = uStack_11;
-  }
-  return;
+  L2CfgL1 *cfg = event_brick(p);
+
+  if (cfg != NULL)
+    cfg->margin_state = arg_value(p,3);
 }
 
 void cfg_partition(IRPacket *p)
 {
-  int rack;
-  int slot;
-  unsigned int uVar1;
-  L2CfgL1 *cfg;
-  int old_part;
-  IRAddress addr;
-  uint8 new_part;
-  
-  if ((p->_argv[1]._clas & 7) == 0) {
-    rack = (int)p->_argv[1]._val;
-  }
-  else {
-    rack = IRArg(p,1);
-  }
-  if ((p->_argv[2]._clas & 7) == 0) {
-    slot = (int)p->_argv[2]._val;
-  }
-  else {
-    slot = IRArg(p,2);
-  }
-  if ((p->_argv[3]._clas & 7) == 0) {
-    new_part = (uint8)p->_argv[3]._val;
-  }
-  else {
-    uVar1 = IRArg(p,3);
-    new_part = (uint8)uVar1;
-  }
-  cfg = L2CfgMFindBrickCfg(&L2CfgLocal,rack,slot,0);
-  if (cfg != NULL) {
+  uint8 new_part = arg_value(p,3);
+  L2CfgL1 *cfg = event_brick(p);
+
+  if (cfg != NULL)
     cfg->partition = new_part;
-  }
-  return;
 }
 
 void cfg_system_sn(IRPacket *p)
 {
-  int rack;
-  int slot;
-  L2CfgL1 *cfg;
-  char *__src;
-  
-  if ((p->_argv[1]._clas & 7) == 0) {
-    rack = (int)p->_argv[1]._val;
-  }
-  else {
-    rack = IRArg(p,1);
-  }
-  if ((p->_argv[2]._clas & 7) == 0) {
-    slot = (int)p->_argv[2]._val;
-  }
-  else {
-    slot = IRArg(p,2);
-  }
-  cfg = L2CfgMFindBrickCfg(&L2CfgLocal,rack,slot,0);
-  if (cfg != NULL) {
-    if ((p->_argv[3]._clas & 7) == 0) {
-      __src = (char *)IR_VAL_PTR(p->_argv[3]._val);
-    }
-    else {
-      __src = (char *)IRArg(p,3);
-    }
-    strcpy(cfg->system_sn,__src);
-  }
-  return;
+  L2CfgL1 *cfg = event_brick(p);
+  const char *sn;
+
+  if (cfg == NULL)
+    return;
+  sn = IR_ARG_TYPE(p->_argv[3]) == IR_ARG_VALUE ? (const char *)IR_VAL_PTR(p->_argv[3]._val)
+                                                 : (const char *)IRArg(p,3);
+  /* (the original strcpy()ed into the 12 bytes) */
+  snprintf(cfg->system_sn,sizeof(cfg->system_sn),"%s",sn);
 }
 
 void cfg_environmental(IRPacket *p)
 {
-  int rack;
-  int slot;
-  int state;
-  L2CfgL1 *cfg;
-  IRAddress addr;
-  
-  if ((p->_argv[1]._clas & 7) == 0) {
-    rack = (int)p->_argv[1]._val;
-  }
-  else {
-    rack = IRArg(p,1);
-  }
-  if ((p->_argv[2]._clas & 7) == 0) {
-    slot = (int)p->_argv[2]._val;
-  }
-  else {
-    slot = IRArg(p,2);
-  }
-  if ((p->_argv[3]._clas & 7) == 0) {
-    state = p->_argv[3]._val;   /* bytes 64..67 of the packet */
-  }
-  else {
-    state = IRArg(p,3);
-  }
-  cfg = L2CfgMFindBrickCfg(&L2CfgLocal,rack,slot,0);
-  if (cfg != NULL) {
+  int state = arg_value(p,3);
+  L2CfgL1 *cfg = event_brick(p);
+
+  if (cfg != NULL)
     cfg->env_state = state;
-  }
-  return;
 }
 
+/* the length of the common start of two strings */
 int strdiff(char *s1, char *s2)
 {
   int index;
-  
-  for (index = 0; ((s1[index] != '\0' && (s2[index] != '\0')) && (s1[index] == s2[index]));
-      index = index + 1) {
-  }
+
+  for (index = 0; s1[index] != '\0' && s2[index] != '\0' && s1[index] == s2[index]; index++)
+    ;
   return index;
 }
 
+/* check the configuration every delay seconds (0: never, which turns the
+ * automatic rescans off) */
 void cfg_setup_configcheck(int delay)
 {
   static EventID timerid;
-  
-  if (timerid != 0) {
+
+  if (timerid != 0)
     EventRemoveTimeOut(timerid);
-  }
-  if (delay == 0) {
-    timerid = 0;
-  }
-  else {
-    timerid = EventAddTimeOut(delay,0,cfg_configcheck,(EventData)0x1,"cfg_setup_config_check");
-  }
-  cfg_auto_rescan = (int)(delay != 0);
-  return;
+  timerid = delay == 0 ? 0 : EventAddTimeOut(delay,0,cfg_configcheck,(EventData)1,"cfg_setup_config_check");
+  cfg_auto_rescan = delay != 0;
 }
 
+/* look for other L2s every delay seconds (0: never; also sets the rescans) */
 void cfg_setup_l2ping(int delay)
 {
   static EventID timerid;
-  
-  if (timerid != 0) {
+
+  if (timerid != 0)
     EventRemoveTimeOut(timerid);
-  }
-  if (delay == 0) {
-    timerid = 0;
-  }
-  else {
-    timerid = EventAddTimeOut(delay,0,cfg_l2ping,(EventData)0x1,"cfg_setup_l2ping");
-  }
-  cfg_auto_rescan = (int)(delay != 0);
-  return;
+  timerid = delay == 0 ? 0 : EventAddTimeOut(delay,0,cfg_l2ping,(EventData)1,"cfg_setup_l2ping");
+  cfg_auto_rescan = delay != 0;
 }
 
+/* start_timer: hold configuration events for cfg_throttle_frequency
+ * seconds; 0 (the timer): send one that was held */
 static void cfg_configcheck_throttle(int start_timer)
 {
   static EventID timerid;
-  
+
   if (start_timer == 0) {
     timerid = 0;
     cfg_configcheck_hold = 0;
-    if (cfg_configcheck_pending != 0) {
+    if (cfg_configcheck_pending) {
       cfg_configcheck_pending = 0;
       cfg_configcheck(1);
     }
+    return;
   }
-  else {
-    cfg_configcheck_hold = 1;
-    if (timerid != 0) {
-      EventRemoveTimeOut(timerid);
-    }
-    timerid = EventAddTimeOut(cfg_throttle_frequency,0,cfg_configcheck_throttle,(EventData)0x0,
-                              "cfg_configcheck_throttle");
-  }
-  return;
+  cfg_configcheck_hold = 1;
+  if (timerid != 0)
+    EventRemoveTimeOut(timerid);
+  timerid = EventAddTimeOut(cfg_throttle_frequency,0,cfg_configcheck_throttle,NULL,"cfg_configcheck_throttle");
 }
 
+/* a string argument, or an empty value argument when s is NULL */
+static void bytes_arg(IRArgument *arg, const char *s)
+{
+  memset(arg,0,sizeof(*arg));
+  if (s == NULL)
+    return;
+  arg->_clas = IR_ARG_BYTES | IR_ARG_FREE;
+  arg->_val = IR_PTR_VAL(strdup(s));
+  arg->_size = strlen(s) + 1;
+}
+
+/* if the configuration or its events part changed since the last check,
+ * send the changed part(s) to every client as an EV_L2_CONFIG event;
+ * start_timer: check again in CONFIGCHECK_DELAY seconds */
 void cfg_configcheck(int start_timer)
 {
   static char *cfg_last;
   static char *evt_last;
-  char *pcVar1;
-  char *pcVar2;
-  size_t sVar3;
-  char *pcVar4;
-  int iVar5;
-  char *__dest;
+  IRArgument argv[4];
   IRPacket *p;
-  char *evt_curr;
   char *cfg_curr;
-  IRArgument argv [4];
-  bool cfg_change;
-  bool evt_change;
-  
-  evt_change = false;
-  if (cfg_configcheck_hold == 0) {
-    pcVar1 = L2CfgMQuery(&L2CfgLocal,0,0);
-    pcVar2 = L2CfgMQuery(&L2CfgLocal,0,0);
-    sVar3 = strlen(pcVar2);
-    pcVar2 = malloc(sVar3 + 1);
-    pcVar1 = strcpy(pcVar2,pcVar1);
-    pcVar2 = L2CfgMQuery(&L2CfgLocal,2,0);
-    pcVar4 = L2CfgMQuery(&L2CfgLocal,2,0);
-    sVar3 = strlen(pcVar4);
-    pcVar4 = malloc(sVar3 + 1);
-    pcVar2 = strcpy(pcVar4,pcVar2);
-    if (cfg_last == NULL) {
-      cfg_change = true;
-      evt_change = true;
-      cfg_last = pcVar1;
-      evt_last = pcVar2;
-    }
-    else {
-      iVar5 = strcmp(cfg_last,pcVar1);
-      if (iVar5 == 0) {
-        free(pcVar1);
-      }
-      else {
-        free(cfg_last);
-        cfg_last = pcVar1;
-      }
-      cfg_change = iVar5 != 0;
-      iVar5 = strcmp(evt_last,pcVar2);
-      if (iVar5 == 0) {
-        free(pcVar2);
-      }
-      else {
-        free(evt_last);
-        evt_change = true;
-        evt_last = pcVar2;
-      }
-    }
-    if ((cfg_change) || (evt_change)) {
-      argv[0]._clas = '\0';
-      argv[0]._frame = '\0';
-      argv[0]._val = 0;
-      argv[0]._size = 0;
-      argv[1]._clas = '\0';
-      argv[1]._frame = '\0';
-      argv[1]._val = 2;
-      argv[1]._size = 0;
-      if (cfg_change) {
-        argv[2]._clas = '\t';
-        argv[2]._frame = '\0';
-        pcVar4 = pcVar1;
-        sVar3 = strlen(pcVar1);
-        __dest = malloc(sVar3 + 1);
-        argv[2]._val = IR_PTR_VAL(strcpy(__dest,pcVar4));
-        sVar3 = strlen(pcVar1);
-        argv[2]._size = (short)sVar3 + 1;
-      }
-      else {
-        argv[2]._clas = '\0';
-        argv[2]._frame = '\0';
-        argv[2]._val = 0;
-        argv[2]._size = 0;
-      }
-      if (evt_change) {
-        argv[3]._clas = '\t';
-        argv[3]._frame = '\0';
-        pcVar1 = pcVar2;
-        sVar3 = strlen(pcVar2);
-        pcVar4 = malloc(sVar3 + 1);
-        argv[3]._val = IR_PTR_VAL(strcpy(pcVar4,pcVar1));
-        sVar3 = strlen(pcVar2);
-        argv[3]._size = (short)sVar3 + 1;
-      }
-      else {
-        argv[3]._clas = '\0';
-        argv[3]._frame = '\0';
-        argv[3]._val = 0;
-        argv[3]._size = 0;
-      }
-      p = IRouterMakePacket(&l2_cfg_id,NULL,0,1000,2,2,4,argv);
-      if (p == NULL) {
-        fprintf(stderr,"ERROR: can\'t create packet for configuration event.\n");
-      }
-      else {
-        IRouterSendPacket(&l2_cfg_id,p);
-        cfg_configcheck_throttle(1);
-      }
-    }
-    if ((cfg_auto_rescan != 0) && (start_timer != 0)) {
-      cfg_setup_configcheck(7);
-    }
+  char *evt_curr;
+  int cfg_change;
+  int evt_change;
+
+  if (cfg_configcheck_hold) {
+    cfg_configcheck_pending = 1;
+    return;
+  }
+  cfg_curr = strdup(L2CfgMQuery(&L2CfgLocal,0,0));
+  evt_curr = strdup(L2CfgMQuery(&L2CfgLocal,2,0));
+  if (cfg_last == NULL) {
+    cfg_change = evt_change = 1;
+    cfg_last = cfg_curr;
+    evt_last = evt_curr;
   }
   else {
-    cfg_configcheck_pending = 1;
+    cfg_change = strcmp(cfg_last,cfg_curr) != 0;
+    if (cfg_change) {
+      free(cfg_last);
+      cfg_last = cfg_curr;
+    }
+    else
+      free(cfg_curr);
+    evt_change = strcmp(evt_last,evt_curr) != 0;
+    if (evt_change) {
+      free(evt_last);
+      evt_last = evt_curr;
+    }
+    else
+      free(evt_curr);
   }
-  return;
+  if (cfg_change || evt_change) {
+    memset(argv,0,sizeof(argv));
+    argv[1]._val = CFG_FORMAT;
+    bytes_arg(&argv[2],cfg_change ? cfg_last : NULL);
+    bytes_arg(&argv[3],evt_change ? evt_last : NULL);
+    p = IRouterMakePacket(&l2_cfg_id,NULL,0,EV_L2_CONFIG,IR_EVT,2,4,argv);
+    if (p == NULL)
+      fprintf(stderr,"ERROR: can\'t create packet for configuration event.\n");
+    else {
+      IRouterSendPacket(&l2_cfg_id,p);
+      cfg_configcheck_throttle(1);
+    }
+  }
+  if (cfg_auto_rescan && start_timer)
+    cfg_setup_configcheck(CONFIGCHECK_DELAY);
 }
 
+/* the console output this L2 wants from other L2s: the partitions its
+ * consoles and its L3 tools follow */
 void cfg_check_console_events(void)
 {
-  unsigned int uVar1;
-  int iVar2;
-  int p;
-  L2CfgNode *node;
   L2CfgPSelect pselect;
-  SMP *smp;
-  int emsk;
-  
-  uVar1 = L2CfgLocal.net.events;
-  emsk = L2CfgLocal.net.events;
-  memcpy(pselect,L2CfgLocal.net.pselect,0x100);
-  iVar2 = smp_console_count(pselect);
-  if (0 < iVar2) {
-    emsk = uVar1 | 1;
+  unsigned int emsk = L2CfgLocal.net.events;
+  L2CfgNode *node;
+  int p;
+
+  memcpy(pselect,L2CfgLocal.net.pselect,sizeof(pselect));
+  if (smp_console_count(pselect) > 0)
+    emsk |= 1;
+  for (node = L2CfgLocal.l3_clients; node != NULL; node = node->next) {
+    if (!(node->events & 1))
+      continue;
+    emsk |= 1;
+    for (p = 0; p < (int)sizeof(pselect); p++)
+      pselect[p] |= node->pselect[p];
   }
-  if (L2CfgLocal.l3_clients != NULL) {
-    for (node = L2CfgLocal.l3_clients; node != NULL; node = node->next) {
-      if ((node->events & 1) != 0) {
-        emsk = emsk | 1;
-        for (p = 0; p < 0x100; p = p + 1) {
-          pselect[p] = pselect[p] | node->pselect[p];
-        }
-      }
-    }
-  }
-  if (((unsigned int)emsk != L2CfgLocal.net.events) ||
-     (iVar2 = memcmp(pselect,L2CfgLocal.net.pselect,0x100), iVar2 != 0)) {
+  if (emsk != L2CfgLocal.net.events || memcmp(pselect,L2CfgLocal.net.pselect,sizeof(pselect)) != 0) {
     L2CfgLocal.net.events = emsk;
-    memcpy(L2CfgLocal.net.pselect,pselect,0x100);
+    memcpy(L2CfgLocal.net.pselect,pselect,sizeof(pselect));
     cfg_configcheck(1);
   }
-  return;
 }
 
+/* ... and L2 console events, if an L3 tool follows them */
 void cfg_check_smp_events(void)
 {
+  unsigned int emsk = L2CfgLocal.net.events;
   L2CfgNode *node;
-  L2CfgPSelect pselect;
-  int emsk;
-  
-  emsk = L2CfgLocal.net.events;
-  if (L2CfgLocal.l3_clients != NULL) {
-    for (node = L2CfgLocal.l3_clients; node != NULL; node = node->next) {
-      if ((node->events & 8) != 0) {
-        emsk = emsk | 8;
-      }
-    }
-  }
-  if ((unsigned int)emsk != L2CfgLocal.net.events) {
+
+  for (node = L2CfgLocal.l3_clients; node != NULL; node = node->next)
+    if (node->events & 8)
+      emsk |= 8;
+  if (emsk != L2CfgLocal.net.events) {
     L2CfgLocal.net.events = emsk;
     cfg_configcheck(1);
   }
-  return;
 }
 
+/* the network server's password check: L3 tools need the L2's password,
+ * if it has one; 0 to let the client in */
 int cfg_password(RouterClient *client, char *pwguess)
 {
-  int iVar1;
   char *pw;
-  
-  if ((client->port == IR_PORT_BIAS + 8000) || (client->port == IR_PORT_BIAS + 0x1f42)) {
-    pw = (char *)nvramGet(NVRAM_PASSWORD);
-    if ((pw == NULL) || (*pw == '\0')) {
-      iVar1 = 0;
-    }
-    else if ((pwguess == NULL) || (*pwguess == '\0')) {
-      iVar1 = -1;
-    }
-    else {
-      iVar1 = strcmp(pw,pwguess);
-      if (iVar1 == 0) {
-        iVar1 = 0;
-      }
-      else {
-        iVar1 = -1;
-      }
-    }
-  }
-  else {
-    iVar1 = 0;
-  }
-  return iVar1;
+
+  if (client->port != IR_PORT_BIAS + L3_CMD_PORT && client->port != IR_PORT_BIAS + L3_QUIET_PORT)
+    return 0;
+  pw = (char *)nvramGet(NVRAM_PASSWORD);
+  if (pw == NULL || *pw == '\0')
+    return 0;
+  if (pwguess == NULL || *pwguess == '\0')
+    return -1;
+  return strcmp(pw,pwguess) == 0 ? 0 : -1;
 }
 
 void cfg_connect(RouterClient *client)
 {
   cfg_check_console_events();
   cfg_check_smp_events();
-  return;
 }
 
+/* a client went: an L2 is gone from the clients' configurations too */
 void cfg_disconnect(RouterClient *client)
 {
-  char *pcVar1;
-  size_t sVar2;
+  IRArgument rarg[3];
+  char qbuf[100];
   IRPacket *pkt;
-  char qbuf [100];
-  IRArgument rarg [3];
-  
-  if (client->port == IR_PORT_BIAS + 0x2329) {
-    pcVar1 = inet_ntoa(*(struct in_addr *)&client->addr);
-    sprintf(qbuf,"l2:%s,DELETE_L2:1",pcVar1);
-    rarg[0]._clas = '\0';
-    rarg[0]._frame = '\0';
-    rarg[0]._val = 1;
-    rarg[0]._size = 0;
-    rarg[1]._clas = '\0';
-    rarg[1]._frame = '\0';
-    rarg[1]._val = 2;
-    rarg[1]._size = 0;
-    rarg[2]._clas = 2;
-    rarg[2]._frame = '\0';
+
+  if (client->port == IR_PORT_BIAS + L2_PEER_PORT) {
+    sprintf(qbuf,"l2:%s,DELETE_L2:1",inet_ntoa(*(struct in_addr *)&client->addr));
+    memset(rarg,0,sizeof(rarg));
+    rarg[0]._val = CFG_REQ_EXCHANGE;
+    rarg[1]._val = CFG_FORMAT;
+    rarg[2]._clas = IR_ARG_STRING;
     rarg[2]._val = IR_PTR_VAL(qbuf);
-    sVar2 = strlen(qbuf);
-    rarg[2]._size = (short)sVar2 + 1;
-    pkt = IRouterMakePacket(&l2_cfg_id,NULL,0,1000,2,2,3,rarg);
-    if (pkt == NULL) {
+    rarg[2]._size = strlen(qbuf) + 1;
+    pkt = IRouterMakePacket(&l2_cfg_id,NULL,0,EV_L2_CONFIG,IR_EVT,2,3,rarg);
+    if (pkt == NULL)
       fprintf(stderr,"ERROR: can\'t create packet to update L2/L3 client configs.\n");
-    }
     else {
       IRouterSendBroadcastPacketToClients(&l2_cfg_id,pkt);
+      IRouterFreePacket(pkt);   /* (the original freed it when NULL, too) */
     }
-    IRouterFreePacket(pkt);
   }
   cfg_check_console_events();
   cfg_check_smp_events();
   smp_chkcon_changes(0);
   L2CfgMGetConsole(&L2CfgLocal,-1);
   smp_chkcon_changes(1);
-  return;
 }
 
 void cfg_establish(RouterClient *client)
 {
   cfg_ping_l2(client);
-  return;
 }
 
+/* an answer to our discovery request: connect to an L2 we don't know;
+ * one we know has given a heartbeat */
 void cfg_recv_l2ping(void *cd, int sd)
 {
-  int rval;
-  char *ip;
-  L2CfgNode *l2node;
-  int msgnbr;
-  char *pcVar1;
   sn1SC_L2 l2cfg;
-  
-  rval = sn1SCDiscoverL2Response(sd,&l2cfg,1);
-  if (rval == 0) {
-    ip = inet_ntoa(*(struct in_addr *)&l2cfg.ip_addr);
-    l2node = L2CfgMFindNode(&L2CfgLocal,l2cfg.ip_addr,0,NULL);
-    if (l2node == NULL) {
-      msgnbr = EnetServerConnect(ip,IR_PORT_BIAS + 0x2329);
-      if (msgnbr == 0) {
-        fprintf(stderr,"INFO: connection to %s initiated\n",ip);
-      }
-      else {
-        pcVar1 = LoggerDefaultMessage(msgnbr);
-        fprintf(stderr,"INFO: can\'t connect to %s, %s\n",ip,pcVar1);
-      }
-    }
-    else if (l2node->heartbeat != 0xffffffff) {
-      l2node->heartbeat = l2node->heartbeat + 1;
-    }
+  L2CfgNode *l2node;
+  char *ip;
+  int msgnbr;
+
+  if (sn1SCDiscoverL2Response(sd,&l2cfg,1) != 0)
+    return;
+  ip = inet_ntoa(*(struct in_addr *)&l2cfg.ip_addr);
+  l2node = L2CfgMFindNode(&L2CfgLocal,l2cfg.ip_addr,0,NULL);
+  if (l2node == NULL) {
+    msgnbr = EnetServerConnect(ip,IR_PORT_BIAS + L2_PEER_PORT);
+    if (msgnbr == 0)
+      fprintf(stderr,"INFO: connection to %s initiated\n",ip);
+    else
+      fprintf(stderr,"INFO: can\'t connect to %s, %s\n",ip,LoggerDefaultMessage(msgnbr));
   }
-  return;
+  else if (l2node->heartbeat != 0xffffffff)
+    l2node->heartbeat++;
 }
 
 static void find_client_to_delete(RouterClient *client)
 {
-  if ((client->addr == del_addr) && (client->port == IR_PORT_BIAS + 0x2329)) {
+  if (client->addr == del_addr && client->port == IR_PORT_BIAS + L2_PEER_PORT)
     del_client = client;
-  }
-  return;
 }
 
+/*
+ * The L2 ping: every cfg_ping_response_maximum calls, drop the L2s that
+ * gave fewer than cfg_ping_response_minimum heartbeats since the last time
+ * (those that never finished connecting, and connected ones); then send a
+ * discovery request (whose answers are the heartbeats). start_timer: again
+ * in cfg_ping_l2_frequency seconds.
+ */
 void cfg_l2ping(int start_timer)
 {
-  struct _L2CfgNode *p_Var1;
   static int initial = 1;
   static int check;
-  uint32 uVar2;
-  size_t sVar3;
-  char *pcVar4;
+  char client_data[200];
   L2CfgNode *next;
   L2CfgNode *node;
-  char client_data [200];
-  
-  if ((initial == 0) && (cfg_ping_response_maximum + -1 <= check)) {
-    node = L2CfgLocal.net.next;
-    while (node != NULL) {
-      if ((node->client == NULL) &&
-         (node->heartbeat < (unsigned int)cfg_ping_response_minimum)) {
-        pcVar4 = inet_ntoa(*(struct in_addr *)&node->ip_addr);
-        fprintf(stderr,"INFO: L2 %s failed to complete connection\n",pcVar4);
-        p_Var1 = node->next;
+
+  if (!initial && check >= cfg_ping_response_maximum - 1) {
+    for (node = L2CfgLocal.net.next; node != NULL; node = next) {
+      next = node->next;
+      if (node->client == NULL && node->heartbeat < (unsigned int)cfg_ping_response_minimum) {
+        fprintf(stderr,"INFO: L2 %s failed to complete connection\n",
+                inet_ntoa(*(struct in_addr *)&node->ip_addr));
         del_addr = node->ip_addr;
         del_client = NULL;
         RouterListClients(find_client_to_delete);
         if (del_client == NULL) {
+          /* (the original tried this node again, without end) */
           fprintf(stderr,"ERROR: couldn\'t find L2 client to delete!\n");
+          continue;
         }
-        else {
-          node->client = del_client;
-          L2CfgMDeleteNode(&L2CfgLocal,del_client);
-          RouterClose(del_client);
-          node = p_Var1;
-        }
+        node->client = del_client;
+        L2CfgMDeleteNode(&L2CfgLocal,del_client);
+        RouterClose(del_client);
       }
-      else if ((node->client == NULL) ||
-              ((unsigned int)cfg_ping_response_minimum <= node->heartbeat)) {
+      else if (node->client == NULL || node->heartbeat >= (unsigned int)cfg_ping_response_minimum)
         node->heartbeat = 0;
-        node = node->next;
-      }
       else {
         del_client = node->client;
         fprintf(stderr,"INFO: L2 %s not responding, closing connection\n",node->client->id.hostname);
-        node = node->next;
         L2CfgMDeleteNode(&L2CfgLocal,del_client);
         RouterClose(del_client);
       }
     }
     check = 0;
   }
-  else {
-    check = check + 1;
-  }
-  uVar2 = nvramGet(NVRAM_MULTISYS);
-  if (uVar2 == 1) {
-    sprintf(client_data,"%s,ssn:%s",cfg_client_id,(char *)nvramGet(NVRAM_SERIAL));   /* (64-bit: was via a uint32) */
-  }
-  else {
-    strcpy(client_data,cfg_client_id);
-  }
-  if (L2CfgLocal.net.msmode == 2) {
-    pcVar4 = ",l2pri:0";
-    sVar3 = strlen(client_data);
-    sprintf(client_data + sVar3,pcVar4);
-  }
-  else {
-    strcat(client_data,",l2:1");
-  }
-  if ((discover_debug & 1U) != 0) {
-    fprintf(stderr,"sending L2 discover request: client_data=[%s]\n",client_data);
-  }
+  else
+    check++;
+  discovery_request(client_data,0);
   cfg_l2ping_sd = sn1SCDiscoverL2Start(cfg_l2ping_sd,NULL,client_data);
-  if (cfg_l2ping_sd < 0) {
+  if (cfg_l2ping_sd < 0)
     fprintf(stderr,"ERROR: can\'t attempt to ping other L2\'s\n");
-  }
-  else if ((cfg_auto_rescan != 0) && (start_timer != 0)) {
+  else if (cfg_auto_rescan && start_timer)
     cfg_setup_l2ping(cfg_ping_l2_frequency);
-  }
   initial = 0;
-  return;
 }

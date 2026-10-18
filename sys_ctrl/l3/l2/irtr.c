@@ -3,691 +3,435 @@
  *
  * Reconstructed from the STABS debug info and Ghidra decompilation of l2.
  * Original: /data/cf/sysco/scs123.patch/sys_ctrl/l3/l2/irtr.c
+ *
+ * The L2's IRouter switch: every packet, from an L1, a network client or
+ * the L2 itself, goes through IRouterSendPacket(). A request or response
+ * goes to its one target (IRouterSendTargetedPacket()): another L2 or an
+ * L3 client over the network, an L1 port, or one of this L2's own tasks.
+ * An event goes to every client that asked for its kind, to the other L2s
+ * of the system, to this L2's own handlers and, for some L1 events, to the
+ * other L1s (IRouterSendBroadcastPacket()).
  */
 
-#include "cfg.h"   /* needed by the reconstruction */
-#include "cmd.h"   /* needed by the reconstruction */
-#include "l1.h"   /* needed by the reconstruction */
-#include "lpbk.h"   /* needed by the reconstruction */
-#include "power.h"   /* needed by the reconstruction */
-#include "route.h"   /* needed by the reconstruction */
-#include "smp.h"   /* needed by the reconstruction */
-#include "l2.h"
 #include <stdio.h>
-#include <stddef.h>
-#include <stdarg.h>
-#include <stdlib.h>
-#include <sys/types.h>
-#include <time.h>
-#include <fcntl.h>
-#include <errno.h>
-#include <signal.h>
-#include <termios.h>
-#include <unistd.h>
-#include <getopt.h>
-#include <string.h>
-#include "../../common/Router/Socket.h"
-#include "../../common/Router/Event.h"
-#include <sys/time.h>
-#include "../../common/IRouter/IRouter.h"
-#include "../../common/sys/sysctl_types.h"
-#include <netinet/in.h>
-#include <limits.h>
-#include <syslimits.h>
-#include <linux/limits.h>
-#include <stdint.h>
-#include "../../common/sys/sysutils.h"
-#include <pthread.h>
-#include <sched.h>
-#include "../../common/sys/Logger.h"
-#include "../sys/LoggerMsg.h"
-#include "../../common/IRouter/IRouter2Router.h"
-#include "../../common/Router/Router.h"
-#include "../../common/sys/PPP.h"
-#include "../../common/sys/brick_types.h"
-#include "../../common/main/EnetServer.h"
-#include "../../common/main/L2Cfg.h"
-#include "../../common/main/L1Cfg.h"
-#include "l2_rev.h"
+#include "l2.h"
 #include "irtr.h"
-#include "decomp.h"     /* Ghidra types/macros; remove once the file is cleaned up */
+#include "cfg.h"
+#include "cmd.h"
+#include "l1.h"
+#include "lpbk.h"
+#include "power.h"
+#include "route.h"
+#include "smp.h"
 
-int irtr_debug;
+#define NO_RECEIVER     IR_ERRNO(IRERR_NO_RECEIVER)
+#define LOCAL_RS        0xffff  /* (addr >> 12) & 0xffff: rack and slot all ones, the L2 itself */
+
+/* L2CfgNode.events: the events a client gets */
+#define EV_L1_BDR       0x01    /* an L1's IR_L1_BDR task (console output; by partition) */
+#define EV_L1_ENV       0x02    /* an L1's IR_L1_ENV task */
+#define EV_L2_CFG       0x04    /* an L2's configuration */
+#define EV_L2_CONSOLE   0x08    /* an L2's console task, with an opcode */
+#define EV_TYPE7        0x10    /* from address type 7 */
+
+#define OP_PURGE        1       /* IR_L1_BDR: drop the client's queued output with this key */
+#define OP_CFG_CHANGE   0x66    /* IR_L1_CFG: the configuration changed */
+
+int irtr_debug;                 /* 1 requests, 2 responses, 4 events; 0x10, 0x20, 0x40 routing */
+
+/* an event's first argument: the purge key or partition. (Read even when
+ * the packet has no arguments, as the original did.) */
+static uintptr_t arg0(IRPacket *pkt)
+{
+  if (IR_ARG_TYPE(pkt->_argv[0]) == IR_ARG_VALUE)
+    return pkt->_argv[0]._val;
+  return IRArg(pkt,0);
+}
+
+static int forward(L2CfgNode *node, IRPacket *pkt)
+{
+  pkt->_use_count++;
+  return IRouterPacketToRouter(node->client,&l2_id,pkt);
+}
+
+static int to_l1(int fd, IRPacket *pkt)
+{
+  pkt->_use_count++;
+  l1_write_packet(fd,pkt);
+  return 0;
+}
+
+/* a request or response to one of this L2's tasks */
+static int to_task(int task, IRPacket *pkt)
+{
+  L2CfgNode *node;
+  void (*handler)(IRPacket *);
+  int req = pkt->_clas == IR_REQ;
+
+  switch (task) {
+  case IR_L2_CONSOLE:
+  case IR_L2_MODEM:
+    handler = req ? NULL : smp_process_response;
+    break;
+  case IR_L2_CMD:
+    handler = req ? cmd_process_request : cmd_process_response;
+    break;
+  case IR_L2_CFG:
+    handler = req ? cfg_process_request : cfg_process_response;
+    break;
+  case IR_L2_LPBK:
+    handler = req ? NULL : lpbk_process_response;
+    break;
+  case IR_L2_APWR:
+    handler = req ? NULL : power_process_response;
+    break;
+  case IR_L2_CMDUSR:
+    handler = req ? NULL : cmd_process_response_usr;
+    break;
+  case IR_L2_ROUTE:
+    handler = req ? NULL : route_process_response;
+    break;
+  default:
+    /* a client that registered as this task of the L2 */
+    node = L2CfgMFindNode(&L2CfgLocal,0,(task & 0x1f) | 0x1ffff000,NULL);
+    return node != NULL ? forward(node,pkt) : NO_RECEIVER;
+  }
+  if (handler == NULL)
+    return NO_RECEIVER;
+  pkt->_use_count++;
+  handler(pkt);
+  return 0;
+}
 
 int IRouterSendTargetedPacket(IRIdent *id, IRPacket *pkt)
 {
-  uint16_t uVar1;
-  int iVar2;
-  L2CfgNode *pLVar3;
-  unsigned int uVar4;
-  uint32_t uVar5;
-  IRAddress IVar6;
-  RouterClient *pRVar7;
-  int rval;
-  int l1;
-  int port;
+  IRAddress dest = pkt->_dest;
+  IRAddress src = pkt->_src;
+  int type = IR_ADDR_TYPE(dest);
+  L2CfgNode *node = NULL;
+  int port = -1;
   int ip;
-  int task;
-  IRAddress src;
-  IRAddress dest;
-  int type;
+  int l1;
   int fd;
-  L2CfgNode *node;
-  
-  fd = -1;
-  dest = pkt->_dest;
-  src = pkt->_src;
-  if ((dest & 0x80000000) == 0) {
-    type = dest >> 0x1c;
-  }
-  else if (dest >> 0x1e == 2) {
-    type = 0xe;
-  }
-  else {
-    type = 0xf;
-  }
-  if (type == 0xf) {
+
+  if (type == IR_ADDR_IP_OTHER) {
+    /* an L3 client: by its address, else by its L2's IP address */
     node = L2CfgMFindNode(&L2CfgLocal,0,dest,NULL);
-    if (node == NULL) {
-      pRVar7 = NULL;
-      IVar6 = 0;
-      if (IRByteOrder == 1) {
-        uVar5 = dest & 0xffffff;
-      }
-      else {
-        uVar5 = htonl(dest & 0xffffff);
-      }
-      node = L2CfgMFindNode(&L2CfgLocal,uVar5,IVar6,pRVar7);
-      if (node == NULL) {
-        return -0x260;
-      }
-    }
-    if ((L2Cfg *)node != &L2CfgLocal) {
-      pkt->_use_count++;
-      iVar2 = IRouterPacketToRouter(node->client,&l2_id,pkt);
-      return iVar2;
-    }
-    if (pkt->_clas == 1) {
-      pkt->_use_count++;
-      smp_process_response(pkt);
-      return 0;
-    }
-    return -0x260;
-  }
-  if ((dest & 0x80000000) == 0) {
-    task = dest & 0x1f;
-  }
-  else {
-    task = dest >> 0x18 & 0x3f;
-  }
-  if ((task == 0xd) || (task == 0x17)) {
-    route_process(pkt);
-  }
-  if (type == 0xe) {
-    pRVar7 = NULL;
-    IVar6 = 0;
-    if (IRByteOrder == 1) {
-      uVar5 = dest & 0xffffff;
-    }
-    else {
-      uVar5 = htonl(dest & 0xffffff);
-    }
-    node = L2CfgMFindNode(&L2CfgLocal,uVar5,IVar6,pRVar7);
-    if (node == NULL) {
-      if (IRByteOrder == 1) {
-        uVar5 = dest & 0xffffff;
-      }
-      else {
-        uVar5 = htonl(dest & 0xffffff);
-      }
-      pLVar3 = L2CfgMFindNodeLocal(&L2CfgLocal,uVar5);
-      if (pLVar3 == NULL) {
-        node = L2CfgLocal.net.msnode;
-        if (L2CfgLocal.net.msnode == NULL) {
-          return -0x260;
-        }
-      }
-      else {
-        node = NULL;
-      }
-    }
-    if ((node != NULL) && ((L2Cfg *)node != &L2CfgLocal)) {
-      pkt->_use_count++;
-      iVar2 = IRouterPacketToRouter(node->client,&l2_id,pkt);
-      return iVar2;
-    }
-  }
-  if ((src & 0x80000000) == 0) {
-    uVar4 = src & 0x1f;
-  }
-  else {
-    uVar4 = src >> 0x18 & 0x3f;
-  }
-  if (((((uVar4 == 5) && (L2CfgLocal.net.msmode == 1)) && ((dest >> 0xc & 0xffff) == 0xffff)) &&
-      ((type == 1 && (L2CfgLocal.net.msip != 0)))) &&
-     (node = L2CfgMFindNode(&L2CfgLocal,L2CfgLocal.net.msip,0,NULL),
-     node != NULL)) {
+    if (node == NULL)
+      node = L2CfgMFindNode(&L2CfgLocal,IR_ADDR_TO_IP(dest),0,NULL);
+    if (node == NULL)
+      return NO_RECEIVER;
+    if ((L2Cfg *)node != &L2CfgLocal)
+      return forward(node,pkt);
+    if (pkt->_clas != IR_RSP)
+      return NO_RECEIVER;
     pkt->_use_count++;
-    iVar2 = IRouterPacketToRouter(node->client,&l2_id,pkt);
-    return iVar2;
+    smp_process_response(pkt);
+    return 0;
   }
-  if ((type != 0xe) && ((dest >> 0xc & 0xffff) != 0xffff)) {
-    iVar2 = L2CfgMFindBrickIP(&L2CfgLocal,dest >> 0x12 & 0x3ff,dest >> 0xc & 0x3f,&ip,&port,&l1);
-    if (iVar2 == -1) {
-      if (L2CfgLocal.net.msmode != 1) {
-        return -0x260;
+  if (IR_ADDR_TASK(dest) == IR_L2_ROUTE || IR_ADDR_TASK(dest) == IR_L1_ROUTE)
+    route_process(pkt);
+  if (type == IR_ADDR_IP) {
+    /* another L2; one this L2 does not know goes to its primary, if any */
+    node = L2CfgMFindNode(&L2CfgLocal,IR_ADDR_TO_IP(dest),0,NULL);
+    if (node == NULL) {
+      if (L2CfgMFindNodeLocal(&L2CfgLocal,IR_ADDR_TO_IP(dest)) == NULL) {
+        node = L2CfgLocal.net.msnode;
+        if (node == NULL)
+          return NO_RECEIVER;
       }
+    }
+    if (node != NULL && (L2Cfg *)node != &L2CfgLocal)
+      return forward(node,pkt);
+  }
+  /* a secondary L2 passes its L1s' IR_L1_BDR packets for "this L2" to
+   * the primary */
+  if (IR_ADDR_TASK(src) == IR_L1_BDR && L2CfgLocal.net.msmode == 1 &&
+      ((dest >> 12) & 0xffff) == LOCAL_RS && type == IR_ADDR_L2 && L2CfgLocal.net.msip != 0) {
+    node = L2CfgMFindNode(&L2CfgLocal,L2CfgLocal.net.msip,0,NULL);
+    if (node != NULL)
+      return forward(node,pkt);
+  }
+  if (type != IR_ADDR_IP && ((dest >> 12) & 0xffff) != LOCAL_RS) {
+    /* a rack and slot: the brick's L1 port, here or at its L2 */
+    if (L2CfgMFindBrickIP(&L2CfgLocal,IR_ADDR_RACK(dest),IR_ADDR_SLOT(dest),&ip,&port,&l1) == -1) {
+      if (L2CfgLocal.net.msmode != 1)
+        return NO_RECEIVER;
       ip = L2CfgLocal.net.msip;
     }
     if ((uint32)ip != L2CfgLocal.net.ip_addr) {
       node = L2CfgMFindNode(&L2CfgLocal,ip,0,NULL);
-      if (node != NULL) {
-        pkt->_use_count++;
-        iVar2 = IRouterPacketToRouter(node->client,&l2_id,pkt);
-        return iVar2;
-      }
+      if (node != NULL)
+        return forward(node,pkt);
       fprintf(stderr,"NR remote!\n");
-      return -0x260;
+      return NO_RECEIVER;
     }
-    if (type == 1) {
+    if (type == IR_ADDR_L2) {
       fprintf(stderr,"NR R.S+IR_L2!\n");
-      return -0x260;
+      return NO_RECEIVER;
     }
-    fd = l2_l1_ports[port].fd;
-    pkt->_use_count++;
-    l1_write_packet(fd,pkt);
+    if (port < 0 || port >= L2_L1_PORTS)
+      return NO_RECEIVER;       /* (the original used the port unset) */
+    return to_l1(l2_l1_ports[port].fd,pkt);
+  }
+  switch (type) {
+  case IR_ADDR_L1:
+  case IR_ADDR_C:
+  case IR_ADDR_I:
+  case IR_ADDR_CI:
+    /* "the L1 on the link": only with a single L1 port */
+    if (L2CfgLocal.port_count > 1)
+      return NO_RECEIVER;
+    for (fd = -1, port = 0; fd == -1 && port < L2_L1_PORTS; port++)
+      fd = l2_l1_ports[port].fd;
+    if (fd == -1)
+      return NO_RECEIVER;
+    return to_l1(fd,pkt);
+  case IR_ADDR_L2:
+  case IR_ADDR_IP:
+    return to_task(IR_ADDR_TASK(dest),pkt);
+  default:
+    return NO_RECEIVER;
+  }
+}
+
+/* whether a client (an L2 client or L3 tool) gets an event from a source
+ * of type and task; a console purge is done instead */
+static int client_wants(L2CfgNode *node, IRPacket *pkt, int type, int task)
+{
+  switch (type) {
+  case IR_ADDR_L2:
+  case IR_ADDR_IP:
+    if (task == IR_L2_CONSOLE)
+      return pkt->_opcode == 0 || (node->events & EV_L2_CONSOLE);
+    if (task == IR_L2_CFG)
+      return (node->events & EV_L2_CFG) != 0;
+    return 1;
+  case IR_ADDR_L1:
+    if (task == IR_L1_ENV)
+      return (node->events & EV_L1_ENV) != 0;
+    if (task != IR_L1_BDR)
+      return 0;
+    if (pkt->_opcode == OP_PURGE) {
+      RouterPurge(node->client,NULL,(void *)arg0(pkt));
+      return 0;
+    }
+    return (node->events & EV_L1_BDR) != 0;
+  case 7:
+    return (node->events & EV_TYPE7) != 0;
+  default:
     return 0;
   }
-  if (true) {
-    switch(type) {
-    case 0:
-    case 3:
-    case 4:
-    case 5:
-      if (1 < L2CfgLocal.port_count) {
-        return -0x260;
+}
+
+/* whether another L2 of the system gets it */
+static int peer_wants(L2CfgNode *node, IRPacket *pkt, int type, int task)
+{
+  unsigned int part;
+
+  switch (type) {
+  case IR_ADDR_L2:
+  case IR_ADDR_IP:
+    return task != IR_L2_CONSOLE || pkt->_opcode == 0 || (node->events & EV_L2_CONSOLE);
+  case 7:
+    return (node->events & EV_TYPE7) != 0;
+  case IR_ADDR_L1:
+    if (task == IR_L1_BDR) {
+      if (pkt->_opcode == OP_PURGE) {
+        RouterPurge(node->client,NULL,(void *)arg0(pkt));
+        return 0;
       }
-      for (port = 0; (fd == -1 && (port < 0x28)); port = port + 1) {
-        fd = l2_l1_ports[port].fd;
-      }
-      if (fd == -1) {
-        return -0x260;
-      }
-      pkt->_use_count++;
-      l1_write_packet(fd,pkt);
-      return 0;
-    case 1:
-    case 0xe:
-      if (type == 0xe) {
-        task = dest >> 0x18 & 0x3f;
-      }
-      else if ((dest & 0x80000000) == 0) {
-        task = dest & 0x1f;
-      }
-      else {
-        task = dest >> 0x18 & 0x3f;
-      }
-      if (true) {
-        switch(task) {
-        case 2:
-        case 7:
-          if (pkt->_clas == '\0') {
-            return -0x260;
-          }
-          pkt->_use_count++;
-          smp_process_response(pkt);
-          return 0;
-        case 3:
-          if (pkt->_clas == '\0') {
-            pkt->_use_count++;
-            cmd_process_request(pkt);
-          }
-          else {
-            pkt->_use_count++;
-            cmd_process_response(pkt);
-          }
-          return 0;
-        case 4:
-          if (pkt->_clas == '\0') {
-            pkt->_use_count++;
-            cfg_process_request(pkt);
-          }
-          else {
-            pkt->_use_count++;
-            cfg_process_response(pkt);
-          }
-          return 0;
-        case 5:
-          if (pkt->_clas == '\0') {
-            return -0x260;
-          }
-          pkt->_use_count++;
-          lpbk_process_response(pkt);
-          return 0;
-        case 9:
-          if (pkt->_clas == '\0') {
-            return -0x260;
-          }
-          pkt->_use_count++;
-          power_process_response(pkt);
-          return 0;
-        case 0xc:
-          if (pkt->_clas == '\0') {
-            return -0x260;
-          }
-          pkt->_use_count++;
-          cmd_process_response_usr(pkt);
-          return 0;
-        case 0xd:
-          if (pkt->_clas == '\0') {
-            return -0x260;
-          }
-          pkt->_use_count++;
-          route_process_response(pkt);
-          return 0;
-        }
-      }
-      node = L2CfgMFindNode(&L2CfgLocal,0,(task & 0x1fU) | 0x1ffff000,NULL);
-      if (node != NULL) {
-        pkt->_use_count++;
-        iVar2 = IRouterPacketToRouter(node->client,&l2_id,pkt);
-        return iVar2;
-      }
-      return -0x260;
+      if (!(node->events & EV_L1_BDR))
+        return 0;
+      /* the partition (0: all); (the original indexed pselect with any) */
+      part = arg0(pkt);
+      return part == 0 || (part < sizeof(node->pselect) && node->pselect[part]);
     }
+    return task != IR_L1_CFG || pkt->_opcode == OP_CFG_CHANGE;
+  default:
+    return 1;
   }
-  return -0x260;
+}
+
+/* whether a brick on this L2 is at the event's source */
+static int port_has_source(int port, IRAddress src)
+{
+  L2CfgPort *p = &L2CfgLocal.port_list[port];
+  int rack;
+  int slot;
+  int l1;
+
+  for (l1 = 0; l1 < p->l1count; l1++) {
+    if (!p->l1cfg[l1].configured)
+      continue;
+    rack = p->l1cfg[l1].rack;
+    slot = p->l1cfg[l1].slot;
+    if (irtr_debug & 0x10)
+      fprintf(stderr,"%d.%d %d.%d\n",rack,slot,IR_ADDR_RACK(src),IR_ADDR_SLOT(src));
+    if (rack == IR_ADDR_RACK(src) && slot == IR_ADDR_SLOT(src))
+      return 1;
+  }
+  return 0;
 }
 
 int IRouterSendBroadcastPacket(IRIdent *id, IRPacket *pkt)
 {
-  uint16_t uVar1;
-  int fd;
-  int type;
-  int task;
-  L2Cfg *pLVar2;
-  L2CfgNode *pLVar3;
-  void *pvVar4;
-  int part;
-  unsigned int uVar5;
-  int rack;
-  int slot;
-  uint32_t ip_addr;
-  bool bVar6;
-  IRAddress ir_addr;
-  RouterClient *client;
-  char x_ [80];
-  int l1_;
-  char x [80];
-  L2CfgNode *nlist;
-  int l1;
-  int port;
-  int ip;
-  int slave;
-  int local;
-  int nl;
-  L2CfgNode *snode;
+  IRAddress src = pkt->_src;
+  int type = IR_ADDR_TYPE(src);
+  int task = IR_ADDR_TASK(src);
+  L2CfgNode *snode = NULL;      /* a secondary L2 whose L1's event this is */
   L2CfgNode *node;
-  IRAddress src;
-  bool found;
-  
+  char x[80];
+  int local;
+  int to_l1s;
+  int port;
+  int fd;
+  int nl;
+
   pkt->_use_count++;
-  src = pkt->_src;
-  if ((src & 0x80000000) == 0) {
-    type = src >> 0x1c;
-  }
-  else if (src >> 0x1e == 2) {
-    type = 0xe;
+  if (type == IR_ADDR_IP || type == IR_ADDR_IP_OTHER) {
+    node = L2CfgMFindNode(&L2CfgLocal,IR_ADDR_TO_IP(src),0,NULL);
+    local = node != NULL && (L2Cfg *)node == &L2CfgLocal;
   }
   else {
-    type = 0xf;
-  }
-  if ((src & 0x80000000) == 0) {
-    task = src & 0x1f;
-  }
-  else {
-    task = src >> 0x18 & 0x3f;
-  }
-  local = 0;
-  bVar6 = false;
-  if (((unsigned int)type < 0x10) && (0xd < (unsigned int)type)) {
-    client = NULL;
-    ir_addr = 0;
-    if (IRByteOrder == 1) {
-      ip_addr = src & 0xffffff;
-    }
-    else {
-      ip_addr = htonl(src & 0xffffff);
-    }
-    pLVar2 = (L2Cfg *)L2CfgMFindNode(&L2CfgLocal,ip_addr,ir_addr,client);
-    if ((pLVar2 != NULL) && (pLVar2 == &L2CfgLocal)) {
-      local = 1;
+    local = !pkt->_external;
+    if (type == IR_ADDR_L1) {
+      node = L2CfgMFindBrickL2(&L2CfgLocal,IR_ADDR_RACK(src),IR_ADDR_SLOT(src));
+      if (node != NULL && L2CfgLocal.net.msmode == 2 && node->msmode == 1)
+        snode = node;
     }
   }
-  else {
-    local = (unsigned char)(pkt->_external ^ 1) & 1;
-    if ((type == 0) &&
-       (((pLVar3 = L2CfgMFindBrickL2(&L2CfgLocal,src >> 0x12 & 0x3ff,src >> 0xc & 0x3f),
-         pLVar3 != NULL && (L2CfgLocal.net.msmode == 2)) && (pLVar3->msmode == 1)))) {
-      bVar6 = true;
-      snode = pLVar3;
-    }
-  }
-  for (nl = 0; nl < 2; nl = nl + 1) {
-    node = L2CfgLocal.l3_clients;
-    if (nl == 0) {
-      node = L2CfgLocal.l2_clients;
-    }
-    for (; node != NULL; node = node->next) {
-      if ((node->client != NULL) && (node->events != 0)) {
-        if (type == 1) {
-LAB_08063bb2:
-          if (task == 2) {
-            if (pkt->_opcode != 0) {
-              uVar5 = node->events & 8;
-              goto joined_r0x08063bcc;
-            }
-          }
-          else if (task == 4) {
-            uVar5 = node->events & 4;
-joined_r0x08063bcc:
-            if (uVar5 == 0) goto LAB_08063c90;
-          }
-LAB_08063c00:
-          if (node->ir_addr != src) {
-            if ((irtr_debug & 0x40U) != 0) {
-              IRFmtPkt("L2",pkt,x);
-              fprintf(stderr,"%s\n",x);
-            }
-            pkt->_use_count++;
-            IRouterPacketToRouter(node->client,&l2_id,pkt);
-          }
-        }
-        else if ((unsigned int)type < 2) {
-          if (type == 0) {
-            if (task == 4) {
-              uVar5 = node->events & 2;
-              goto joined_r0x08063bcc;
-            }
-            if (task == 5) {
-              if (pkt->_opcode != 1) {
-                uVar5 = node->events & 1;
-                goto joined_r0x08063b0e;
-              }
-              if ((pkt->_argv[0]._clas & 7) == 0) {
-                pvVar4 = (void *)IR_VAL_PTR(pkt->_argv[0]._val);
-              }
-              else {
-                pvVar4 = (void *)IRArg(pkt,0);
-              }
-              RouterPurge(node->client,NULL,pvVar4);
-            }
-          }
-        }
-        else if (type == 7) {
-          uVar5 = node->events & 0x10;
-joined_r0x08063b0e:
-          if (uVar5 != 0) goto LAB_08063c00;
-        }
-        else if (type == 0xe) goto LAB_08063bb2;
+  /* the clients: L2 clients, then L3 tools */
+  for (nl = 0; nl < 2; nl++) {
+    for (node = nl == 0 ? L2CfgLocal.l2_clients : L2CfgLocal.l3_clients; node != NULL; node = node->next) {
+      if (node->client == NULL || node->events == 0 || !client_wants(node,pkt,type,task) ||
+          node->ir_addr == src)
+        continue;
+      if (irtr_debug & 0x40) {
+        IRFmtPkt("L2",pkt,x);
+        fprintf(stderr,"%s\n",x);
       }
-LAB_08063c90:
+      forward(node,pkt);
     }
   }
-  if ((local != 0) || (bVar6)) {
+  /* the other L2s, for events from here (or a secondary's L1s, to the
+   * other L2s than that one) */
+  if (local || snode != NULL) {
     for (node = L2CfgLocal.net.next; node != NULL; node = node->next) {
-      if (((((bVar6) && (node->msmode == 1)) && (node == snode)) ||
-          (((node->msmode == 1 && (type == 0)) && (task == 5)))) ||
-         ((node->client == NULL || (node->events == 0)))) goto LAB_08063ee6;
-      if (type == 1) {
-LAB_08063e62:
-        if ((task == 2) && (pkt->_opcode != 0)) {
-          uVar5 = node->events & 8;
-joined_r0x08063e85:
-          if (uVar5 == 0) goto LAB_08063ee6;
-        }
-code_r0x08063e97:
-        if (node->ir_addr != src) {
-          pkt->_use_count++;
-          IRouterPacketToRouter(node->client,&l2_id,pkt);
-        }
-      }
-      else {
-        if (1 < (unsigned int)type) {
-          if (type == 7) {
-            uVar5 = node->events & 0x10;
-            goto joined_r0x08063e85;
-          }
-          if (type == 0xe) goto LAB_08063e62;
-          goto code_r0x08063e97;
-        }
-        if (type != 0) goto code_r0x08063e97;
-        if (task == 5) {
-          if (pkt->_opcode == 1) {
-            if ((pkt->_argv[0]._clas & 7) == 0) {
-              pvVar4 = (void *)IR_VAL_PTR(pkt->_argv[0]._val);
-            }
-            else {
-              pvVar4 = (void *)IRArg(pkt,0);
-            }
-            RouterPurge(node->client,NULL,pvVar4);
-          }
-          else if ((node->events & 1) != 0) {
-            if ((pkt->_argv[0]._clas & 7) == 0) {
-              part = pkt->_argv[0]._val;
-            }
-            else {
-              part = IRArg(pkt,0);
-            }
-            if ((part == 0) || (node->pselect[part] != '\0')) goto code_r0x08063e97;
-          }
-        }
-        else if ((task != 0xe) || (pkt->_opcode == 0x66)) goto code_r0x08063e97;
-      }
-LAB_08063ee6:
+      if ((snode != NULL && node->msmode == 1 && node == snode) ||
+          (node->msmode == 1 && type == IR_ADDR_L1 && task == IR_L1_BDR) ||
+          node->client == NULL || node->events == 0 || !peer_wants(node,pkt,type,task) ||
+          node->ir_addr == src)
+        continue;
+      forward(node,pkt);
     }
   }
-  if (type != 1) {
-    if ((unsigned int)type < 2) {
-      if (type == 0) {
-        if (task == 4) {
-          smp_process_event(pkt);
-        }
-        else if ((unsigned int)task < 5) {
-          if (task == 1) {
-            smp_process_event(pkt);
-          }
-        }
-        else if (task == 5) {
-          smp_process_event(pkt);
-        }
-        else if (task == 0xe) {
-          cfg_process_event(pkt);
-        }
-      }
-      goto LAB_08063fc2;
-    }
-    if (type != 0xe) goto LAB_08063fc2;
-  }
-  if (task == 2) {
-    if (local == 0) {
+  /* this L2's own handlers */
+  if (type == IR_ADDR_L1) {
+    if (task == IR_L1_ENV || task == IR_L1_IROUTER || task == IR_L1_BDR)
       smp_process_event(pkt);
-    }
+    else if (task == IR_L1_CFG)
+      cfg_process_event(pkt);
   }
-  else if ((task == 4) && (local == 0)) {
-    cfg_process_event(pkt);
+  else if (type == IR_ADDR_L2 || type == IR_ADDR_IP) {
+    if (task == IR_L2_CONSOLE && !local)
+      smp_process_event(pkt);
+    else if (task == IR_L2_CFG && !local)
+      cfg_process_event(pkt);
   }
-LAB_08063fc2:
-  bVar6 = false;
-  if (type == 0) {
-    if (task == 4) {
-      bVar6 = true;
+  /* L1 environment and configuration events also go to the L1s on the
+   * other ports */
+  to_l1s = type == IR_ADDR_L1 && (task == IR_L1_ENV ||
+                                  (task == IR_L1_CFG && pkt->_opcode == OP_CFG_CHANGE));
+  for (port = 0; to_l1s && port < L2CFG_PORTS; port++) {
+    if (L2CfgLocal.port_list[port].state != L2CFG_PORT_CONFIGURED)
+      continue;
+    fd = l2_l1_ports[port].fd;
+    if (fd == -1 || port_has_source(port,src))
+      continue;
+    if (irtr_debug & 0x10) {
+      IRFmtPkt("L2 Write",pkt,x);
+      fprintf(stderr,"%s\n",x);
     }
-    else if (task == 0xe) {
-      bVar6 = pkt->_opcode == 0x66;
-    }
+    to_l1(fd,pkt);
   }
-  for (port = 0; (bVar6 && (port < 0x28)); port = port + 1) {
-    if ((L2CfgLocal.port_list[port].state == 2) && (fd = l2_l1_ports[port].fd, fd != -1)) {
-      found = false;
-      for (l1_ = 0; (!found && (l1_ < L2CfgLocal.port_list[port].l1count)); l1_ = l1_ + 1) {
-        if (L2CfgLocal.port_list[port].l1cfg[l1_].configured != '\0') {
-          rack = (int)L2CfgLocal.port_list[port].l1cfg[l1_].rack;
-          slot = (int)L2CfgLocal.port_list[port].l1cfg[l1_].slot;
-          if ((irtr_debug & 0x10U) != 0) {
-            fprintf(stderr,"%d.%d %d.%d\n",rack,slot,src >> 0x12 & 0x3ff,src >> 0xc & 0x3f);
-          }
-          if ((rack == (int)(src >> 0x12 & 0x3ff)) && (slot == (int)(src >> 0xc & 0x3f))) {
-            found = true;
-          }
-        }
+  pkt->_use_count--;
+  return 0;
+}
+
+/* an event to the clients only (L2 clients, then L3 tools) */
+int IRouterSendBroadcastPacketToClients(IRIdent *id, IRPacket *pkt)
+{
+  IRAddress src = pkt->_src;
+  int type = IR_ADDR_TYPE(src);
+  int task = IR_ADDR_TASK(src);
+  L2CfgNode *node;
+  char x[80];
+  int wants;
+  int nl;
+
+  pkt->_use_count++;
+  for (nl = 0; nl < 2; nl++) {
+    for (node = nl == 0 ? L2CfgLocal.l2_clients : L2CfgLocal.l3_clients; node != NULL; node = node->next) {
+      if (node->client == NULL || node->events == 0)
+        continue;
+      switch (type) {
+      case IR_ADDR_L2:
+      case IR_ADDR_IP:
+        wants = task != IR_L2_CFG || (node->events & EV_L2_CFG);
+        break;
+      case IR_ADDR_L1:
+        wants = task == IR_L1_ENV ? node->events & EV_L1_ENV
+              : task == IR_L1_BDR ? node->events & EV_L1_BDR : 0;
+        break;
+      default:
+        wants = 0;
       }
-      if (!found) {
-        if ((irtr_debug & 0x10U) != 0) {
-          IRFmtPkt("L2 Write",pkt,x_);
-          fprintf(stderr,"%s\n",x_);
-        }
-        pkt->_use_count++;
-        l1_write_packet(fd,pkt);
+      if (!wants || node->ir_addr == src)
+        continue;
+      if (irtr_debug & 0x20) {
+        IRFmtPkt("L2",pkt,x);
+        fprintf(stderr,"%s\n",x);
       }
+      forward(node,pkt);
     }
   }
   pkt->_use_count--;
   return 0;
 }
 
-int IRouterSendBroadcastPacketToClients(IRIdent *id, IRPacket *pkt)
-{
-  uint16_t uVar1;
-  int type;
-  int task;
-  unsigned int uVar2;
-  char x [80];
-  L2CfgNode *nlist;
-  int nl;
-  L2CfgNode *node;
-  IRAddress src;
-  
-  pkt->_use_count++;
-  src = pkt->_src;
-  if ((src & 0x80000000) == 0) {
-    type = src >> 0x1c;
-  }
-  else if (src >> 0x1e == 2) {
-    type = 0xe;
-  }
-  else {
-    type = 0xf;
-  }
-  if ((src & 0x80000000) == 0) {
-    task = src & 0x1f;
-  }
-  else {
-    task = src >> 0x18 & 0x3f;
-  }
-  nl = 0;
-  do {
-    if (1 < nl) {
-      pkt->_use_count--;
-      return 0;
-    }
-    node = L2CfgLocal.l3_clients;
-    if (nl == 0) {
-      node = L2CfgLocal.l2_clients;
-    }
-    for (; node != NULL; node = node->next) {
-      if ((node->client == NULL) || (node->events == 0)) goto LAB_080644ba;
-      if (type == 1) {
-LAB_08064402:
-        if (task == 4) {
-          uVar2 = node->events & 4;
-joined_r0x0806441b:
-          if (uVar2 == 0) goto LAB_080644ba;
-        }
-        if (node->ir_addr != src) {
-          if ((irtr_debug & 0x20U) != 0) {
-            IRFmtPkt("L2",pkt,x);
-            fprintf(stderr,"%s\n",x);
-          }
-          pkt->_use_count++;
-          IRouterPacketToRouter(node->client,&l2_id,pkt);
-        }
-      }
-      else if ((unsigned int)type < 2) {
-        if (type == 0) {
-          if (task == 4) {
-            uVar2 = node->events & 2;
-          }
-          else {
-            if (task != 5) goto LAB_080644ba;
-            uVar2 = node->events & 1;
-          }
-          goto joined_r0x0806441b;
-        }
-      }
-      else if (type == 0xe) goto LAB_08064402;
-LAB_080644ba:
-    }
-    nl = nl + 1;
-  } while( true );
-}
-
+/* route a packet; a request that can't be delivered is answered with the
+ * error. The packet is freed (one use). */
 int IRouterSendPacket(IRIdent *id, IRPacket *pkt)
 {
   IRPacket *rpkt;
-  uint8 uStack_108;
-  IRIdent *pIStack_104;
-  char x__ [80];
-  char x_ [80];
-  char x [80];
+  char x[80];
   int rval;
-  unsigned char clas;
-  
-  clas = pkt->_clas;
-  if (irtr_debug != 0) {
-    if (((irtr_debug & 1U) != 0) && (clas == 0)) {
-      IRFmtPkt("L2",pkt,x);
+
+  if (irtr_debug != 0 && (unsigned int)pkt->_clas <= IR_EVT &&
+      (irtr_debug & (1 << pkt->_clas))) {
+    IRFmtPkt("L2",pkt,x);
+    fprintf(stderr,"%s\n",x);
+  }
+  if (pkt->_clas == IR_REQ || pkt->_clas == IR_RSP)
+    rval = IRouterSendTargetedPacket(id,pkt);
+  else if (pkt->_clas == IR_EVT)
+    rval = IRouterSendBroadcastPacket(id,pkt);
+  else
+    rval = IR_ERRNO(IRERR_BAD_PKT_TYPE);
+  if (rval != 0) {
+    if (rval == NO_RECEIVER) {
+      IRFmtPkt("NO RECEIVER",pkt,x);
       fprintf(stderr,"%s\n",x);
     }
-    if (((irtr_debug & 2U) != 0) && (clas == 1)) {
-      IRFmtPkt("L2",pkt,x_);
-      fprintf(stderr,"%s\n",x_);
-    }
-    if (((irtr_debug & 4U) != 0) && (clas == 2)) {
-      IRFmtPkt("L2",pkt,x__);
-      fprintf(stderr,"%s\n",x__);
-    }
-  }
-  if (true) {
-    if (clas < 2) {
-      rval = IRouterSendTargetedPacket(id,pkt);
-      goto LAB_08064770;
-    }
-    if (clas == 2) {
-      rval = IRouterSendBroadcastPacket(id,pkt);
-      goto LAB_08064770;
-    }
-  }
-  rval = -0x259;
-LAB_08064770:
-  if (rval != 0) {
-    if (rval == -0x260) {
-      IRFmtPkt("NO RECEIVER",pkt,x__);
-      fprintf(stderr,"%s\n",x__);
-    }
-    if (pkt->_clas == '\0') {
-      pIStack_104 = id;
-      if (id == NULL) {
-        pIStack_104 = &l2_id;
-      }
-      rpkt = IRouterMakePacket(pIStack_104,&pkt->_src,(unsigned int)(pkt->_pdata_auth >> 3),
-                               (unsigned int)pkt->_opcode,1,(unsigned int)pkt->_rev,0,NULL);
+    if (pkt->_clas == IR_REQ) {
+      rpkt = IRouterMakePacket(id != NULL ? id : &l2_id,&pkt->_src,pkt->_pdata_auth >> 3,
+                               pkt->_opcode,IR_RSP,pkt->_rev,0,NULL);
       if (rpkt == NULL) {
         IRouterFreePacket(pkt);
         return rval;
       }
-      uStack_108 = (char)-rval + (char)(-rval / 100) * -100;
-      rpkt->_err = uStack_108;
+      rpkt->_err = -rval % 100;
       rpkt->_seqnum0 = pkt->_seqnum0;
       rpkt->_seqnum1 = pkt->_seqnum1;
       IRouterSendTargetedPacket(&l2_id,rpkt);
