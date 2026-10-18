@@ -21,3 +21,4 @@ only misbehaves in cases that print garbage or crash anyway.
 | `l3/gui/destwin.cc` `update_dest()` | "selected rack (%d) is not part of current config" is passed no argument. Verified in the machine code. | **Fixed:** passes the rack number. |
 | `l3/gui/destwin.cc` `destwin_update_config()` | `list_insert()` returns without setting the index for rack 0, which then indexes `slotlist` uninitialized. | **Fixed:** the index starts at 0. Identical for configurations without rack 0. |
 | `l3/gui/destwin.cc` `dest_is_rack()` | Counts 256 entries of the 64-entry partition list. | **Kept**; nothing calls it. |
+| `l3/l2/l2cmd.c` `ver_summary_rsp()` (`version summary`, also run by `power up`) | `sscanf("L%[12]...", &junk1, ...)` into `char junk1`: `%[` stores a NUL too, one byte past it (found by ASan with a fake L1). In the original the byte lands on `rptr`, which is reassigned before its next use. | **Fixed:** `char junk1[2]`. No output change. |

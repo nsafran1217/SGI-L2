@@ -459,6 +459,9 @@ int IRouterReadPacket(IRIdent *id, int (*rfcn)(), void *fd, IRPacket **pkt)
     memset(currframe,0,sizeof(IRFrame));
     status = (*rfcn)(fd,&currframe,0x400);
     if (status < 1) break;
+    /* frames on the wire are big-endian; the original left the tag 0, which its
+     * little-endian host's conversion took as "not mine", i.e. big-endian */
+    currframe->_byte_order = 1;
     IRouterSetFrameByteOrder(currframe,IRByteOrder);
     if (firstframe == NULL) {
       if (-1 < (char)currframe->_fnum) {

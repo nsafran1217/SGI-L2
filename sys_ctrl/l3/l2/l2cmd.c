@@ -3458,7 +3458,7 @@ static int ver_summary_rsp(IRPacket *rsp, L2CMD *c, IRAddress *dest, int pktslef
   char *rptr_;
   char version [16];
   char junk2 [20];
-  char junk1;
+  char junk1[2];   /* ORIGINAL BUG: char junk1, but %[12] stores a NUL too */
   char *rptr;
   char emsg [100];
   int i;
@@ -3501,7 +3501,7 @@ static int ver_summary_rsp(IRPacket *rsp, L2CMD *c, IRAddress *dest, int pktslef
       else {
         pcVar6 = (char *)IRArg(rsp,1);
       }
-      iVar8 = sscanf(pcVar6,"L%[12]%[^0-9]%15s",&junk1,junk2,version);
+      iVar8 = sscanf(pcVar6,"L%[12]%[^0-9]%15s",junk1,junk2,version);
       if (iVar8 < 2) {
         pcVar6 = format_address(*dest);
         sprintf(emsg,"    ERROR: could not get flash version of %s\n",pcVar6);
