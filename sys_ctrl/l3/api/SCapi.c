@@ -30,6 +30,7 @@
 #include "../../common/sys/BuffWrite.h"
 #include "../../common/sys/FRU.h"
 #include "L1Direct.h"
+#include "../../common/sys/l3paths.h"   /* configurable paths (new) */
 #include "decomp.h"     /* Ghidra types/macros; remove once the file is cleaned up */
 
 static int get_l2_rack(char *name);
@@ -141,7 +142,12 @@ static int is_os(void)
   char *cmd;
   char scdev [64];
   
-  fp = (FILE *)popen("/bin/ls -1 /dev/snsc/*c* 2>/dev/null","r");
+  {
+    /* original: "/bin/ls -1 /dev/snsc/*c*" (SGI_L3_DEV_DIR overrides /dev) */
+    char lscmd[600];
+    snprintf(lscmd,sizeof(lscmd),"/bin/ls -1 %s/snsc/*c* 2>/dev/null",l3path_dev_dir());
+    fp = (FILE *)popen(lscmd,"r");
+  }
   if ((fp == NULL) || (pcVar1 = fgets(scdev,0x40,(FILE *)fp), pcVar1 == NULL)) {
     if (fp != NULL) {
       pclose((FILE *)fp);
@@ -334,7 +340,7 @@ int sn1SCParseCmdline(int *argc, char **argv, int *serial)
                             mtfile = getenv("MALLOC_TRACE");
                             if (mtfile == NULL) {
                               mtfile = mtbuf;
-                              sprintf(mtfile,"/tmp/%s.mtrace",myfname);
+                              sprintf(mtfile,"%s/%s.mtrace",l3path_mtrace_dir(),myfname);   /* original: /tmp */
                               setenv("MALLOC_TRACE",mtfile,0);
                             }
                             printf("memory tracing invoked--output file \'%s\'\n",mtfile);
@@ -467,7 +473,12 @@ void sn1SCUseSCDevice(char *dev)
   os_direct = 1;
   serial_direct = 0;
   if ((dev == NULL) || (*dev == '\0')) {
-    fp = (FILE *)popen("/bin/ls -1 /dev/snsc/*c* 2>/dev/null","r");
+    {
+    /* original: "/bin/ls -1 /dev/snsc/*c*" (SGI_L3_DEV_DIR overrides /dev) */
+    char lscmd[600];
+    snprintf(lscmd,sizeof(lscmd),"/bin/ls -1 %s/snsc/*c* 2>/dev/null",l3path_dev_dir());
+    fp = (FILE *)popen(lscmd,"r");
+  }
     if ((fp == NULL) || (pcVar1 = fgets(l2_scdev,0x40,(FILE *)fp), pcVar1 == NULL)) {
       fprintf(stderr,"Could not find an L1 Controller (/dev/snsc/*) to communicate with!\n");
       if (fp != NULL) {

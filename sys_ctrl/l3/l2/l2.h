@@ -48,7 +48,7 @@ extern int l2_hardware;
 extern int l2_flow_hwater;
 extern int l2_flow_lwater;
 extern int l2_copynum;
-extern char l2_l1_serial_device[32];
+extern char l2_l1_serial_device[512];
 extern char l2_l1_serial_hostname[32];
 extern L2L1Port l2_l1_ports[40];
 extern int l2_l1_control;

@@ -28,6 +28,7 @@ CRYPT   := $(if $(and $(filter -m32,$(ARCH)),$(wildcard /usr/lib/i386-linux-gnu/
 B       := build
 
 LIB_SRCS := \
+	sys_ctrl/common/sys/l3paths.c \
 	sys_ctrl/common/IRouter/IRouter.c \
 	sys_ctrl/common/IRouter/IRouter2Router.c \
 	sys_ctrl/common/Router/Buff.c \

@@ -24,6 +24,7 @@
 #include "../../common/sys/syslog.h"
 #include "broadcast.h"
 #include "target.h"
+#include "../../common/sys/l3paths.h"   /* configurable paths (new) */
 #include "decomp.h"     /* Ghidra types/macros; remove once the file is cleaned up */
 
 static void syslog_msg(int level, char *msg);
@@ -41,7 +42,7 @@ int l2_hardware;
 int l2_flow_hwater;
 int l2_flow_lwater;
 int l2_copynum;
-char l2_l1_serial_device[32];
+char l2_l1_serial_device[512];   /* original: 32 */
 char l2_l1_serial_hostname[32];
 L2L1Port l2_l1_ports[40];
 int l2_l1_control;
@@ -129,7 +130,7 @@ int main(int argc, char **argv, char **envp)
   syslogLibInit(syslog_msg);
   l2_myname = *argv;
   strcpy(l2_l1_serial_hostname,"local_host");
-  strcpy(l2_l1_serial_device,"/dev/com2");
+  strcpy(l2_l1_serial_device,l3path_dev("com2"));   /* original: "/dev/com2" */
   iVar2 = SocketGetHostName(&myhost);
   if (iVar2 == -1) {
     myhost = "localhost";
@@ -354,7 +355,7 @@ int main(int argc, char **argv, char **envp)
                                     pw = getenv("MALLOC_TRACE");
                                     if (pw == NULL) {
                                       pw = mtbuf;
-                                      sprintf(pw,"/tmp/l2.mtrace");
+                                      sprintf(pw,"%s/l2.mtrace",l3path_mtrace_dir());   /* original: /tmp */
                                       setenv("MALLOC_TRACE",pw,0);
                                     }
                                     printf("memory tracing invoked--output file \'%s\'\n",pw);

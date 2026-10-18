@@ -45,6 +45,7 @@
 #include "serial.h"
 #include "smp.h"
 #include "enet.h"
+#include "../../common/sys/l3paths.h"   /* configurable paths (new) */
 #include "decomp.h"     /* Ghidra types/macros; remove once the file is cleaned up */
 
 SMP *serial_console;
@@ -61,7 +62,7 @@ void serial_init(void)
   if (enet_only == 0) {
     serial_console = smp_init(&l2_console_id,0,1,serial_reset,0,IR_PORT_BIAS + 0x1f41);
     if (l2_pc != 0) {
-      serial_com2 = "/dev/ttyS1";
+      serial_com2 = (char *)l3path_dev("ttyS1");   /* original: "/dev/ttyS1" */
     }
     if (serial_com2 != NULL) {
       piVar1 = __errno_location();

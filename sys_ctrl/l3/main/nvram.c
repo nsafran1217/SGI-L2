@@ -30,6 +30,7 @@
 #include <signal.h>
 #include "../../common/sys/Logger.h"
 #include "../sys/LoggerMsg.h"
+#include "../../common/sys/l3paths.h"   /* configurable paths (new) */
 #include "decomp.h"     /* Ghidra types/macros; remove once the file is cleaned up */
 
 static void nvramInitIUA(void);
@@ -51,7 +52,7 @@ static int nvram_initialized;
 nvramInstance nvram;
 static uint8 nvramTempCopy[16384];
 static char nvram_save_path[100];
-static char nvram_file[40];
+static char nvram_file[1024];   /* original: 40; paths are configurable now */
 
 int nvramInit(int mode)
 {
@@ -637,12 +638,8 @@ static int nvramLoad(uint8 *buf, int size)
   if (nvramSim == 0) {
     if (first != 0) {
       first = 0;
-      if (IR_PORT_BIAS == 0) {
-        sprintf(nvram_file,"%sl2_NVRAM","./.");
-      }
-      else {
-        sprintf(nvram_file,"%sl2_NVRAM.%d","./.",IR_PORT_BIAS / 10);
-      }
+      /* original: "./.l2_NVRAM", or "./.l2_NVRAM.<bias/10>" (SGI_L2_NVRAM overrides) */
+      snprintf(nvram_file,sizeof(nvram_file),"%s",l3path_nvram(IR_PORT_BIAS));
     }
     fd = open(nvram_file,0,0x1b6);
     if (fd < 0) {

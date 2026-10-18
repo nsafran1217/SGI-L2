@@ -28,6 +28,7 @@ struct sockaddr_un;
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <errno.h>
+#include "../sys/l3paths.h"   /* configurable paths (new) */
 #include "decomp.h"     /* Ghidra types/macros; remove once the file is cleaned up */
 
 static int SocketUnixLoad(struct sockaddr_un *addr_unix, int port);
@@ -598,7 +599,8 @@ static int SocketUnixLoad(struct sockaddr_un *addr_unix, int port)
   
   memset(addr_unix,0,0x6e);
   addr_unix->sun_family = 1;
-  sprintf(addr_unix->sun_path,"/usr/tmp/UNIX_%04x",port);
+  /* original: "/usr/tmp/UNIX_%04x" (SGI_L3_SOCKET_DIR overrides) */
+  snprintf(addr_unix->sun_path,sizeof(addr_unix->sun_path),"%s/UNIX_%04x",l3path_socket_dir(),port);
   sVar1 = strlen(addr_unix->sun_path);
   return sVar1 + 2;
 }

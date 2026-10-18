@@ -20,6 +20,7 @@
 #include "l1net.h"
 #include "l1sim.h"
 #include "sgil1.h"
+#include "../../common/sys/l3paths.h"   /* configurable paths (new) */
 #include "decomp.h"     /* Ghidra types/macros; remove once the file is cleaned up */
 void dmp(char *s, unsigned char *bptr, int blen, int newline);
 
@@ -73,8 +74,8 @@ int l1_open_usb(void)
   if (l1usb_debug != 0) {
     fprintf(stderr,"INFO: initializing USB debug setting to %d from NVRAM\n",l1usb_debug);
   }
-  l2_l1_device = "/dev/sgil1_cs";
-  l2_l1_control = open("/dev/sgil1_cs",0);
+  l2_l1_device = (char *)l3path_dev("sgil1_cs");   /* original: "/dev/sgil1_cs" */
+  l2_l1_control = open(l2_l1_device,0);
   if (l2_l1_control < 0) {
     piVar1 = __errno_location();
     pcVar2 = strerror(*piVar1);
@@ -239,7 +240,7 @@ int l1_open_usb_device(int device)
   sgil1_cfg_t cfg;
   char usbpath [40];
   char usb_cfg [60];
-  char dev_name [20];
+  char dev_name [512];   /* original: 20; the device dir is configurable now */
   
   if (l2_debug != 0) {
     fprintf(stderr,"l1_open_usb_device(%d) in\n",device);
@@ -266,7 +267,7 @@ int l1_open_usb_device(int device)
       return 0;
     }
   }
-  sprintf(dev_name,"/dev/sgil1_%d",device);
+  sprintf(dev_name,"%s/sgil1_%d",l3path_dev_dir(),device);   /* original: "/dev/sgil1_%d" */
   usb_cfg[0] = '\0';
   usbpath[0] = '\0';
   iVar3 = open(dev_name,2);
