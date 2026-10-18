@@ -3,21 +3,21 @@
  *
  * Reconstructed from the STABS debug info and Ghidra decompilation of l2.
  * Original: /data/cf/sysco/scs123.patch/sys_ctrl/common/sys/minfo.c
+ *
+ * Malloc profiling for l2's "l2dbg menable/mstat/mmap/mreset/mdisable":
+ * glibc's malloc hooks route every allocation through here, which keeps
+ * the live blocks in an address-ordered list (up to POOL_SIZE of them) and
+ * counts allocations by size in 1 KB buckets.
  */
 
-#include <mcheck.h>
-#include "minfo.h"   /* needed by the reconstruction */
-#include "../../l3/l2/smp.h"   /* needed by the reconstruction */
-#include "../../l3/main/nvram.h"   /* needed by the reconstruction */
-#include <stdio.h>
-#include <stddef.h>
-#include <stdarg.h>
-#include <stdlib.h>
-#include <sys/types.h>
-#include <time.h>
-#include <string.h>
 #include <malloc.h>
-#include "decomp.h"     /* Ghidra types/macros; remove once the file is cleaned up */
+#include <mcheck.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include "minfo.h"
+#include "../../l3/main/nvram.h"
 
 /* glibc 2.34 removed the malloc hooks this module installs. Without them the
  * names below are plain variables: the module builds and its commands work,
@@ -31,91 +31,79 @@ static void *minfo_malloc_hook, *minfo_realloc_hook, *minfo_memalign_hook, *minf
 #define __free_hook minfo_free_hook
 #endif
 
+#define POOL_SIZE     8192      /* blocks tracked at once */
+#define MAX_TRACKED   0x100000  /* larger blocks are not tracked */
+#define BUCKETS       (MAX_TRACKED >> 10)       /* 1 KB each */
+#define HIST_SIZE     104857    /* (SGI's size; only BUCKETS are used) */
+#define CHUNK_HEADER  4         /* the i386 glibc chunk header before a block */
+#define FREED_FILL    0x55      /* freed blocks are overwritten with this */
+
 struct LIST_S {
     int inuse;
-    void *addr;
-    size_t size;
-    size_t usize;
+    void *addr;                 /* the chunk: the block less its header */
+    size_t size;                /* usable size plus the header */
+    size_t usize;               /* the size asked for */
     void *caller;
     struct LIST_S *next;
 };
 typedef struct LIST_S LIST;
 
-static void restore_malloc(void);
-static void override_malloc(void);
-static void restore_realloc(void);
-static void override_realloc(void);
-static void restore_memalign(void);
-static void override_memalign(void);
-static void restore_free(void);
-static void override_free(void);
-static void restore(void);
-static void override(void);
-static void list_insert(char *addr, size_t usize, size_t size, void *caller, char *who);
-static int get_arena(void);
 static void *mmalloc(size_t size, void *caller);
 static void *mrealloc(void *oldptr, size_t newsize, void *caller);
 static void *mmemalign(size_t boundary, size_t size, void *caller);
 static void mfree(void *ptr, void *caller);
 
-static LIST *head;
+static LIST *head;              /* by address */
 static int entries;
-static void *omalloc;
+static void *omalloc;           /* glibc's hooks before ours */
 static void *orealloc;
 static void *ofree;
 static void *omemalign;
 static int initialized;
-static LIST pool[8192];
-static int mhist[104857];
-static int mcurr[104857];
-static int mhole[104857];
+static LIST pool[POOL_SIZE];
+static int mhist[HIST_SIZE];    /* all allocations, by size */
+static int mcurr[HIST_SIZE];    /* live blocks, by size */
+static int mhole[HIST_SIZE];    /* gaps between live blocks, by size */
 
+/* our hooks call malloc() etc. with glibc's hook back in place */
 static void restore_malloc(void)
 {
   __malloc_hook = omalloc;
-  return;
 }
 
 static void override_malloc(void)
 {
   __malloc_hook = mmalloc;
-  return;
 }
 
 static void restore_realloc(void)
 {
   __realloc_hook = orealloc;
-  return;
 }
 
 static void override_realloc(void)
 {
   __realloc_hook = mrealloc;
-  return;
 }
 
 static void restore_memalign(void)
 {
   __memalign_hook = omemalign;
-  return;
 }
 
 static void override_memalign(void)
 {
   __memalign_hook = mmemalign;
-  return;
 }
 
 static void restore_free(void)
 {
   __free_hook = ofree;
-  return;
 }
 
 static void override_free(void)
 {
   __free_hook = mfree;
-  return;
 }
 
 static void restore(void)
@@ -124,113 +112,90 @@ static void restore(void)
   __realloc_hook = orealloc;
   __memalign_hook = omemalign;
   __free_hook = ofree;
-  return;
 }
 
 static void override(void)
 {
   if (omalloc == NULL) {
-    fprintf(stderr,"free %x free_hook %x ofree %x\n",free,__free_hook,ofree);
+    /* (SGI's debugging output; the second line prints the saved hook) */
+    fprintf(stderr,"free %lx free_hook %lx ofree %lx\n",(unsigned long)(uintptr_t)free,
+            (unsigned long)(uintptr_t)__free_hook,(unsigned long)(uintptr_t)ofree);
     omalloc = __malloc_hook;
     orealloc = __realloc_hook;
     omemalign = __memalign_hook;
     ofree = __free_hook;
-    fprintf(stderr,"free %x free_hook %x ofree %x\n",free,__free_hook,__free_hook);
+    fprintf(stderr,"free %lx free_hook %lx ofree %lx\n",(unsigned long)(uintptr_t)free,
+            (unsigned long)(uintptr_t)__free_hook,(unsigned long)(uintptr_t)__free_hook);
   }
   __malloc_hook = mmalloc;
   __realloc_hook = mrealloc;
   __memalign_hook = mmemalign;
   __free_hook = mfree;
-  return;
 }
 
+/* add a block (usize asked for, size usable) to the list, in address order;
+ * a block already there means the heap is corrupt: log it and abort */
 static void list_insert(char *addr, size_t usize, size_t size, void *caller, char *who)
 {
-  char *pcVar1;
-  LIST *last;
-  LIST *curr;
+  char *chunk = addr - CHUNK_HEADER;
+  LIST *new = NULL, *curr, *last = NULL;
   int index;
-  LIST *new;
-  
-  if (size < 0x100000) {
-    new = NULL;
-    for (index = 0; (new == NULL && (index < 0x2000)); index = index + 1) {
-      if (pool[index].inuse == 0) {
-        new = pool + index;
-      }
-    }
-    if (new != NULL) {
-      new->inuse = 1;
-      pcVar1 = addr + -4;
-      new->addr = pcVar1;
-      new->size = size + 4;
-      new->usize = usize;
-      new->caller = caller;
-      new->next = NULL;
-      if (head == NULL) {
-        head = new;
-      }
-      else if (pcVar1 < (char *)head->addr) {
-        new->next = head;
-        head = new;
-      }
-      else {
-        for (curr = head; (curr != NULL && ((char *)curr->addr < pcVar1)); curr = curr->next) {
-          last = curr;
-        }
-        if (curr == NULL) {
-          last->next = new;
-        }
-        else {
-          if (pcVar1 == curr->addr) {
-            /* arguments restored from the machine code (Ghidra dropped them) */
-            nvramLogFinsert("%s: curr %lx addr %lx size %zx usize %zx, new %lx addr %lx size %zx usize %zx",
-                            who,(unsigned long)(uintptr_t)curr,(unsigned long)(uintptr_t)curr->addr,
-                            curr->size,curr->usize,(unsigned long)(uintptr_t)new,
-                            (unsigned long)(uintptr_t)addr,size,usize);
-            muntrace();
-            abort();
-          }
-          new->next = curr;
-          last->next = new;
-        }
-      }
-      entries = entries + 1;
-    }
-  }
-  return;
-}
 
-int list_delete(char *addr, char *who)
-{
-  int iVar1;
-  LIST *last;
-  LIST *curr;
-  
+  if (size >= MAX_TRACKED)
+    return;
+  for (index = 0; new == NULL && index < POOL_SIZE; index++)
+    if (!pool[index].inuse)
+      new = &pool[index];
+  if (new == NULL)
+    return;                     /* (the pool is full: not tracked) */
+  new->inuse = 1;
+  new->addr = chunk;
+  new->size = size + CHUNK_HEADER;
+  new->usize = usize;
+  new->caller = caller;
+  new->next = NULL;
+
   if (head == NULL) {
-    iVar1 = 0;
+    head = new;
   }
-  else if (head->addr == addr + -4) {
-    head->inuse = 0;
-    head = head->next;
-    entries = entries + -1;
-    iVar1 = 1;
+  else if (chunk < (char *)head->addr) {
+    new->next = head;
+    head = new;
   }
   else {
-    for (curr = head; (curr != NULL && (curr->addr != addr + -4)); curr = curr->next) {
+    for (curr = head; curr != NULL && (char *)curr->addr < chunk; curr = curr->next)
       last = curr;
+    if (curr != NULL && (char *)curr->addr == chunk) {
+      nvramLogFinsert("%s: curr %lx addr %lx size %zx usize %zx, new %lx addr %lx size %zx usize %zx",
+                      who,(unsigned long)(uintptr_t)curr,(unsigned long)(uintptr_t)curr->addr,
+                      curr->size,curr->usize,(unsigned long)(uintptr_t)new,
+                      (unsigned long)(uintptr_t)addr,size,usize);
+      muntrace();
+      abort();
     }
-    if (curr == NULL) {
-      iVar1 = 0;
-    }
-    else {
-      curr->inuse = 0;
-      last->next = curr->next;
-      entries = entries + -1;
-      iVar1 = 1;
-    }
+    new->next = curr;
+    last->next = new;
   }
-  return iVar1;
+  entries++;
+}
+
+/* drop a block from the list; 1 if it was there */
+int list_delete(char *addr, char *who)
+{
+  char *chunk = addr - CHUNK_HEADER;
+  LIST *curr, *last = NULL;
+
+  for (curr = head; curr != NULL && (char *)curr->addr != chunk; curr = curr->next)
+    last = curr;
+  if (curr == NULL)
+    return 0;
+  curr->inuse = 0;
+  if (last == NULL)
+    head = curr->next;
+  else
+    last->next = curr->next;
+  entries--;
+  return 1;
 }
 
 static int get_arena(void)
@@ -242,303 +207,219 @@ static int get_arena(void)
 #endif
 }
 
+/* count an allocation of size usable bytes */
+static void count_block(size_t size)
+{
+  if (size < MAX_TRACKED) {
+    mhist[size >> 10]++;
+    mcurr[size >> 10]++;
+  }
+}
+
 static void *mmalloc(size_t size, void *caller)
 {
-  size_t arena;
+  size_t usable;
   void *ptr;
-  unsigned int size_00;
-  size_t usize;
-  unsigned char *cptr;
-  
-  arena = get_arena();
+
+  get_arena();                  /* (the original read it and did nothing with it) */
   restore_malloc();
   ptr = malloc(size);
   override_malloc();
-  if (ptr == NULL) {
-    ptr = NULL;
-  }
-  else {
-    size_00 = malloc_usable_size(ptr);
-    list_insert(ptr,size,size_00,caller,"malloc");
-    if (size_00 < 0x100000) {
-      mhist[size_00 >> 10] = mhist[size_00 >> 10] + 1;
-      mcurr[size_00 >> 10] = mcurr[size_00 >> 10] + 1;
-    }
-  }
+  if (ptr == NULL)
+    return NULL;
+  usable = malloc_usable_size(ptr);
+  list_insert(ptr,size,usable,caller,"malloc");
+  count_block(usable);
   return ptr;
 }
 
 static void *mrealloc(void *oldptr, size_t newsize, void *caller)
 {
+  size_t oldsize = 0, usable;
   void *newptr;
-  unsigned int size;
-  int iVar1;
-  size_t unewsize;
-  size_t oldsize;
-  size_t arena;
-  
-  oldsize = 0;
-  if (oldptr != NULL) {
+
+  if (oldptr != NULL)
     oldsize = malloc_usable_size(oldptr);
-  }
   get_arena();
   restore_realloc();
   newptr = realloc(oldptr,newsize);
   override_realloc();
-  if (newptr == NULL) {
-    newptr = NULL;
-  }
-  else {
-    size = malloc_usable_size(newptr);
-    if (((oldptr != NULL) && (iVar1 = list_delete(oldptr,"realloc"), iVar1 != 0)) &&
-       (oldsize < 0x100000)) {
-      mcurr[oldsize >> 10] = mcurr[oldsize >> 10] + -1;
-    }
-    list_insert(newptr,newsize,size,caller,"realloc");
-    if (size < 0x100000) {
-      mhist[size >> 10] = mhist[size >> 10] + 1;
-      mcurr[size >> 10] = mcurr[size >> 10] + 1;
-    }
-  }
+  if (newptr == NULL)
+    return NULL;
+  usable = malloc_usable_size(newptr);
+  if (oldptr != NULL && list_delete(oldptr,"realloc") && oldsize < MAX_TRACKED)
+    mcurr[oldsize >> 10]--;
+  list_insert(newptr,newsize,usable,caller,"realloc");
+  count_block(usable);
   return newptr;
 }
 
 static void *mmemalign(size_t boundary, size_t size, void *caller)
 {
-  size_t arena;
+  size_t usable;
   void *ptr;
-  unsigned int size_00;
-  size_t usize;
-  
-  arena = get_arena();
+
+  get_arena();
   restore_memalign();
-  ptr = (void *)memalign(boundary,size);
+  ptr = memalign(boundary,size);
   override_memalign();
-  if (ptr == NULL) {
-    ptr = NULL;
-  }
-  else {
-    size_00 = malloc_usable_size(ptr);
-    list_insert(ptr,size,size_00,caller,"memalign");
-    if (size_00 < 0x100000) {
-      mhist[size_00 >> 10] = mhist[size_00 >> 10] + 1;
-      mcurr[size_00 >> 10] = mcurr[size_00 >> 10] + 1;
-    }
-  }
+  if (ptr == NULL)
+    return NULL;
+  usable = malloc_usable_size(ptr);
+  list_insert(ptr,size,usable,caller,"memalign");
+  count_block(usable);
   return ptr;
 }
 
 static void mfree(void *ptr, void *caller)
 {
-  bool bVar1;
   size_t size;
-  int iVar2;
-  int status;
-  
+
   size = malloc_usable_size(ptr);
-  memset(ptr,0x55,size);
+  memset(ptr,FREED_FILL,size);
   restore_free();
   free(ptr);
   override_free();
-  bVar1 = false;
-  iVar2 = list_delete(ptr,"free");
-  if ((iVar2 != 0) && (size < 0x100000)) {
-    bVar1 = true;
-  }
-  if (bVar1) {
-    mcurr[size >> 10] = mcurr[size >> 10] + -1;
-  }
-  return;
+  if (list_delete(ptr,"free") && size < MAX_TRACKED)
+    mcurr[size >> 10]--;
 }
 
 void MInfoReset(void)
 {
-  int index;
-  
-  if (initialized != 0) {
-    head = NULL;
-    entries = 0;
-    memset(mhist,0,0x66664);
-    memset(mcurr,0,0x66664);
-    memset(mhole,0,0x66664);
-    memset(pool,0,sizeof(pool));
-  }
-  return;
+  if (!initialized)
+    return;
+  head = NULL;
+  entries = 0;
+  memset(mhist,0,sizeof(mhist));
+  memset(mcurr,0,sizeof(mcurr));
+  memset(mhole,0,sizeof(mhole));
+  memset(pool,0,sizeof(pool));
 }
 
 void MInfoEnable(char **rptr)
 {
-  int status;
-  
-  if (initialized == 0) {
+  if (!initialized) {
     initialized = 1;
     override();
   }
-  return;
 }
 
 void MInfoDisable(void)
 {
-  if (initialized != 0) {
+  if (initialized) {
     initialized = 0;
     restore();
     MInfoReset();
   }
-  return;
 }
 
+/* the gap between a block and the next, or 0 */
+static size_t hole_after(LIST *curr)
+{
+  char *end = (char *)curr->addr + curr->size;
+
+  if (curr->next == NULL || end >= (char *)curr->next->addr)
+    return 0;
+  return (char *)curr->next->addr - end;
+}
+
+static char *not_enabled(void)
+{
+  return strdup("malloc profiling not enabled\n");
+}
+
+/* a histogram's nonzero buckets and their total */
+static char *print_buckets(char *ptr, const char *title, int *hist)
+{
+  int index, total = 0;
+
+  ptr += sprintf(ptr,"%s",title);
+  for (index = 0; index < BUCKETS; index++) {
+    if (hist[index] != 0) {
+      ptr += sprintf(ptr,"%4d-%4dK %8d\n",index,index + 1,hist[index]);
+      total += hist[index];
+    }
+  }
+  ptr += sprintf(ptr,"total %13d\n\n",total);
+  return ptr;
+}
+
+/* "l2dbg mstat": allocations by size, cumulative and current, and the holes */
 void MInfoStatPrint(char **rptr)
 {
-  struct LIST_S *pLVar1;
-  char *pcVar2;
-  size_t sVar3;
-  size_t size;
-  LIST *next;
   LIST *curr;
-  int used;
-  int avail;
-  int holes;
-  int blocks;
-  int index;
+  size_t hole;
+  int index, lines = 0, avail = 0, used = 0;
   char *ptr;
-  
-  if (initialized == 0) {
-    pcVar2 = malloc(0x28);
-    *rptr = pcVar2;
-    strcpy(*rptr,"malloc profiling not enabled\n");
+
+  if (!initialized) {
+    *rptr = not_enabled();
+    return;
   }
-  else {
-    blocks = 0;
-    for (index = 0; index < 0x400; index = index + 1) {
-      blocks = blocks + mhist[index];
+  /* (more than enough lines: the original counts blocks, not buckets; but
+   * its 100 bytes for the rest were too few with under three blocks) */
+  for (index = 0; index < BUCKETS; index++)
+    lines += mhist[index] + mcurr[index];
+  for (curr = head; curr != NULL; curr = curr->next)
+    if (hole_after(curr) != 0)
+      lines++;
+  restore_malloc();
+  ptr = malloc(lines * 30 + 200);
+  *rptr = ptr;
+  override_malloc();
+
+  ptr = print_buckets(ptr,"cumulative:\n",mhist);
+  ptr = print_buckets(ptr,"current:\n",mcurr);
+  memset(mhole,0,sizeof(mhole));
+  for (curr = head; curr != NULL; curr = curr->next) {
+    used += curr->size;
+    hole = hole_after(curr);
+    if (hole != 0) {
+      /* (the original counted any size: past 100 MB, out of mhole; buckets
+       * past 1 MB are never printed) */
+      if (hole < MAX_TRACKED)
+        mhole[hole >> 10]++;
+      avail += hole;
     }
-    for (index = 0; index < 0x400; index = index + 1) {
-      blocks = blocks + mcurr[index];
-    }
-    for (curr = head; curr != NULL; curr = curr->next) {
-      if ((curr->next != NULL) &&
-         ((void *)((char *)curr->addr + curr->size) < curr->next->addr)) {
-        blocks = blocks + 1;
-      }
-    }
-    restore_malloc();
-    pcVar2 = malloc(blocks * 0x1e + 100);
-    *rptr = pcVar2;
-    override_malloc();
-    strcpy(pcVar2,"cumulative:\n");
-    sVar3 = strlen(pcVar2);
-    ptr = pcVar2 + sVar3;
-    blocks = 0;
-    for (index = 0; index < 0x400; index = index + 1) {
-      if (mhist[index] != 0) {
-        sprintf(ptr,"%4d-%4dK %8d\n",index,index + 1,mhist[index]);
-        sVar3 = strlen(ptr);
-        ptr = ptr + sVar3;
-        blocks = blocks + mhist[index];
-      }
-    }
-    sprintf(ptr,"total %13d\n\n",blocks);
-    sVar3 = strlen(ptr);
-    pcVar2 = ptr + sVar3;
-    strcpy(pcVar2,"current:\n");
-    sVar3 = strlen(pcVar2);
-    ptr = pcVar2 + sVar3;
-    blocks = 0;
-    for (index = 0; index < 0x400; index = index + 1) {
-      if (mcurr[index] != 0) {
-        sprintf(ptr,"%4d-%4dK %8d\n",index,index + 1,mcurr[index]);
-        sVar3 = strlen(ptr);
-        ptr = ptr + sVar3;
-        blocks = blocks + mcurr[index];
-      }
-    }
-    sprintf(ptr,"total %13d\n\n",blocks);
-    sVar3 = strlen(ptr);
-    pcVar2 = ptr + sVar3;
-    strcpy(pcVar2,"holes:\n");
-    sVar3 = strlen(pcVar2);
-    ptr = pcVar2 + sVar3;
-    avail = 0;
-    used = 0;
-    memset(mhole,0,0x66664);
-    for (curr = head; curr != NULL; curr = curr->next) {
-      used = used + curr->size;
-      pLVar1 = curr->next;
-      if ((pLVar1 != NULL) && ((void *)((char *)curr->addr + curr->size) < pLVar1->addr)) {
-        size = (int)((char *)pLVar1->addr - ((char *)curr->addr + curr->size));
-        mhole[size >> 10] = mhole[size >> 10] + 1;
-        avail = avail + size;
-      }
-    }
-    blocks = 0;
-    for (index = 0; index < 0x400; index = index + 1) {
-      if (mhole[index] != 0) {
-        sprintf(ptr,"%4d-%4dK %8d\n",index,index + 1,mhole[index]);
-        sVar3 = strlen(ptr);
-        ptr = ptr + sVar3;
-        blocks = blocks + mhole[index];
-      }
-    }
-    sprintf(ptr,"total %13d\n\n",blocks);
-    sVar3 = strlen(ptr);
-    pcVar2 = ptr + sVar3;
-    sprintf(pcVar2,"available memory %10d\n",avail);
-    sVar3 = strlen(pcVar2);
-    pcVar2 = pcVar2 + sVar3;
-    sprintf(pcVar2,"used memory      %10d\n",used);
-    sVar3 = strlen(pcVar2);
-    sprintf(pcVar2 + sVar3,"entries          %10d\n",entries);
   }
-  return;
+  ptr = print_buckets(ptr,"holes:\n",mhole);
+  ptr += sprintf(ptr,"available memory %10d\n",avail);
+  ptr += sprintf(ptr,"used memory      %10d\n",used);
+  sprintf(ptr,"entries          %10d\n",entries);
 }
 
+/* "l2dbg mmap": the live blocks and holes in address order */
 void MInfoMapPrint(char **rptr)
 {
-  struct LIST_S *pLVar1;
-  char *pcVar2;
-  size_t sVar3;
-  size_t size;
-  LIST *next;
   LIST *curr;
-  int holes;
-  int index;
+  size_t hole;
+  int holes = 0;
   char *ptr;
-  
-  if (initialized == 0) {
-    pcVar2 = malloc(0x28);
-    *rptr = pcVar2;
-    strcpy(*rptr,"malloc profiling not enabled\n");
+
+  if (!initialized) {
+    *rptr = not_enabled();
+    return;
   }
-  else {
-    holes = 0;
-    for (curr = head; curr != NULL; curr = curr->next) {
-      if ((curr->next != NULL) &&
-         ((void *)((char *)curr->addr + curr->size) < curr->next->addr)) {
-        holes = holes + 1;
-      }
-    }
-    restore_malloc();
-    ptr = malloc((entries + holes * 2) * 0x28 + 100);
-    *rptr = ptr;
-    override_malloc();
-    if ((head == NULL) || (head->next == NULL)) {
-      strcpy(ptr,"No memory allocated yet\n");
-    }
-    else {
-      for (curr = head; curr != NULL; curr = curr->next) {
-        sprintf(ptr,"%08lx-%08lx %10d %lx\n",(unsigned long)curr->addr,(unsigned long)((char *)curr->addr + curr->size),curr->usize,
-                (unsigned long)curr->caller);
-        sVar3 = strlen(ptr);
-        ptr = ptr + sVar3;
-        pLVar1 = curr->next;
-        if ((pLVar1 != NULL) && ((void *)((char *)curr->addr + curr->size) < pLVar1->addr)) {
-          sprintf(ptr,"%08lx-%08lx %10d HOLE\n",(unsigned long)((char *)curr->addr + curr->size),(unsigned long)pLVar1->addr,
-                  (int)((char *)pLVar1->addr - ((char *)curr->addr + curr->size)));
-          sVar3 = strlen(ptr);
-          ptr = ptr + sVar3;
-        }
-      }
-    }
+  for (curr = head; curr != NULL; curr = curr->next)
+    if (hole_after(curr) != 0)
+      holes++;
+  /* (40 bytes a line in the original, too few for 64-bit addresses) */
+  restore_malloc();
+  ptr = malloc((entries + holes * 2) * 80 + 100);
+  *rptr = ptr;
+  override_malloc();
+  if (head == NULL || head->next == NULL) {
+    strcpy(ptr,"No memory allocated yet\n");
+    return;
   }
-  return;
+  for (curr = head; curr != NULL; curr = curr->next) {
+    ptr += sprintf(ptr,"%08lx-%08lx %10d %lx\n",(unsigned long)(uintptr_t)curr->addr,
+                   (unsigned long)(uintptr_t)((char *)curr->addr + curr->size),(int)curr->usize,
+                   (unsigned long)(uintptr_t)curr->caller);
+    hole = hole_after(curr);
+    if (hole != 0)
+      ptr += sprintf(ptr,"%08lx-%08lx %10d HOLE\n",
+                     (unsigned long)(uintptr_t)((char *)curr->addr + curr->size),
+                     (unsigned long)(uintptr_t)curr->next->addr,(int)hole);
+  }
 }
