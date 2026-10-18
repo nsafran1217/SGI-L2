@@ -2,7 +2,8 @@
 
 l2 -net accepts L1 connections on port 9003 (as from SGI's L1 simulator).
 The fake L1 answers the L2's configuration request (task IR_L1_CFG, first
-argument 6) with one brick, and every other request with a success response
+argument 6) with one brick, echoes loopback requests (task 0x12), and
+answers every other request with a success response
 whose text echoes the request; it records the text of each request it gets.
 
 Frames are big-endian: a 20-byte header (size, rev, err, seqnum0, fnum,
@@ -17,6 +18,7 @@ import threading
 
 REQ, RSP = 0, 1
 L1_CFG = 14
+L1_LPBK = 0x12                  # the loopback task: requests are echoed
 
 
 def l1_addr(rack, slot, task):
@@ -100,7 +102,12 @@ class FakeL1(threading.Thread):
                     continue
                 task = p["dest"] & 0x1f
                 me = l1_addr(self.rack, self.slot, task)
-                if task == L1_CFG and p["args"] and p["args"][0] == 6:
+                if task == L1_LPBK:
+                    # echo the session and the data; record only the data's length
+                    self.requests.append((task, [len(a) if isinstance(a, bytes) else a
+                                                 for a in p["args"]]))
+                    self.sock.sendall(frame(p, p["args"], src=me))
+                elif task == L1_CFG and p["args"] and p["args"][0] == 6:
                     self.config_requests += 1
                     cfg = [l1cfg(self.rack, self.slot, self.type)] + [b"\0" * 112] * 3
                     self.sock.sendall(frame(p, [6] + cfg, src=me))

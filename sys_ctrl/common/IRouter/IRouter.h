@@ -10,6 +10,7 @@
 
 #include "../sys/sysctl_types.h"
 #include "../sys/sysutils.h"
+#include <arpa/inet.h>   /* ntohl() for IR_ADDR_FROM_IP() */
 typedef uint32 IRAddress;
 typedef enum {
     IR_L1_INVALID = 0,
@@ -166,6 +167,15 @@ enum { IR_ARG_VALUE = 0, IR_ARG_BYTES = 1, IR_ARG_STRING = 2 };
 #define IR_ADDR_NUM(a)     (!IR_ADDR_IS_IP(a) ? (int)(((a) >> 5) & 0x7f) : -1)
 #define IR_ADDR_RACK(a)    ((int)(((a) >> 18) & 0x3ff))
 #define IR_ADDR_SLOT(a)    ((int)(((a) >> 12) & 0x3f))
+/* addr with its task replaced */
+#define IR_ADDR_WITH_TASK(a, task) \
+    (IR_ADDR_IS_IP(a) ? ((a) & 0xc0ffffff) | (IRAddress)((task) & 0x3f) << 24 \
+                      : ((a) & ~(IRAddress)0x1f) | ((task) & 0x1f))
+/* an L2's IP-routed address from its IP address (network order), and the
+ * IP address's low 24 bits (network order) from an IP-routed address. (The
+ * original code tested IRByteOrder; ntohl() and htonl() do the same.) */
+#define IR_ADDR_FROM_IP(ip)  (0x80000000 | (ntohl(ip) & 0xffffff))
+#define IR_ADDR_TO_IP(a)     htonl((a) & 0xffffff)
 
 /* IRFrame._fnum: the first frame has the top bit set; the frames are
  * numbered down to 1. A frame is at most 1024 bytes (extended frames, for

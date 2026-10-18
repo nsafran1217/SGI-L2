@@ -34,6 +34,17 @@ typedef struct {
     int wr_errcnt;
 } L2L1Port;
 
+/* l2_l1_conn_mode: how l2 reaches its L1s (the command line) */
+enum {
+    L2_CONN_NONE = 0,           /* -noconn */
+    L2_CONN_NET = 1,            /* -net: L1s connect to the L1 port (l1net.c) */
+    L2_CONN_USB = 2,            /* -usb (the default): the sgil1 driver */
+    L2_CONN_SERIAL = 3,         /* -serial <device> */
+    L2_CONN_SERIAL_NET = 4,     /* -serial <host> [<port>]: a serial line over TCP */
+    L2_CONN_SIM = 5,            /* -l1sim, -l1sim_manual (l1sim.c) */
+};
+#define L2_L1_PORTS 40          /* l2_l1_ports[] */
+
 /* prototypes (not recorded in STABS; reconstructed from definitions) */
 #include <signal.h>   /* for the prototypes */
 /* l2.c */
@@ -50,7 +61,7 @@ extern int l2_flow_lwater;
 extern int l2_copynum;
 extern char l2_l1_serial_device[512];
 extern char l2_l1_serial_hostname[32];
-extern L2L1Port l2_l1_ports[40];
+extern L2L1Port l2_l1_ports[L2_L1_PORTS];
 extern int l2_l1_control;
 extern char *l2_l1_device;
 extern IRIdent l2_id;

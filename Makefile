@@ -169,7 +169,12 @@ CLEAN_SRCS := \
 	sys_ctrl/l3/l2/dmp.c \
 	sys_ctrl/l3/l2/pty.c \
 	sys_ctrl/l3/l2/serial.c \
-	sys_ctrl/l3/l2/enet.c
+	sys_ctrl/l3/l2/enet.c \
+	sys_ctrl/l3/l2/format.c \
+	sys_ctrl/l3/l2/lpbk.c \
+	sys_ctrl/l3/l2/l1net.c \
+	sys_ctrl/l3/l2/l1sim.c \
+	sys_ctrl/l3/l2/target.c
 $(CLEAN_SRCS:%.c=$(B)/%.o): CFLAGS += -Wunused-variable -Wunused-but-set-variable \
 	-Wunused-label -Wpointer-sign
 

@@ -6,7 +6,9 @@
 The other tests run 'l2 -noconn', so no brick is ever known. Here each l2
 (original and rebuilt) runs '-net' and a fake L1 (tests/fakel1.py) connects
 to its L1 port, reporting one brick (001c02). Each command in
-tests/l1_commands.txt then goes through the original l2cmd. The transcripts
+tests/l1_commands.txt then goes through the original l2cmd, and each line of
+tests/l1_console_commands.txt is typed at the L2's console (SMP port 8001,
+for commands only the console has, such as loopback). The transcripts
 must match, and so must the requests the fake L1 receives. The original l2
 runs with a 32-bit LD_PRELOAD shim (tests/usrtmp_shim.c) because it
 hardcodes /usr/tmp for its local sockets. NEW_BIN selects the rebuilt
@@ -16,6 +18,8 @@ binaries, as in difftest.sh.
 import difflib
 import os
 import re
+import select
+import socket
 import shutil
 import subprocess
 import sys
@@ -47,6 +51,32 @@ def mask(text):
     return re.sub(r"[A-Z][a-z]{2} [A-Z][a-z]{2} +\d+ [\d:]{8} \d{4}", "<DATE>", text)
 
 
+def console(lines):
+    """Type lines at SMP port 8001; the transcript, timings masked."""
+    prompt = re.compile(rb"L2>\s*$")
+    time.sleep(1)                       # let the last l2cmd's disconnection be logged
+    s = socket.create_connection(("127.0.0.1", 8001))
+
+    def until_prompt():
+        out, end = b"", time.time() + 10
+        while time.time() < end and not prompt.search(out):
+            if select.select([s], [], [], 0.2)[0]:
+                chunk = s.recv(4096)
+                if not chunk:
+                    break
+                out += chunk
+        return out
+
+    out = until_prompt()
+    for line in lines:
+        s.sendall(line.encode() + b"\r")   # (a newline as well would abort a loopback)
+        out += until_prompt()
+    s.close()
+    text = out.decode("latin-1").replace("\r", "")
+    return re.sub(r"(time|average|min pkt|max pkt|) +[0-9.]+ (seconds|bytes/second)",
+                  r"\1 <N> \2", text)
+
+
 def session(l2bin, env, commands, work, name):
     d = os.path.join(work, name)
     os.makedirs(d)
@@ -76,6 +106,9 @@ def session(l2bin, env, commands, work, name):
             r = subprocess.run([os.path.join(ORIG, "l2cmd"), "--l2", "127.0.0.1", *c.split()],
                                capture_output=True, text=True, errors="replace", timeout=30)
             out.append(f"=== {c}\n{mask(r.stdout + r.stderr)}")
+        with open(os.path.join(HERE, "l1_console_commands.txt")) as f:
+            lines = [l.strip() for l in f if l.strip() and not l.startswith("#")]
+        out.append(f"=== console\n{mask(console(lines))}")
         l1.close()
         return "".join(out), l1.requests
     finally:

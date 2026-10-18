@@ -46,7 +46,7 @@ int l2_flow_lwater;
 int l2_copynum;
 char l2_l1_serial_device[512];   /* original: 32 */
 char l2_l1_serial_hostname[32];
-L2L1Port l2_l1_ports[40];
+L2L1Port l2_l1_ports[L2_L1_PORTS];
 int l2_l1_control;
 char *l2_l1_device;
 IRIdent l2_id;

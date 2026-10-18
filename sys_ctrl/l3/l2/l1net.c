@@ -3,171 +3,97 @@
  *
  * Reconstructed from the STABS debug info and Ghidra decompilation of l2.
  * Original: /data/cf/sysco/scs123.patch/sys_ctrl/l3/l2/l1net.c
+ *
+ * L1s over a socket instead of USB ("-net", and the L1 simulator): they
+ * connect to L1NET_PORT, locally or over TCP, and each connection becomes
+ * one of the L2's L1 ports.
  */
 
-#include "l2.h"
 #include <stdio.h>
-#include <stddef.h>
-#include <stdarg.h>
-#include <stdlib.h>
-#include <sys/types.h>
-#include <time.h>
-#include <fcntl.h>
-#include <errno.h>
-#include <signal.h>
-#include <termios.h>
-#include <unistd.h>
-#include <getopt.h>
 #include <string.h>
-#include "../../common/Router/Socket.h"
-#include "../../common/Router/Event.h"
-#include <sys/time.h>
-#include "../../common/IRouter/IRouter.h"
-#include "../../common/sys/sysctl_types.h"
-#include <netinet/in.h>
-#include <limits.h>
-#include <syslimits.h>
-#include <linux/limits.h>
-#include <stdint.h>
-#include "../../common/sys/sysutils.h"
-#include <pthread.h>
-#include <sched.h>
-#include "../../common/sys/Logger.h"
-#include "../sys/LoggerMsg.h"
-#include "../../common/IRouter/IRouter2Router.h"
-#include "../../common/Router/Router.h"
-#include "../../common/sys/PPP.h"
-#include "../../common/sys/brick_types.h"
-#include "../../common/main/EnetServer.h"
-#include "../../common/main/L2Cfg.h"
-#include "../../common/main/L1Cfg.h"
-#include "l2_rev.h"
+#include "l2.h"
 #include "l1net.h"
-#include "smp.h"
-#include "l2cmd.h"
-#include "reqrspq.h"
-#include "dest.h"
-#include "../../common/sys/Cmd.h"
-#include "cfg.h"
-#include "format.h"
-#include "serial.h"
-#include "../main/nvram.h"
-#include "../../common/sys/ipmi.h"
 #include "l1.h"
-#include "decomp.h"     /* Ghidra types/macros; remove once the file is cleaned up */
+#include "cfg.h"
 
+#define L1NET_PORT  9003        /* plus IR_PORT_BIAS */
+
+static const char *conn_type(void)
+{
+  return l2_l1_conn_mode == L2_CONN_SIM ? "simulator" : "network";
+}
+
+/* a connection on the listening socket sd: give it a free L1 port */
 void l1net_accept(void *cd, int sd)
 {
-  char *ctype;
-  int fd;
-  int iVar1;
-  char dev_name [20];
+  char dev_name[20];
   int device;
-  bool found;
-  
-  found = false;
-  device = 0;
-  if (l2_l1_conn_mode == 5) {
-    ctype = "simulator";
-  }
-  else {
-    ctype = "network";
-  }
-  fd = SocketAcceptUnixConnection(sd,0);
+  int fd;
+
+  fd = SocketAcceptUnixConnection(sd,0);    /* (accept(), for the TCP socket too) */
   if (fd < 0) {
     fprintf(stderr,"INFO: accept of L1 simulator connection failed\n");
+    return;
   }
-  else {
-    fprintf(stderr,"INFO: accepted L1 %s connection\n",ctype);
-    SocketSetBufferSize(fd,0x400,0x400);
-    while ((!found && (device < 0x28))) {
-      if (l2_l1_ports[device].fd == -1) {
-        found = true;
-      }
-      else {
-        device = device + 1;
-      }
-    }
-    sprintf(dev_name,"<l1net %d>",device);
-    if (found) {
-      l2_l1_ports[device].fd = fd;
-      if (l2_l1_local_port == -1) {
-        l2_l1_local_port = device;
-      }
-      strcpy(l2_l1_ports[device].device,dev_name);
-      iVar1 = L2CfgMAddPort(&L2CfgLocal,device,dev_name,"socket",3,fd);
-      if (iVar1 == -1) {
-        fprintf(stderr,"ERROR: device is already in use.\n");
-      }
-      else {
-        EventAddTimeOut(0,10000,cfg_ping_l1,(EventData)(intptr_t)device,"l1net_accept");
-        EventAddInput(l2_l1_ports[device].fd,l1_read_packet,(EventData)(intptr_t)device,"l1net_accept");
-      }
-    }
-    else {
-      fprintf(stderr,"ERROR: no device for L1 %s connection available\n",ctype);
-    }
+  fprintf(stderr,"INFO: accepted L1 %s connection\n",conn_type());
+  SocketSetBufferSize(fd,0x400,0x400);
+  for (device = 0; device < L2_L1_PORTS && l2_l1_ports[device].fd != -1; device++)
+    ;
+  if (device == L2_L1_PORTS) {
+    fprintf(stderr,"ERROR: no device for L1 %s connection available\n",conn_type());
+    SocketClose(fd);            /* (the original left it open) */
+    return;
   }
-  return;
+  sprintf(dev_name,"<l1net %d>",device);
+  l2_l1_ports[device].fd = fd;
+  if (l2_l1_local_port == -1)
+    l2_l1_local_port = device;
+  strcpy(l2_l1_ports[device].device,dev_name);
+  if (L2CfgMAddPort(&L2CfgLocal,device,dev_name,"socket",3,fd) == -1) {
+    fprintf(stderr,"ERROR: device is already in use.\n");
+    return;
+  }
+  EventAddTimeOut(0,10000,cfg_ping_l1,(EventData)(intptr_t)device,"l1net_accept");
+  EventAddInput(fd,l1_read_packet,(EventData)(intptr_t)device,"l1net_accept");
 }
 
+/* listen on L1NET_PORT, as a local socket and on TCP; -1 if either fails */
 int l1net_export(void)
 {
-  char *ctype;
+  int port = IR_PORT_BIAS + L1NET_PORT;
   int sd;
-  int iVar1;
-  int port;
-  char cmdopts [64];
-  char cmd [200];
-  int l1;
-  
-  if (l2_l1_conn_mode == 5) {
-    ctype = "simulator";
-  }
-  else {
-    ctype = "network";
-  }
-  port = IR_PORT_BIAS + 0x232b;
-  cmdopts[0] = '\0';
-  memset(cmdopts + 1,0,0x3f);
+
   sd = SocketExportUnixConnection(port);
   if (sd == -1) {
-    fprintf(stderr,"ERROR: can\'t export L1 %s port %d\n",ctype,port);
-    iVar1 = -1;
+    fprintf(stderr,"ERROR: can\'t export L1 %s port %d\n",conn_type(),port);
+    return -1;
   }
-  else {
-    EventAddInput(sd,l1net_accept,(EventData)0x0,"l1net_export");
-    iVar1 = SocketExportInetConnection(port);
-    if (iVar1 == -1) {
-      fprintf(stderr,"ERROR: can\'t export L1 %s port %d\n",ctype,port);
-      iVar1 = -1;
-    }
-    else {
-      EventAddInput(iVar1,l1net_accept,(EventData)0x0,"l1net_export");
-      fprintf(stderr,"INFO: L1 %s port %d initialized\n",ctype,port);
-      iVar1 = 0;
-    }
+  EventAddInput(sd,l1net_accept,NULL,"l1net_export");
+  sd = SocketExportInetConnection(port);
+  if (sd == -1) {
+    fprintf(stderr,"ERROR: can\'t export L1 %s port %d\n",conn_type(),port);
+    return -1;
   }
-  return iVar1;
+  EventAddInput(sd,l1net_accept,NULL,"l1net_export");
+  fprintf(stderr,"INFO: L1 %s port %d initialized\n",conn_type(),port);
+  return 0;
 }
 
+/* an L1 connection closed: free its port */
 void l1net_close(int fd)
 {
   int device;
-  L2CfgPort *port;
-  
+
   EventRemoveInput(fd);
   L2CfgMDeletePort(&L2CfgLocal,fd);
   SocketClose(fd);
-  for (device = 0; device < 0x28; device = device + 1) {
-    if (l2_l1_ports[device].fd == fd) {
-      if (l2_l1_ports[device].timer != 0) {
-        EventRemoveTimeOut(l2_l1_ports[device].timer);
-      }
-      l2_l1_ports[device].timer = 0;
-      l2_l1_ports[device].fd = -1;
-    }
+  for (device = 0; device < L2_L1_PORTS; device++) {
+    if (l2_l1_ports[device].fd != fd)
+      continue;
+    if (l2_l1_ports[device].timer != 0)
+      EventRemoveTimeOut(l2_l1_ports[device].timer);
+    l2_l1_ports[device].timer = 0;
+    l2_l1_ports[device].fd = -1;
   }
   fprintf(stderr,"INFO: closed connection L1 simulator\n");
-  return;
 }

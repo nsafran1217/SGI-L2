@@ -1,0 +1,8 @@
+# Lines typed at the L2's console (SMP port 8001) by tests/l1_test.py, with
+# the fake L1's brick 001c02 configured.
+1c2 loopback 16 3
+1c2 loopback 2 100 2
+1c2 loopback 1 1
+r 1 s 2 loopback 8 1
+loopback 8 1
+sel

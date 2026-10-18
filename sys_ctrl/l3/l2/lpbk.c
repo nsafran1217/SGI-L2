@@ -3,63 +3,32 @@
  *
  * Reconstructed from the STABS debug info and Ghidra decompilation of l2.
  * Original: /data/cf/sysco/scs123.patch/sys_ctrl/l3/l2/lpbk.c
+ *
+ * The console's "loopback" command: sends count packets of length random
+ * bytes, one at a time, to an L1's loopback task, checks each echo, and
+ * reports the timing.
  */
 
-struct timeval;
-
-#include "irtr.h"   /* needed by the reconstruction */
-#include "../main/nvram.h"   /* needed by the reconstruction */
-#include <malloc.h>
-#include <stddef.h>
-#include <time.h>
-#include "l2.h"
 #include <stdio.h>
-#include <stdarg.h>
 #include <stdlib.h>
-#include <sys/types.h>
-#include <fcntl.h>
-#include <errno.h>
-#include <signal.h>
-#include <termios.h>
-#include <unistd.h>
-#include <getopt.h>
 #include <string.h>
-#include "../../common/Router/Socket.h"
-#include "../../common/Router/Event.h"
 #include <sys/time.h>
-#include "../../common/IRouter/IRouter.h"
-#include "../../common/sys/sysctl_types.h"
-#include <netinet/in.h>
-#include <limits.h>
-#include <syslimits.h>
-#include <linux/limits.h>
-#include <stdint.h>
-#include "../../common/sys/sysutils.h"
-#include <pthread.h>
-#include <sched.h>
-#include "../../common/sys/Logger.h"
-#include "../../common/IRouter/IRouter2Router.h"
-#include "../../common/Router/Router.h"
-#include "../../common/sys/PPP.h"
-#include "../../common/sys/brick_types.h"
-#include "../../common/main/EnetServer.h"
-#include "../../common/main/L2Cfg.h"
-#include "../../common/main/L1Cfg.h"
-#include "l2_rev.h"
+#include "l2.h"
 #include "lpbk.h"
 #include "smp.h"
-#include "l2cmd.h"
-#include "reqrspq.h"
-#include "dest.h"
-#include "../../common/sys/Cmd.h"
-#include "decomp.h"     /* Ghidra types/macros; remove once the file is cleaned up */
+#include "irtr.h"
+#include "../main/nvram.h"
+
+#define LPBK_SESSIONS   16
+#define L1_LPBK_TASK    0x12    /* the L1's loopback task */
+
 typedef struct {
-    int pending;
-    unsigned char *bptr;
+    int pending;                /* packets still to come back */
+    unsigned char *bptr;        /* the data sent */
     int blen;
-    int bcount;
+    int bcount;                 /* packets in all */
     IRAddress l1addr;
-    SMP *smp;
+    SMP *smp;                   /* the console that asked */
     struct timeval start_time;
     struct timeval pkt_start_time;
     float pkt_min_time;
@@ -68,146 +37,136 @@ typedef struct {
 
 static void lpbk_process_request(int session);
 
-LpbkSession Lpbk[16];
+LpbkSession Lpbk[LPBK_SESSIONS];
 
+/* start a loopback session to the L1 at addr, unless it is already running */
 void lpbk(int session, IRAddress addr, int length, int count, SMP *smp)
 {
-  unsigned char *puVar1;
-  int iVar2;
-  IRAddress IVar3;
+  LpbkSession *l;
   int n;
-  
-  if (((Lpbk[session].pending == 0) && (0 < length)) && (0 < count)) {
-    Lpbk[session].pending = count;
-    Lpbk[session].bcount = count;
-    Lpbk[session].blen = length;
-    if ((addr & 0x80000000) == 0) {
-      IVar3 = (addr & 0xffffffe0) | 0x12;
-    }
-    else {
-      IVar3 = (addr & 0xc0ffffff) | 0x12000000;
-    }
-    Lpbk[session].l1addr = IVar3;
-    Lpbk[session].smp = smp;
-    Lpbk[session].pkt_min_time = 1e+06;
-    Lpbk[session].pkt_max_time = 0.0;
-    smp->grp->lpbk_pending = 1;
-    puVar1 = malloc(length);
-    Lpbk[session].bptr = puVar1;
-    for (n = 0; n < length; n = n + 1) {
-      iVar2 = rand();
-      Lpbk[session].bptr[n] = (unsigned char)iVar2;
-    }
-    gettimeofday((struct timeval *)&Lpbk[session].start_time,NULL);
-    lpbk_process_request(session);
-  }
-  return;
+
+  /* (the original indexed Lpbk[] with any session number) */
+  if (session < 0 || session >= LPBK_SESSIONS)
+    return;
+  l = &Lpbk[session];
+  if (l->pending != 0 || length <= 0 || count <= 0)
+    return;
+  l->pending = count;
+  l->bcount = count;
+  l->blen = length;
+  l->l1addr = IR_ADDR_WITH_TASK(addr,L1_LPBK_TASK);
+  l->smp = smp;
+  l->pkt_min_time = 1e+06;
+  l->pkt_max_time = 0.0;
+  smp->grp->lpbk_pending = 1;
+  l->bptr = malloc(length);
+  for (n = 0; n < length; n++)
+    l->bptr[n] = rand();
+  gettimeofday(&l->start_time,NULL);
+  lpbk_process_request(session);
 }
 
+/* send the session's next packet: its number and the data */
 static void lpbk_process_request(int session)
 {
+  IRArgument argv[2];
+  IRAddress l1addr = Lpbk[session].l1addr;
   IRPacket *p;
-  IRArgument argv [2];
-  IRAddress l1addr;
-  
-  l1addr = Lpbk[session].l1addr;
-  argv[0]._clas = '\0';
-  argv[0]._frame = '\0';
+
+  argv[0]._clas = IR_ARG_VALUE;
+  argv[0]._frame = 0;
   argv[0]._val = session;
   argv[0]._size = 0;
-  argv[1]._clas = 1;
-  argv[1]._frame = '\0';
+  argv[1]._clas = IR_ARG_BYTES;
+  argv[1]._frame = 0;
   argv[1]._val = IR_PTR_VAL(Lpbk[session].bptr);
-  argv[1]._size = (uint16)Lpbk[session].blen;
-  p = IRouterMakePacket(&l2_lpbk_id,&l1addr,0,0,0,2,2,argv);
-  gettimeofday((struct timeval *)&Lpbk[session].pkt_start_time,NULL);
+  argv[1]._size = Lpbk[session].blen;
+  p = IRouterMakePacket(&l2_lpbk_id,&l1addr,0,0,IR_REQ,2,2,argv);
+  gettimeofday(&Lpbk[session].pkt_start_time,NULL);
   IRouterSendPacket(NULL,p);
-  return;
 }
 
+/* end - start in seconds */
+static float seconds_since(const struct timeval *start, const struct timeval *end)
+{
+  struct timeval tdiff;
+
+  tdiff.tv_sec = end->tv_sec - start->tv_sec;
+  tdiff.tv_usec = end->tv_usec - start->tv_usec;
+  if (tdiff.tv_usec < 0) {
+    tdiff.tv_sec--;
+    tdiff.tv_usec += 1000000;
+  }
+  return (float)tdiff.tv_usec / 1e+06 + (float)tdiff.tv_sec;
+}
+
+/* an L1's echo: check it, then send the next packet or report */
 void lpbk_process_response(IRPacket *p)
 {
-  float fVar1;
-  unsigned int session;
-  unsigned char *arg;
-  int iVar2;
-  size_t sVar3;
-  struct timeval tdiff;
+  char buff[400];
   struct timeval end_time;
-  char buff [400];
   float elapsed_time;
-  
-  if ((p->_argv[0]._clas & 7) != 0) {
-    IRArg(p,0);
-  }
-  if ((p->_argv[1]._clas & 7) != 0) {
-    IRArg(p,1);
-  }
-  buff[0] = '\0';
-  if (p->_argc == 2) {
-    if ((p->_argv[0]._clas & 7) == 0) {
-      session = p->_argv[0]._val;
-    }
-    else {
-      session = IRArg(p,0);
-    }
-    if ((p->_argv[1]._clas & 7) == 0) {
-      arg = (unsigned char *)IR_VAL_PTR(p->_argv[1]._val);
-    }
-    else {
-      arg = (unsigned char *)IRArg(p,1);
-    }
-    iVar2 = memcmp(arg,Lpbk[session].bptr,Lpbk[session].blen);
-    if (iVar2 != 0) {
-      sprintf(buff,"packet %d loopback miscompare\n",Lpbk[session].pending);   /* Ghidra dropped the argument */
-      sVar3 = strlen(buff);
-      smp_output(Lpbk[session].smp,buff,sVar3);
-    }
-    IRouterFreePacket(p);
-    gettimeofday((struct timeval *)&end_time,NULL);
-    tdiff.tv_sec = end_time.tv_sec - Lpbk[session].pkt_start_time.tv_sec;
-    tdiff.tv_usec = end_time.tv_usec - Lpbk[session].pkt_start_time.tv_usec;
-    if (tdiff.tv_usec < 0) {
-      tdiff.tv_sec = tdiff.tv_sec + -1;
-      tdiff.tv_usec = tdiff.tv_usec + 1000000;
-    }
-    elapsed_time = (float)tdiff.tv_usec / 1e+06 + (float)tdiff.tv_sec;
-    if (elapsed_time < Lpbk[session].pkt_min_time) {
-      Lpbk[session].pkt_min_time = elapsed_time;
-    }
-    if (Lpbk[session].pkt_max_time < elapsed_time) {   /* Ghidra: x87 C0/C2/C3 flag test */
-      Lpbk[session].pkt_max_time = elapsed_time;
-    }
-    Lpbk[session].pending = Lpbk[session].pending + -1;
-    if (Lpbk[session].pending == 0) {
-      tdiff.tv_sec = end_time.tv_sec - Lpbk[session].start_time.tv_sec;
-      tdiff.tv_usec = end_time.tv_usec - Lpbk[session].start_time.tv_usec;
-      if (tdiff.tv_usec < 0) {
-        tdiff.tv_sec = tdiff.tv_sec + -1;
-        tdiff.tv_usec = tdiff.tv_usec + 1000000;
-      }
-      fVar1 = (float)tdiff.tv_usec / 1e+06 + (float)tdiff.tv_sec;
-      (Lpbk[session].smp)->grp->lpbk_pending = 0;
-      sprintf(buff,
-              "loopback %d completed:\n  packets %10d\n  size    %10d bytes\n  total   %10d bytes\n  time    %10.3f seconds\n  average %10.2f bytes/second\n          %10.6f seconds/packet\n  min pkt %10.6f seconds\n  max pkt %10.6f seconds\n"
-              ,session,Lpbk[session].bcount,Lpbk[session].blen,
-              Lpbk[session].bcount * Lpbk[session].blen,(double)fVar1,
-              (double)(((float)Lpbk[session].blen * (float)Lpbk[session].bcount) / fVar1),
-              (double)(fVar1 / (float)Lpbk[session].bcount),(double)Lpbk[session].pkt_min_time,
-              (double)Lpbk[session].pkt_max_time);
-      sVar3 = strlen(buff);
-      smp_output(Lpbk[session].smp,buff,sVar3);
-      free(Lpbk[session].bptr);
-      Lpbk[session].bptr = NULL;
-      smp_prompt(Lpbk[session].smp);
-    }
-    else {
-      lpbk_process_request(session);
-    }
-  }
-  else {
-    sprintf(buff,"loopback packet no return data, source %08x\n",p->_src);   /* Ghidra dropped the argument */
+  float total;
+  LpbkSession *l;
+  unsigned char *data;
+  uintptr_t session;
+
+  if (p->_argc != 2) {
+    sprintf(buff,"loopback packet no return data, source %08x\n",p->_src);
     nvramLogInsert(buff);
+    IRouterFreePacket(p);       /* (the original leaked it) */
+    return;
   }
-  return;
+  session = IRArg(p,0);
+  /* (the original took any session number, and went on with sessions that
+   * had finished, or whose console had gone) */
+  if (IR_ARG_TYPE(p->_argv[0]) != IR_ARG_VALUE || session >= LPBK_SESSIONS ||
+      Lpbk[session].pending == 0) {
+    IRouterFreePacket(p);
+    return;
+  }
+  l = &Lpbk[session];
+  if (!smp_is_valid(l->smp)) {
+    l->pending = 0;
+    free(l->bptr);
+    l->bptr = NULL;
+    IRouterFreePacket(p);
+    return;
+  }
+  data = IR_ARG_TYPE(p->_argv[1]) == IR_ARG_VALUE ? NULL : (unsigned char *)IRArg(p,1);
+  /* (the original compared blen bytes whatever came back) */
+  if (data == NULL || p->_argv[1]._size < l->blen || memcmp(data,l->bptr,l->blen) != 0) {
+    sprintf(buff,"packet %d loopback miscompare\n",l->pending);
+    smp_output(l->smp,buff,strlen(buff));
+  }
+  IRouterFreePacket(p);
+  gettimeofday(&end_time,NULL);
+  elapsed_time = seconds_since(&l->pkt_start_time,&end_time);
+  if (elapsed_time < l->pkt_min_time)
+    l->pkt_min_time = elapsed_time;
+  if (l->pkt_max_time < elapsed_time)
+    l->pkt_max_time = elapsed_time;
+  if (--l->pending != 0) {
+    lpbk_process_request(session);
+    return;
+  }
+  total = seconds_since(&l->start_time,&end_time);
+  l->smp->grp->lpbk_pending = 0;
+  sprintf(buff,
+          "loopback %d completed:\n"
+          "  packets %10d\n"
+          "  size    %10d bytes\n"
+          "  total   %10d bytes\n"
+          "  time    %10.3f seconds\n"
+          "  average %10.2f bytes/second\n"
+          "          %10.6f seconds/packet\n"
+          "  min pkt %10.6f seconds\n"
+          "  max pkt %10.6f seconds\n",
+          (int)session,l->bcount,l->blen,l->bcount * l->blen,total,
+          ((float)l->blen * (float)l->bcount) / total,total / (float)l->bcount,
+          l->pkt_min_time,l->pkt_max_time);
+  smp_output(l->smp,buff,strlen(buff));
+  free(l->bptr);
+  l->bptr = NULL;
+  smp_prompt(l->smp);
 }
