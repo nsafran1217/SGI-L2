@@ -72,7 +72,7 @@ int l1_open_usb(void)
   if (l2_debug != 0) {
     fprintf(stderr,"l1_open_usb() in\n");
   }
-  l1usb_debug = nvramGet(10);
+  l1usb_debug = nvramGet(NVRAM_L1USB_DEBUG);
   if (l1usb_debug != 0) {
     fprintf(stderr,"INFO: initializing USB debug setting to %d from NVRAM\n",l1usb_debug);
   }

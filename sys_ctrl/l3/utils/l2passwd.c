@@ -34,8 +34,8 @@ int main(int argc, char **argv)
   snprintf(rhosts, sizeof(rhosts), "%s/etc/.rhosts", root);
   snprintf(allow, sizeof(allow), "%s/rhosts.allow", root);
 
-  nvramInit(1);
-  nv_pw = (char *)nvramGet(0x13);
+  nvramInit(NVRAM_READONLY);
+  nv_pw = (char *)nvramGet(NVRAM_PASSWORD);
   if ((nv_pw == NULL) || (*nv_pw == '\0')) {
     cpw = NULL;
   }

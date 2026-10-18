@@ -124,17 +124,17 @@ int L2CfgInitLocal(uint32 ip_addr, RouterClient *client)
       ir_addr = ntohl(ip_addr);
     }
     L2CfgInitNode(&L2CfgLocal.net,1,ip_addr,(ir_addr & 0xffffff) | 0x80000000,client);
-    L2CfgLocal.rack = nvramGet(1);
-    L2CfgLocal.net.msmode = nvramGet(0x1a);
+    L2CfgLocal.rack = nvramGet(NVRAM_RACK);
+    L2CfgLocal.net.msmode = nvramGet(NVRAM_MASTER_SLAVE);
     if ((L2CfgLocal.net.msmode != 0) && (L2CfgLocal.net.msmode < 3)) {
       L2CfgLocal.net.msip = 0;
       L2CfgLocal.net.msnode = NULL;
     }
-    pcVar2 = (char *)nvramGet(3);
+    pcVar2 = (char *)nvramGet(NVRAM_SERIAL);
     strcpy(L2CfgLocal.ssn,pcVar2);
-    pcVar2 = (char *)nvramGet(4);
+    pcVar2 = (char *)nvramGet(NVRAM_SYSNAME);
     strcpy(L2CfgLocal.sysname,pcVar2);
-    uVar3 = nvramGet(9);
+    uVar3 = nvramGet(NVRAM_L2DSP_DISABLED);
     L2CfgLocal.l2dsp_disabled = uVar3;
     L2CfgLocal.syscon = malloc(0x400);
     memset(L2CfgLocal.syscon,0,0x400);
@@ -716,7 +716,7 @@ void L2CfgMEventRack(L2Cfg *head)
 {
   uint32 uVar1;
   
-  uVar1 = nvramGet(1);
+  uVar1 = nvramGet(NVRAM_RACK);
   head->rack = uVar1;
   return;
 }
@@ -725,7 +725,7 @@ void L2CfgMEventSystemSN(L2Cfg *head)
 {
   char *__src;
   
-  __src = (char *)nvramGet(3);
+  __src = (char *)nvramGet(NVRAM_SERIAL);
   strcpy(head->ssn,__src);
   return;
 }
@@ -734,7 +734,7 @@ void L2CfgMEventSystemName(L2Cfg *head)
 {
   char *__src;
   
-  __src = (char *)nvramGet(4);
+  __src = (char *)nvramGet(NVRAM_SYSNAME);
   strcpy(head->sysname,__src);
   return;
 }
@@ -743,7 +743,7 @@ void L2CfgMEventDisplayDisable(L2Cfg *head)
 {
   uint32 uVar1;
   
-  uVar1 = nvramGet(9);
+  uVar1 = nvramGet(NVRAM_L2DSP_DISABLED);
   head->l2dsp_disabled = uVar1;
   return;
 }

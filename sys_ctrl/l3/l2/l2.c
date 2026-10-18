@@ -157,18 +157,18 @@ int main(int argc, char **argv, char **envp)
       if (l2_l1_conn_mode == 0) {
         fprintf(stderr,"WARNING: No connections will be made to L1\'s (-noconn)\n");
       }
-      nvramInit(3);
-      uVar5 = nvramGet(0x17);
+      nvramInit(NVRAM_READWRITE);
+      uVar5 = nvramGet(NVRAM_BROADCAST_TIMEOUT);
       if (uVar5 != 0) {
-        broadcast_response_timeout = nvramGet(0x17);
+        broadcast_response_timeout = nvramGet(NVRAM_BROADCAST_TIMEOUT);
       }
-      uVar5 = nvramGet(0x18);
+      uVar5 = nvramGet(NVRAM_TARGET_TIMEOUT);
       if (uVar5 != 0) {
-        target_response_timeout = nvramGet(0x18);
+        target_response_timeout = nvramGet(NVRAM_TARGET_TIMEOUT);
       }
       if (rack != 0) {
-        nvramSet(1,rack);
-        nvramSet(0x16,0);
+        nvramSet(NVRAM_RACK,rack);
+        nvramSet(NVRAM_SLOT,0);
       }
       IRouterInit(l2_ip);
       IRouterInitID(&l2_id,0,0);
@@ -371,13 +371,13 @@ int main(int argc, char **argv, char **envp)
                                     iVar3 = strcmp(*ppcVar1,"-syncssn");
                                     if (iVar3 == 0) {
                                       pcVar4 = argv[2];
-                                      nvramInit(3);
-                                      old_ssn = (char *)nvramGet(3);
+                                      nvramInit(NVRAM_READWRITE);
+                                      old_ssn = (char *)nvramGet(NVRAM_SERIAL);
                                       iVar2 = strcmp(old_ssn,pcVar4);
                                       if ((iVar2 != 0) &&
                                          (iVar2 = EnetServerCheck(IR_PORT_BIAS + 0x232c), iVar2 == 0
                                          )) {
-                                        nvramSet(3,(uintptr_t)pcVar4);
+                                        nvramSet(NVRAM_SERIAL,(uintptr_t)pcVar4);
                                       }
                                       exit(0);
                                     }
@@ -399,8 +399,8 @@ int main(int argc, char **argv, char **envp)
       }
     }
   }
-  nvramInit(3);
-  pcVar4 = (char *)nvramGet(0x13);
+  nvramInit(NVRAM_READWRITE);
+  pcVar4 = (char *)nvramGet(NVRAM_PASSWORD);
   if ((pcVar4 != NULL) && (*pcVar4 != '\0')) {
     return 1;
   }

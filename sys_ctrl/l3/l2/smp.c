@@ -139,7 +139,7 @@ SMP *smp_init(IRIdent *id, int rfd, int wfd, void (*rfcn)(), uint32 host, int po
   else {
     uVar3 = id->addr >> 0x18 & 0x3f;
   }
-  if ((((uVar3 != 2) && (uVar3 != 7)) && (pw = (char *)nvramGet(0x13), pw != NULL)) &&
+  if ((((uVar3 != 2) && (uVar3 != 7)) && (pw = (char *)nvramGet(NVRAM_PASSWORD), pw != NULL)) &&
      (*pw != '\0')) {
     smp->password = 1;
   }
@@ -154,7 +154,7 @@ SMP *smp_init(IRIdent *id, int rfd, int wfd, void (*rfcn)(), uint32 host, int po
   }
   smp_list = smp;
   if (uVar3 == 7) {
-    uVar4 = nvramGet(0x12);
+    uVar4 = nvramGet(NVRAM_MODEM_BAUD);
     if (uVar4 == 1) {
       baud = 0xe;
     }
@@ -162,7 +162,7 @@ SMP *smp_init(IRIdent *id, int rfd, int wfd, void (*rfcn)(), uint32 host, int po
       baud = 0xd;
     }
     else {
-      nvramSet(0x12,0);
+      nvramSet(NVRAM_MODEM_BAUD,0);
     }
   }
   smp_tty_config(smp->rfd,baud);
@@ -277,7 +277,7 @@ void smp_baud(int baud)
   unsigned int uVar1;
   SMP *s;
   
-  nvramSet(0x12,baud);
+  nvramSet(NVRAM_MODEM_BAUD,baud);
   if (baud == 1) {
     baud = 0xe;
   }
@@ -536,7 +536,7 @@ void smp_query(SMP *smp, int verbose, char **results)
       }
       else if (uVar3 == 7) {
         strcpy(rptr,"modem port   ");
-        uVar4 = nvramGet(0x12);
+        uVar4 = nvramGet(NVRAM_MODEM_BAUD);
         if (uVar4 == 1) {
           strcat(rptr,"19200 ");
         }
@@ -549,7 +549,7 @@ void smp_query(SMP *smp, int verbose, char **results)
         else {
           sVar1 = strlen(rptr);
           rptr = rptr + sVar1;
-          uVar4 = nvramGet(0x12);
+          uVar4 = nvramGet(NVRAM_MODEM_BAUD);
           sprintf(rptr,"%5d ",uVar4);
         }
       }
@@ -901,7 +901,7 @@ LAB_0804f6b7:
           l2cmd_process(smp->grp->l2cmd,smp->grp->cbuf,&rptr,NULL);
         }
         else {
-          __s1 = (char *)nvramGet(0x13);
+          __s1 = (char *)nvramGet(NVRAM_PASSWORD);
           if ((__s1 == NULL) || (*__s1 == '\0')) {
             smp->password = 0;
           }

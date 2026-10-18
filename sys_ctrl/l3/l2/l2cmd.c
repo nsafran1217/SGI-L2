@@ -341,10 +341,10 @@ static int l2cmd_autopower(CmdData *cptr, char **results)
   case 0:
     break;
   case 1:
-    nvramSet(2,1);
+    nvramSet(NVRAM_AUTO_POWERUP,1);
     break;
   case 2:
-    nvramSet(2,0);
+    nvramSet(NVRAM_AUTO_POWERUP,0);
     break;
   case 3:
     power_abort = 1;
@@ -355,13 +355,13 @@ static int l2cmd_autopower(CmdData *cptr, char **results)
       strcpy(*results,"ERROR: minimum auto powerup delay is 30 seconds\n");
       return 0;
     }
-    nvramSet(0x14,cptr->exp_stack[0]);
+    nvramSet(NVRAM_AUTOPOWER_DELAY,cptr->exp_stack[0]);
   }
-  delay = nvramGet(0x14);
+  delay = nvramGet(NVRAM_AUTOPOWER_DELAY);
   if (delay < 0x1f) {
     delay = 0x1e;
   }
-  uVar1 = nvramGet(2);
+  uVar1 = nvramGet(NVRAM_AUTO_POWERUP);
   if (uVar1 == 0) {
     pcVar2 = "disabled";
   }
@@ -509,9 +509,9 @@ static int l2cmd_rtc(CmdData *cptr, char **results, L2CMD *c)
       iVar5 = toupper((int)*tzstr);
       *tzstr = (char)iVar5;
     }
-    nvramSet(0x11,(uintptr_t)cptr->str_stack[scnt]);
+    nvramSet(NVRAM_TIMEZONE,(uintptr_t)cptr->str_stack[scnt]);
     iVar5 = 1;
-    pcVar3 = (char *)nvramGet(0x11);
+    pcVar3 = (char *)nvramGet(NVRAM_TIMEZONE);
     setenv("TZ",pcVar3,iVar5);
     if (*cptr->params != 3) {
 switchD_080557f5_caseD_1:
@@ -660,7 +660,7 @@ static int l2cmd_l2dbg(CmdData *cptr, char **results)
   else if (uVar6 < 0x10) {
     if (uVar6 == 7) {
       l1usb_debug = cptr->exp_stack[0];
-      nvramSet(10,l1usb_debug);
+      nvramSet(NVRAM_L1USB_DEBUG,l1usb_debug);
       pcVar2 = response(results,0x50);
       sprintf(pcVar2,"storing USB debug setting %d in NVRAM\n",l1usb_debug);
     }
@@ -867,11 +867,11 @@ static int l2cmd_l2dbg(CmdData *cptr, char **results)
   else if (uVar6 < 0x1c) {
     if (uVar6 == 0x19) {
       target_response_timeout = cptr->exp_stack[0];
-      nvramSet(0x18,target_response_timeout);
+      nvramSet(NVRAM_TARGET_TIMEOUT,target_response_timeout);
     }
     else if (uVar6 < 0x1a) {
       broadcast_response_timeout = cptr->exp_stack[0];
-      nvramSet(0x17,broadcast_response_timeout);
+      nvramSet(NVRAM_BROADCAST_TIMEOUT,broadcast_response_timeout);
     }
     else {
       l2_misc_debug = cptr->exp_stack[0];
@@ -914,7 +914,7 @@ static int l2cmd_l2dbg(CmdData *cptr, char **results)
     sprintf(pcVar2,"discovery debugging %X\n",discover_debug);
     sVar3 = strlen(pcVar2);
     pcVar2 = pcVar2 + sVar3;
-    uVar8 = nvramGet(10);
+    uVar8 = nvramGet(NVRAM_L1USB_DEBUG);
     sprintf(pcVar2,"USB debugging %d\n",uVar8);
     sVar3 = strlen(pcVar2);
     pcVar2 = pcVar2 + sVar3;
@@ -1526,7 +1526,7 @@ int l2cmd_power(CmdData *cptr, char **results, L2CMD *c)
         memcpy(&orig_dest,c->dest,sizeof(DEST));
         l2cmd_process(c,"ver check",results,NULL);
         memcpy(c->dest,&orig_dest,0x1188);
-        uVar4 = nvramGet(0x15);
+        uVar4 = nvramGet(NVRAM_SLOW_PWRUP);
         if (uVar4 == 0) {
           pwrcmd = "power up hold";
           bVar10 = c->dest->type == 2;
@@ -1753,7 +1753,7 @@ int l2cmd_power(CmdData *cptr, char **results, L2CMD *c)
         delay = cptr->exp_stack[0];
         break;
       case 6:
-        pmode = nvramGet(0x15);
+        pmode = nvramGet(NVRAM_SLOW_PWRUP);
         if (pmode == 0) {
           pcVar6 = "parallel";
           puVar7 = "fast";
@@ -1765,7 +1765,7 @@ int l2cmd_power(CmdData *cptr, char **results, L2CMD *c)
         sprintf(*results,"power up mode is %s (power up RTRs in %s)\n",puVar7,pcVar6);
         break;
       case 7:
-        nvramSet(0x15,(unsigned int)(*cptr->toks[2] == 's'));
+        nvramSet(NVRAM_SLOW_PWRUP,(unsigned int)(*cptr->toks[2] == 's'));
       }
       iVar3 = 0;
     }
@@ -1826,7 +1826,7 @@ static int l2cmd_rackid(CmdData *cptr, char **results)
     sprintf(*results,"rack ID is %d\n",L2CfgLocal.rack);
   }
   else if (*cptr->params == 1) {
-    nvramSet(1,cptr->exp_stack[0]);
+    nvramSet(NVRAM_RACK,cptr->exp_stack[0]);
     L2CfgMEventRack(&L2CfgLocal);
     sprintf(*results,"rack ID set to %d\n",L2CfgLocal.rack);
   }
@@ -1844,11 +1844,11 @@ static int l2cmd_password(CmdData *cptr, char **results, L2CMD *c)
   response(results,0x140);
   uVar1 = *cptr->params;
   if (uVar1 == 1) {
-    nvramSet(0x13,(uintptr_t)cptr->str_stack[0]);
+    nvramSet(NVRAM_PASSWORD,(uintptr_t)cptr->str_stack[0]);
     sprintf(*results,"L2 password changed\n");
   }
   else if (uVar1 == 0) {
-    pcVar2 = (char *)nvramGet(0x13);
+    pcVar2 = (char *)nvramGet(NVRAM_PASSWORD);
     if ((pcVar2 == NULL) || (*pcVar2 == '\0')) {
       sprintf(*results,"No L2 password set\n");
     }
@@ -1857,12 +1857,12 @@ static int l2cmd_password(CmdData *cptr, char **results, L2CMD *c)
     }
   }
   else if (uVar1 < 4) {
-    pw = (char *)nvramGet(0x13);
+    pw = (char *)nvramGet(NVRAM_PASSWORD);
     if ((*cptr->params == 3) && (iVar3 = strcmp(pw,cptr->str_stack[0]), iVar3 != 0)) {
       sprintf(*results,"ERROR: password specified is not the current L2 password.\n");
       return -1;
     }
-    nvramSet(0x13,(uintptr_t)"");   /* clear the password */
+    nvramSet(NVRAM_PASSWORD,(uintptr_t)"");   /* clear the password */
     sprintf(*results,"L2 password cleared\n");
   }
   return 0;
@@ -2307,15 +2307,15 @@ static int l2cmd_ping(CmdData *cptr, char **results)
     break;
   case 1:
     cfg_ping_response_minimum = cptr->exp_stack[0];
-    nvramSet(0xb,cfg_ping_response_minimum);
+    nvramSet(NVRAM_PING_MIN,cfg_ping_response_minimum);
     break;
   case 2:
     cfg_ping_response_maximum = cptr->exp_stack[0];
-    nvramSet(0xc,cfg_ping_response_maximum);
+    nvramSet(NVRAM_PING_MAX,cfg_ping_response_maximum);
     break;
   case 3:
     cfg_ping_l2_frequency = cptr->exp_stack[0];
-    nvramSet(0xe,cfg_ping_l2_frequency);
+    nvramSet(NVRAM_PING_L2FREQ,cfg_ping_l2_frequency);
     break;
   case 4:
     if (cptr->exp_stack[0] == 0) {
@@ -2324,11 +2324,11 @@ static int l2cmd_ping(CmdData *cptr, char **results)
     else {
       cfg_ping_sender_valid = 1;
     }
-    nvramSet(0xd,cfg_ping_sender_valid);
+    nvramSet(NVRAM_PING_SENDER,cfg_ping_sender_valid);
     break;
   case 5:
     cfg_ping_l1_frequency = cptr->exp_stack[0];
-    nvramSet(0xf,cfg_ping_l1_frequency);
+    nvramSet(NVRAM_PING_L1FREQ,cfg_ping_l1_frequency);
     break;
   case 6:
     cfg_throttle_frequency = cptr->exp_stack[0];
@@ -2365,12 +2365,12 @@ static int l2cmd_l2dsp(CmdData *cptr, char **results)
     break;
   case 2:
   case 3:
-    nvramSet(9,(unsigned int)(*cptr->params == 3));
+    nvramSet(NVRAM_L2DSP_DISABLED,(unsigned int)(*cptr->params == 3));
     L2CfgMEventDisplayDisable(&L2CfgLocal);
     /* fall through */
   case 4:
     response(results,0xa0);
-    uVar1 = nvramGet(9);
+    uVar1 = nvramGet(NVRAM_L2DSP_DISABLED);
     if (uVar1 == 0) {
       pcVar2 = "enabled";
     }
@@ -2448,7 +2448,7 @@ static int l2cmd_l2find(CmdData *cptr, char **results)
     sprintf(pcVar3,"%d L2\'s discovered:\n\n",l2_cnt);
     sVar4 = strlen(pcVar3);
     rptr = pcVar3 + sVar4;
-    pcVar3 = (char *)nvramGet(3);
+    pcVar3 = (char *)nvramGet(NVRAM_SERIAL);
     if (discover_debug != 0) {
       fprintf(stderr,"l2find:  myssn = %s\n",pcVar3);
     }
@@ -2635,10 +2635,10 @@ static int l2cmd_serial(CmdData *cptr, char **results)
              "System serial number must be [LMNPRTUWYZ]0000000 through [LMNPRTUWYZ]3999999\n");
       return -1;
     }
-    nvramSet(3,(uintptr_t)__s);
+    nvramSet(NVRAM_SERIAL,(uintptr_t)__s);
     L2CfgMEventSystemSN(&L2CfgLocal);
   }
-  ssn = (char *)nvramGet(3);
+  ssn = (char *)nvramGet(NVRAM_SERIAL);
   if ((ssn == NULL) || (sVar1 = strlen(ssn), sVar1 == 0)) {
     ssn = "not set";
   }
@@ -2655,14 +2655,14 @@ static int l2cmd_sysname(CmdData *cptr, char **results)
   response(results,0xa0);
   uVar1 = *cptr->params;
   if (uVar1 == 1) {
-    nvramSet(4,(uintptr_t)cptr->str_stack[0]);
+    nvramSet(NVRAM_SYSNAME,(uintptr_t)cptr->str_stack[0]);
     L2CfgMEventSystemName(&L2CfgLocal);
   }
   else if ((uVar1 != 0) && (uVar1 == 2)) {
-    nvramSet(4,(uintptr_t)"");   /* clear the system name */
+    nvramSet(NVRAM_SYSNAME,(uintptr_t)"");   /* clear the system name */
     L2CfgMEventSystemName(&L2CfgLocal);
   }
-  name = (char *)nvramGet(4);
+  name = (char *)nvramGet(NVRAM_SYSNAME);
   if ((name == NULL) || (sVar2 = strlen(name), sVar2 == 0)) {
     name = "not set";
   }
@@ -2676,12 +2676,12 @@ static int l2cmd_multisys(CmdData *cptr, char **results)
   
   response(results,0xa0);
   if (*cptr->params == 1) {
-    nvramSet(5,1);
+    nvramSet(NVRAM_MULTISYS,1);
   }
   else if (*cptr->params == 2) {
-    nvramSet(5,0);
+    nvramSet(NVRAM_MULTISYS,0);
   }
-  uVar1 = nvramGet(5);
+  uVar1 = nvramGet(NVRAM_MULTISYS);
   if (uVar1 == 1) {
     sprintf(*results,
             "L2 multiple system network support enabled.\nL2\'s will only connect to L2\'s with same system SN\n"
@@ -2709,15 +2709,15 @@ static int l2cmd_psmode(CmdData *cptr, char **results)
     }
     cVar1 = *cptr->toks[1];
     if (cVar1 == 'p') {
-      nvramSet(0x1a,2);
+      nvramSet(NVRAM_MASTER_SLAVE,2);
     }
     else if (cVar1 < 'q') {
       if (cVar1 == 'n') {
-        nvramSet(0x1a,0);
+        nvramSet(NVRAM_MASTER_SLAVE,0);
       }
     }
     else if (cVar1 == 's') {
-      nvramSet(0x1a,1);
+      nvramSet(NVRAM_MASTER_SLAVE,1);
     }
   }
   if (L2CfgLocal.net.msmode == 1) {
@@ -2733,9 +2733,9 @@ static int l2cmd_psmode(CmdData *cptr, char **results)
     sprintf(pcVar2,"WARNING: unknown primary/secondary mode %d.\n",L2CfgLocal.net.msmode);
   }
   pcVar2 = pcVar2 + strlen(pcVar2);
-  uVar3 = nvramGet(0x1a);
+  uVar3 = nvramGet(NVRAM_MASTER_SLAVE);
   if (uVar3 != L2CfgLocal.net.msmode) {
-    uVar3 = nvramGet(0x1a);
+    uVar3 = nvramGet(NVRAM_MASTER_SLAVE);
     if (uVar3 == 1) {
       sprintf(pcVar2,"L2 will be a secondary L2 after reboot.\n");
     }
@@ -2746,7 +2746,7 @@ static int l2cmd_psmode(CmdData *cptr, char **results)
       sprintf(pcVar2,"L2 will be a primary L2 after reboot.\n");
     }
     else {
-      uVar3 = nvramGet(0x1a);
+      uVar3 = nvramGet(NVRAM_MASTER_SLAVE);
       sprintf(pcVar2,"WARNING: unknown primary/secondary mode %d\n",uVar3);
     }
   }
@@ -2759,22 +2759,22 @@ static int l2cmd_dhcps(CmdData *cptr, char **results)
   uint32 uVar1;
   char *rptr;
   
-  curval = nvramGet(0x10);
+  curval = nvramGet(NVRAM_DHCPS_DISABLED);
   response(results,0x140);
   if (*cptr->params == 1) {
-    nvramSet(0x10,0);
+    nvramSet(NVRAM_DHCPS_DISABLED,0);
   }
   else if (*cptr->params == 2) {
-    nvramSet(0x10,1);
+    nvramSet(NVRAM_DHCPS_DISABLED,1);
   }
-  uVar1 = nvramGet(0x10);
+  uVar1 = nvramGet(NVRAM_DHCPS_DISABLED);
   if (uVar1 == 1) {
     sprintf(*results,"DHCP server startup DISABLED (this L2 will never start a DHCP server).\n");
   }
   else {
     sprintf(*results,"DHCP server startup enabled (if no other DHCP server is found).\n");
   }
-  uVar1 = nvramGet(0x10);
+  uVar1 = nvramGet(NVRAM_DHCPS_DISABLED);
   if ((uint32)curval != uVar1) {
     strcat(*results,"(this setting takes effect after the next L2 reboot)\n");
   }
@@ -2802,10 +2802,10 @@ static int l2cmd_ip(CmdData *cptr, char **results)
     rptr = response(results,0x140);
     switch(*cptr->params) {
     case 0:
-      ip_addr = nvramGet(6);
-      ip_netmask = nvramGet(7);
-      ip_broadcast = nvramGet(8);
-      ip_gateway = nvramGet(0x19);
+      ip_addr = nvramGet(NVRAM_IP_ADDR);
+      ip_netmask = nvramGet(NVRAM_IP_NETMASK);
+      ip_broadcast = nvramGet(NVRAM_IP_BROADCAST);
+      ip_gateway = nvramGet(NVRAM_IP_GATEWAY);
       if ((ip_addr == 0) || (ip_addr == 0xffffffff)) {
         sprintf(rptr,"static IP address not currently set\n");
       }
@@ -2858,9 +2858,9 @@ static int l2cmd_ip(CmdData *cptr, char **results)
         ip_broadcast = (ip_addr & ip_netmask) | ~ip_netmask;
       }
       if (rptr == *results) {
-        nvramSet(6,ip_addr);
-        nvramSet(7,ip_netmask);
-        nvramSet(8,ip_broadcast);
+        nvramSet(NVRAM_IP_ADDR,ip_addr);
+        nvramSet(NVRAM_IP_NETMASK,ip_netmask);
+        nvramSet(NVRAM_IP_BROADCAST,ip_broadcast);
         pcVar2 = inet_ntoa(*(struct in_addr *)&ip_addr);
         sprintf(rptr,"addr: %s   ",pcVar2);
         sVar3 = strlen(rptr);
@@ -2882,7 +2882,7 @@ static int l2cmd_ip(CmdData *cptr, char **results)
         sprintf(rptr,"ERROR: \'%s\' is not a valid IP address\n",cptr->str_stack[0]);
       }
       else {
-        nvramSet(0x19,ip_gateway);
+        nvramSet(NVRAM_IP_GATEWAY,ip_gateway);
         pcVar2 = inet_ntoa(*(struct in_addr *)&ip_gateway);
         sprintf(rptr,"gateway addr: %s\n",pcVar2);
         sVar3 = strlen(rptr);
@@ -2891,10 +2891,10 @@ static int l2cmd_ip(CmdData *cptr, char **results)
       }
       break;
     case 4:
-      nvramSet(6,0);
-      nvramSet(7,0);
-      nvramSet(8,0);
-      nvramSet(0x19,0);
+      nvramSet(NVRAM_IP_ADDR,0);
+      nvramSet(NVRAM_IP_NETMASK,0);
+      nvramSet(NVRAM_IP_BROADCAST,0);
+      nvramSet(NVRAM_IP_GATEWAY,0);
     }
     iVar1 = 0;
   }

@@ -93,6 +93,47 @@ struct _nvramInstance {
 };
 typedef struct _nvramInstance nvramInstance;
 
+/* The NVRAM image (the file): an IPMI common header, the internal use area
+ * at internal_use_area * 8, and after it the log ring up to NVRAM_LOG_END. */
+#define NVRAM_SIZE      0x4000
+#define NVRAM_LOG_END   (NVRAM_SIZE - 8)
+
+/* nvramInit() modes: read-only keeps changes in memory; read-write saves
+ * every change to the file */
+#define NVRAM_READONLY  1
+#define NVRAM_READWRITE 3
+
+/* nvramGet()/nvramSet() fields. (The numbers are SGI's; the names were
+ * added by the reconstruction.) The string fields pass a char *. */
+enum {
+    NVRAM_RACK = 1,
+    NVRAM_AUTO_POWERUP = 2,
+    NVRAM_SERIAL = 3,               /* string: the system serial number */
+    NVRAM_SYSNAME = 4,              /* string */
+    NVRAM_MULTISYS = 5,
+    NVRAM_IP_ADDR = 6,
+    NVRAM_IP_NETMASK = 7,
+    NVRAM_IP_BROADCAST = 8,
+    NVRAM_L2DSP_DISABLED = 9,
+    NVRAM_L1USB_DEBUG = 10,
+    NVRAM_PING_MIN = 11,
+    NVRAM_PING_MAX = 12,
+    NVRAM_PING_SENDER = 13,
+    NVRAM_PING_L2FREQ = 14,
+    NVRAM_PING_L1FREQ = 15,
+    NVRAM_DHCPS_DISABLED = 16,
+    NVRAM_TIMEZONE = 17,            /* string */
+    NVRAM_MODEM_BAUD = 18,
+    NVRAM_PASSWORD = 19,            /* string */
+    NVRAM_AUTOPOWER_DELAY = 20,
+    NVRAM_SLOW_PWRUP = 21,
+    NVRAM_SLOT = 22,
+    NVRAM_BROADCAST_TIMEOUT = 23,
+    NVRAM_TARGET_TIMEOUT = 24,
+    NVRAM_IP_GATEWAY = 25,
+    NVRAM_MASTER_SLAVE = 26,
+};
+
 /* prototypes (not recorded in STABS; reconstructed from definitions) */
 /* nvram.c */
 extern ipmiCommonHeader *nvramCH;

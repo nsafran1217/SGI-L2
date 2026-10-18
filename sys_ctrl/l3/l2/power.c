@@ -64,12 +64,12 @@ void power_init(void)
   uint32 uVar1;
   int iVar2;
   
-  uVar1 = nvramGet(2);
+  uVar1 = nvramGet(NVRAM_AUTO_POWERUP);
   if ((uVar1 != 0) && (iVar2 = power_query(), iVar2 == 0)) {
     sprintf(buff,"\nINFO: auto power up appears enabled\n");
     fprintf(stderr,buff);
     nvramLogInsert(buff);
-    powerup = nvramGet(0x14);
+    powerup = nvramGet(NVRAM_AUTOPOWER_DELAY);
     if (powerup < 0x1f) {
       powerup = 0x1e;
     }
@@ -93,7 +93,7 @@ void power_timer(void)
   
   ip_addr = L2CfgLocal.net.ip_addr;
   if (power_abort == 0) {
-    uVar1 = nvramGet(2);
+    uVar1 = nvramGet(NVRAM_AUTO_POWERUP);
     if (uVar1 == 0) {
       sprintf(buff,"INFO: auto power up disabled!\n");
       fprintf(stderr,buff);

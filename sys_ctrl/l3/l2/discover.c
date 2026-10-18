@@ -269,7 +269,7 @@ void discover_response(void *cd, int sd)
     else {
       iVar9 = strcmp(pcVar5,"ssn");
       if (iVar9 == 0) {
-        pcVar5 = (char *)nvramGet(3);
+        pcVar5 = (char *)nvramGet(NVRAM_SERIAL);
         iVar9 = strcmp(vptr,pcVar5);
         if (iVar9 != 0) {
           if ((debug & 8U) != 0) {
@@ -283,7 +283,7 @@ void discover_response(void *cd, int sd)
       else {
         iVar9 = strcmp(pcVar5,"name");
         if (iVar9 == 0) {
-          pcVar5 = (char *)nvramGet(4);
+          pcVar5 = (char *)nvramGet(NVRAM_SYSNAME);
           iVar9 = strcmp(vptr,pcVar5);
           if (iVar9 != 0) {
             if ((debug & 0x10U) != 0) {
@@ -324,7 +324,7 @@ void discover_response(void *cd, int sd)
     }
   }
   free(pcVar2);
-  if ((from_l2) && ((uVar4 = nvramGet(5), uVar4 != 0 && (!ssn_matched)))) {
+  if ((from_l2) && ((uVar4 = nvramGet(NVRAM_MULTISYS), uVar4 != 0 && (!ssn_matched)))) {
     if ((debug & 0x80U) == 0) {
       return;
     }
@@ -367,13 +367,13 @@ void discover_response(void *cd, int sd)
   strcpy(optr,version_attr);
   sVar6 = strlen(optr);
   optr = optr + sVar6;
-  pcVar2 = (char *)nvramGet(3);
+  pcVar2 = (char *)nvramGet(NVRAM_SERIAL);
   if (((pcVar2 != NULL) && (pcVar2 != (char *)0xffffffff)) && (*pcVar2 != '\0')) {
     sprintf(optr,"ssn:%s,",pcVar2);
     sVar6 = strlen(optr);
     optr = optr + sVar6;
   }
-  pcVar2 = (char *)nvramGet(4);
+  pcVar2 = (char *)nvramGet(NVRAM_SYSNAME);
   if (((pcVar2 != NULL) && (pcVar2 != (char *)0xffffffff)) && (*pcVar2 != '\0')) {
     sprintf(optr,"name:%s,",pcVar2);
     sVar6 = strlen(optr);

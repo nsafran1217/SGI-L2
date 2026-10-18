@@ -75,16 +75,16 @@ uint32 del_addr;
 void cfg_ping_reset(void)
 {
   cfg_ping_response_minimum = 1;
-  nvramSet(0xb,1);
+  nvramSet(NVRAM_PING_MIN,1);
   cfg_ping_response_maximum = 3;
-  nvramSet(0xc,3);
+  nvramSet(NVRAM_PING_MAX,3);
   cfg_ping_l2_frequency = 5;
-  nvramSet(0xe,5);
+  nvramSet(NVRAM_PING_L2FREQ,5);
   cfg_ping_l1_frequency = 5;
-  nvramSet(0xf,5);
+  nvramSet(NVRAM_PING_L1FREQ,5);
   cfg_throttle_frequency = 2;
   cfg_ping_sender_valid = 2;
-  nvramSet(0xd,2);
+  nvramSet(NVRAM_PING_SENDER,2);
   return;
 }
 
@@ -92,16 +92,16 @@ void cfg_ping_init(void)
 {
   uint32 uVar1;
   
-  uVar1 = nvramGet(0xb);
-  if ((((uVar1 == 0) || (uVar1 = nvramGet(0xc), uVar1 == 0)) || (uVar1 = nvramGet(0xd), uVar1 == 0))
-     || ((uVar1 = nvramGet(0xe), uVar1 == 0 || (uVar1 = nvramGet(0xf), uVar1 == 0)))) {
+  uVar1 = nvramGet(NVRAM_PING_MIN);
+  if ((((uVar1 == 0) || (uVar1 = nvramGet(NVRAM_PING_MAX), uVar1 == 0)) || (uVar1 = nvramGet(NVRAM_PING_SENDER), uVar1 == 0))
+     || ((uVar1 = nvramGet(NVRAM_PING_L2FREQ), uVar1 == 0 || (uVar1 = nvramGet(NVRAM_PING_L1FREQ), uVar1 == 0)))) {
     cfg_ping_reset();
   }
-  cfg_ping_response_minimum = nvramGet(0xb);
-  cfg_ping_response_maximum = nvramGet(0xc);
-  cfg_ping_l2_frequency = nvramGet(0xe);
-  cfg_ping_l1_frequency = nvramGet(0xf);
-  cfg_ping_sender_valid = nvramGet(0xd);
+  cfg_ping_response_minimum = nvramGet(NVRAM_PING_MIN);
+  cfg_ping_response_maximum = nvramGet(NVRAM_PING_MAX);
+  cfg_ping_l2_frequency = nvramGet(NVRAM_PING_L2FREQ);
+  cfg_ping_l1_frequency = nvramGet(NVRAM_PING_L1FREQ);
+  cfg_ping_sender_valid = nvramGet(NVRAM_PING_SENDER);
   cfg_throttle_frequency = 2;
   return;
 }
@@ -126,9 +126,9 @@ void cfg_init(void)
     sprintf(cfg_client_id,"clientid:%s.%d",pcVar3,_Var2);
     cfg_setup_configcheck(7);
     if ((l2_discover != 0) && (L2CfgLocal.net.msmode != 1)) {
-      uVar4 = nvramGet(5);
+      uVar4 = nvramGet(NVRAM_MULTISYS);
       if (uVar4 == 1) {
-        uVar4 = nvramGet(3);
+        uVar4 = nvramGet(NVRAM_SERIAL);
         sprintf(client_data,"%s,ssn:%s",cfg_client_id,uVar4);
       }
       else {
@@ -211,7 +211,7 @@ switchD_08052562_default:
   argv[0]._frame = '\0';
   argv[0]._val = 6;
   argv[0]._size = 0;
-  ssn = (char *)nvramGet(3);
+  ssn = (char *)nvramGet(NVRAM_SERIAL);
   sVar1 = strlen(ssn);
   if (sVar1 == 0) {
     argv[1]._clas = '\0';
@@ -1114,7 +1114,7 @@ int cfg_password(RouterClient *client, char *pwguess)
   char *pw;
   
   if ((client->port == IR_PORT_BIAS + 8000) || (client->port == IR_PORT_BIAS + 0x1f42)) {
-    pw = (char *)nvramGet(0x13);
+    pw = (char *)nvramGet(NVRAM_PASSWORD);
     if ((pw == NULL) || (*pw == '\0')) {
       iVar1 = 0;
     }
@@ -1280,9 +1280,9 @@ void cfg_l2ping(int start_timer)
   else {
     check = check + 1;
   }
-  uVar2 = nvramGet(5);
+  uVar2 = nvramGet(NVRAM_MULTISYS);
   if (uVar2 == 1) {
-    uVar2 = nvramGet(3);
+    uVar2 = nvramGet(NVRAM_SERIAL);
     sprintf(client_data,"%s,ssn:%s",cfg_client_id,uVar2);
   }
   else {

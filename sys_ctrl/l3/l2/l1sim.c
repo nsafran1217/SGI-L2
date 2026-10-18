@@ -120,7 +120,7 @@ LAB_0804da70:
     pcVar4 = cmdopts;
     iVar1 = slots[l1];
     iVar3 = l1sim_partition;
-    uVar2 = nvramGet(1);
+    uVar2 = nvramGet(NVRAM_RACK);
     sprintf(cmd,"%s -sn2 -t %s -rs %d %d -p %d %s &",simpath,types[l1],uVar2,iVar1,iVar3,pcVar4);
     printf("starting l1sim: %s\n",cmd);
     system(cmd);

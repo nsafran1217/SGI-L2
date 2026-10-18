@@ -87,7 +87,8 @@ L2_SRCS := \
 	sys_ctrl/common/main/EnetServer.c \
 	sys_ctrl/common/Router/RouterSv.c \
 	sys_ctrl/common/sys/Cmd.c \
-	sys_ctrl/common/sys/minfo.c
+	sys_ctrl/common/sys/minfo.c \
+	sys_ctrl/l3/main/nvram.c
 
 L2TERM_SRCS := \
 	sys_ctrl/l3/utils/l2term.c \
@@ -116,7 +117,8 @@ L2GUI_CSRCS := \
 	sys_ctrl/common/sys/Cmd.c \
 	sys_ctrl/common/sys/PPP.c \
 	sys_ctrl/common/sys/brick_types.c \
-	sys_ctrl/common/sys/minfo.c
+	sys_ctrl/common/sys/minfo.c \
+	sys_ctrl/l3/main/nvram.c
 L2GUI_UI := mainwin logowin destwin graphwin cmdwin
 
 # FLTK for l2gui. Its -D_FILE_OFFSET_BITS=64 is left out: the GUI shares
@@ -157,7 +159,8 @@ CLEAN_SRCS := \
 	sys_ctrl/common/sys/Cmd.c \
 	sys_ctrl/common/sys/PPP.c \
 	sys_ctrl/common/sys/brick_types.c \
-	sys_ctrl/common/sys/minfo.c
+	sys_ctrl/common/sys/minfo.c \
+	sys_ctrl/l3/main/nvram.c
 $(CLEAN_SRCS:%.c=$(B)/%.o): CFLAGS += -Wunused-variable -Wunused-but-set-variable \
 	-Wunused-label -Wpointer-sign
 
