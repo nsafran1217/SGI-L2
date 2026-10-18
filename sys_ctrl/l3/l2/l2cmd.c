@@ -836,17 +836,17 @@ static int l2cmd_l2dbg(CmdData *cptr, char **results)
       for (; (byte < 0x10 && (e != NULL));
           e = (EventTimerEntry *)((int)&e[-1].next + 3)) {
         if (cVar1 == 'a') {
-          iVar7 = isprint((uint)*(byte *)fd_);
+          iVar7 = isprint((uint)*(unsigned char *)fd_);
           if (iVar7 == 0) {
             uVar6 = 0x3f;
           }
           else {
-            uVar6 = (uint)*(byte *)fd_;
+            uVar6 = (uint)*(unsigned char *)fd_;
           }
           sprintf(rptr,"%c ",uVar6);
         }
         else {
-          sprintf(rptr,"%02x ",(uint)*(byte *)fd_);
+          sprintf(rptr,"%02x ",(uint)*(unsigned char *)fd_);
         }
         sVar3 = strlen(rptr);
         rptr = rptr + sVar3;
@@ -1474,6 +1474,7 @@ int l2cmd_power(CmdData *cptr, char **results, L2CMD *c)
   IRAddress addr_;
   int found;
   uint8 slist [25];
+  char *pwrcmd;   /* Ghidra: 'addr' (a reused stack slot) */
   DEST orig_dest_;
   char *cptr_;
   IRAddress addr;
@@ -1522,30 +1523,26 @@ int l2cmd_power(CmdData *cptr, char **results, L2CMD *c)
         memcpy(c->dest,&orig_dest,0x1188);
         uVar4 = nvramGet(0x15);
         if (uVar4 == 0) {
-          addr = (IRAddress)s_power_up_hold_080896e6;
+          pwrcmd = "power up hold";
           bVar10 = c->dest->type == 2;
           if (bVar10) {
             flags = 0x10000;
             memcpy(&orig_dest_,c->dest,0x1188);
             dest_reset(c->dest);
             dest_l1(c->dest,NULL);
-            addr = (IRAddress)s_power_up_080896dd;
+            pwrcmd = "power up";
           }
           for (i = 0; i < 2; i = i + 1) {
-            puVar8 = 
-            "\x01\x02\x05\x06\t\n\r\x0e\x11\x12\x15\x16\x19\x1a\x1d\x1e!\"%&)*-.1power down";
-            puVar9 = slist;
-            for (iVar3 = 6; iVar3 != 0; iVar3 = iVar3 + -1) {
-              *(undefined4 *)puVar9 = *(undefined4 *)puVar8;
-              puVar8 = puVar8 + 4;
-              puVar9 = puVar9 + 4;
+            {
+              /* the original's initializer for a local 'uint8 slist[25]' */
+              static const uint8 slist_init[25] = { 1, 2, 5, 6, 9, 10, 13, 14, 17, 18, 21, 22, 25, 26, 29, 30, 33, 34, 37, 38, 41, 42, 45, 46, 49 };
+              memcpy(slist, slist_init, sizeof(slist_init));
             }
-            *puVar9 = *puVar8;
             for (slot = 0; (uint)slot < 0x19; slot = slot + 1) {
               slots[slot] = (uint)slist[slot] + i * 2;
             }
             slots[slot] = -1;
-            iVar3 = broadcast_l1(c,1,(char *)addr,1,0,flags | 1,slots,0);
+            iVar3 = broadcast_l1(c,1,pwrcmd,1,0,flags | 1,slots,0);
             if (iVar3 != 0) {
               strcpy(*results,"ERROR: no destination set.\n");
               return -1;
@@ -2852,7 +2849,7 @@ static int l2cmd_ip(CmdData *cptr, char **results)
         sVar3 = strlen(rptr);
         rptr = rptr + sVar3;
         if (ip_gateway == 0) {
-          pcVar2 = inet_ntoa(*(struct in_addr *)&0x0);
+          pcVar2 = inet_ntoa(*(struct in_addr *)&ip_gateway);
           sprintf(rptr,"gateway: <not set>\n",pcVar2);
         }
         else {
