@@ -134,6 +134,16 @@ CXXFLAGS += $(ARCH) -fno-strict-aliasing -fsigned-char -Icompat -Wall -Wextra -W
             -Wno-unused-variable -Wno-unused-but-set-variable -Wno-unused-function \
             $(ISYSTEM) $(FLTK_CXXFLAGS) $(WERROR) $(EXTRA_CFLAGS)
 
+# Files done in the rewrite (CLEANUP.md phase 2) build with the warnings the
+# decompiler residue elsewhere still needs switched off.
+CLEAN_SRCS := \
+	sys_ctrl/common/Router/Buff.c \
+	sys_ctrl/common/Router/Event.c \
+	sys_ctrl/common/Router/SocketIO.c \
+	sys_ctrl/common/Router/Socket.c
+$(CLEAN_SRCS:%.c=$(B)/%.o): CFLAGS += -Wunused-variable -Wunused-but-set-variable \
+	-Wunused-label -Wpointer-sign
+
 LIB_OBJS := $(LIB_SRCS:%.c=$(B)/%.o)
 TOOLS    := l2 l2term l2cmd l2passwd
 ifneq ($(WITH_L2GUI),)

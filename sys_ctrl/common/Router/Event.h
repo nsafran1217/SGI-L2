@@ -8,10 +8,11 @@
 #ifndef SYS_CTRL_COMMON_ROUTER_EVENT_H
 #define SYS_CTRL_COMMON_ROUTER_EVENT_H
 
-struct timeval;
-
+#include <stdint.h>
 #include <sys/time.h>
-typedef long unsigned int EventID;
+/* An input/output event's file descriptor, or a timer's EventTimerEntry address
+ * (STABS: long unsigned int, which on i386 also held the pointer) */
+typedef uintptr_t EventID;
 typedef char *EventData;
 struct _EventIOEntry {
     void (*input_func)();
@@ -34,6 +35,13 @@ struct _EventTimerEntry {
 };
 typedef struct _EventTimerEntry EventTimerEntry;
 typedef struct _EventTimerEntry EventTimer;
+
+/* (added by the reconstruction) A timer made with EventCreateTimeOut() is not
+ * queued: its next field says EVENT_TIMER_ARMED, and a private timer list run by
+ * EventStartSubset()/EventDispatchSubset() sets EVENT_TIMER_FIRED when it fires.
+ * (SGI's values: 0xffffffff and 0xfffffffe.) */
+#define EVENT_TIMER_ARMED  ((EventTimerEntry *)(uintptr_t)0xffffffff)
+#define EVENT_TIMER_FIRED  ((EventTimerEntry *)(uintptr_t)0xfffffffe)
 
 /* prototypes (not recorded in STABS; reconstructed from definitions) */
 #include <sys/select.h>   /* for the prototypes */

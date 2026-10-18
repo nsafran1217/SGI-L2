@@ -3,51 +3,46 @@
  *
  * Reconstructed from the STABS debug info and Ghidra decompilation of l2.
  * Original: /data/cf/sysco/scs123.patch/sys_ctrl/common/Router/SocketIO.c
+ *
+ * Read or write a whole buffer on a descriptor, looping over short transfers.
  */
 
-#include <unistd.h>
-#include "SocketIO.h"   /* needed by the reconstruction */
-#include <stdio.h>
-#include <stddef.h>
-#include <stdarg.h>
 #include <errno.h>
-#include "decomp.h"     /* Ghidra types/macros; remove once the file is cleaned up */
+#include <unistd.h>
+#include "SocketIO.h"
 
+/* read up to len bytes; returns the number read (less at end of file or when a
+ * non-blocking descriptor runs dry), or read()'s error */
 int SocketRead(int fd, unsigned char *buffer, int len)
 {
-  int *piVar1;
-  int nread;
-  int nleft;
-  
-  for (nleft = len; 0 < nleft; nleft = nleft - nread) {
-    piVar1 = __errno_location();
-    *piVar1 = 0;
+  int nleft, nread;
+
+  for (nleft = len; nleft > 0; nleft -= nread) {
+    errno = 0;
     nread = read(fd,buffer,nleft);
-    piVar1 = __errno_location();
-    if (*piVar1 == 0xb) {
+    if (errno == EAGAIN)
       return len - nleft;
-    }
-    if (nread < 0) {
+    if (nread < 0)
       return nread;
-    }
-    if (nread == 0) break;
-    buffer = buffer + nread;
+    if (nread == 0)
+      break;
+    buffer += nread;
   }
   return len - nleft;
 }
 
+/* write len bytes; returns the number written, or write()'s error */
 int SocketWrite(int fd, unsigned char *buffer, int len)
 {
-  int nwritten;
-  int nleft;
-  
-  for (nleft = len; 0 < nleft; nleft = nleft - nwritten) {
+  int nleft, nwritten;
+
+  for (nleft = len; nleft > 0; nleft -= nwritten) {
     nwritten = write(fd,buffer,nleft);
-    if (nwritten < 0) {
+    if (nwritten < 0)
       return nwritten;
-    }
-    if (nwritten == 0) break;
-    buffer = buffer + nwritten;
+    if (nwritten == 0)
+      break;
+    buffer += nwritten;
   }
   return len - nleft;
 }

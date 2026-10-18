@@ -3,381 +3,255 @@
  *
  * Reconstructed from the STABS debug info and Ghidra decompilation of l2.
  * Original: /data/cf/sysco/scs123.patch/sys_ctrl/common/Router/Socket.c
+ *
+ * TCP and local (AF_UNIX) stream sockets for the Router, and host name and
+ * address helpers. Local sockets are named after a port number:
+ * <SGI_L3_SOCKET_DIR>/UNIX_<port in hex>. Errors are logged through Logger
+ * (SocketMsg.h numbers) and returned as -1.
  */
 
-struct sockaddr_un;
-
-#include <unistd.h>
-#include "../../l3/l2/smp.h"   /* needed by the reconstruction */
-#include "Socket.h"
-#include "SocketMsg.h"
-#include <stdio.h>
-#include <stddef.h>
-#include <stdarg.h>
-#include <string.h>
+#include <arpa/inet.h>
+#include <errno.h>
 #include <fcntl.h>
-#include <sys/types.h>
-#include <sys/param.h>
-#include <sys/uio.h>
+#include <netdb.h>
+#include <netinet/in.h>
+#include <netinet/ip.h>
+#include <netinet/tcp.h>
+#include <stdio.h>
+#include <string.h>
 #include <sys/socket.h>
 #include <sys/un.h>
-#include <netinet/in.h>
-#include <limits.h>
-#include <stdint.h>
-#include <netinet/tcp.h>
-#include <netinet/ip.h>
-#include <arpa/inet.h>
-#include <netdb.h>
-#include <errno.h>
-#include "../sys/l3paths.h"   /* configurable paths (new) */
-#include "decomp.h"     /* Ghidra types/macros; remove once the file is cleaned up */
+#include <unistd.h>
+#include "Socket.h"
+#include "SocketMsg.h"
+#include "../sys/l3paths.h"
 
 static int SocketUnixLoad(struct sockaddr_un *addr_unix, int port);
 
+/* listen on TCP port; returns the listening socket */
 int SocketExportInetConnection(int port)
 {
-  int *piVar1;
-  int iVar2;
-  char *pcVar3;
-  char *format;
-  int opt;
-  int sock;
   struct sockaddr_in addr_inet;
-  
-  opt = 1;
-  sock = socket(2,1,0);
+  int opt = 1;
+  int sock;
+
+  sock = socket(AF_INET,SOCK_STREAM,0);
   if (sock < 0) {
-    pcVar3 = "";
-    piVar1 = __errno_location();
-    LogError(-400,"socket",*piVar1,pcVar3);
-    sock = -1;
+    LogError(SOCKET_ERR_EXPORT_INET,"socket",errno,"");
+    return -1;
   }
-  else {
-    iVar2 = setsockopt(sock,1,2,&opt,4);
-    if (iVar2 < 0) {
-      pcVar3 = "SO_REUSEADDR";
-      piVar1 = __errno_location();
-      LogError(-400,"setsockopt",*piVar1,pcVar3);
-      close(sock);
-      sock = -1;
-    }
-    else {
-      memset(&addr_inet,0,sizeof(struct sockaddr_in));
-      addr_inet.sin_family = 2;
-      addr_inet.sin_port = htons((uint16_t)port);
-      addr_inet.sin_addr.s_addr = 0;
-      iVar2 = bind(sock,(struct sockaddr *)&addr_inet,0x10);
-      if (iVar2 < 0) {
-        format = "";
-        pcVar3 = "";
-        piVar1 = __errno_location();
-        LogErrorHost(-400,"bind",*piVar1,pcVar3,port,format);
-        close(sock);
-        sock = -1;
-      }
-      else {
-        iVar2 = listen(sock,5);
-        if (iVar2 < 0) {
-          pcVar3 = "";
-          piVar1 = __errno_location();
-          LogError(-400,"listen",*piVar1,pcVar3);
-          close(sock);
-          sock = -1;
-        }
-      }
-    }
+  if (setsockopt(sock,SOL_SOCKET,SO_REUSEADDR,&opt,sizeof(opt)) < 0) {
+    LogError(SOCKET_ERR_EXPORT_INET,"setsockopt",errno,"SO_REUSEADDR");
+    close(sock);
+    return -1;
+  }
+  memset(&addr_inet,0,sizeof(addr_inet));
+  addr_inet.sin_family = AF_INET;
+  addr_inet.sin_port = htons(port);
+  addr_inet.sin_addr.s_addr = INADDR_ANY;
+  if (bind(sock,(struct sockaddr *)&addr_inet,sizeof(addr_inet)) < 0) {
+    LogErrorHost(SOCKET_ERR_EXPORT_INET,"bind",errno,"",port,"");
+    close(sock);
+    return -1;
+  }
+  if (listen(sock,5) < 0) {
+    LogError(SOCKET_ERR_EXPORT_INET,"listen",errno,"");
+    close(sock);
+    return -1;
   }
   return sock;
 }
 
+/* listen on the local socket for port (replacing a stale one) */
 int SocketExportUnixConnection(int port)
 {
-  int sock;
-  int *piVar1;
-  int length;
-  int iVar2;
-  char *pcVar3;
   struct sockaddr_un addr_unix;
-  
-  sock = socket(1,1,0);
+  int length;
+  int sock;
+
+  sock = socket(AF_UNIX,SOCK_STREAM,0);
   if (sock < 0) {
-    pcVar3 = "";
-    piVar1 = __errno_location();
-    LogError(-0x191,"socket",*piVar1,pcVar3);
-    sock = -1;
+    LogError(SOCKET_ERR_EXPORT_UNIX,"socket",errno,"");
+    return -1;
   }
-  else {
-    length = SocketUnixLoad(&addr_unix,port);
-    unlink(addr_unix.sun_path);
-    iVar2 = bind(sock,(struct sockaddr *)&addr_unix,length);
-    if (iVar2 < 0) {
-      pcVar3 = "%s";
-      piVar1 = __errno_location();
-      LogError(-0x191,"bind",*piVar1,pcVar3);
-      close(sock);
-      sock = -1;
-    }
-    else {
-      iVar2 = listen(sock,5);
-      if (iVar2 < 0) {
-        pcVar3 = "";
-        piVar1 = __errno_location();
-        LogError(-0x191,"listen",*piVar1,pcVar3);
-        close(sock);
-        sock = -1;
-      }
-    }
+  length = SocketUnixLoad(&addr_unix,port);
+  unlink(addr_unix.sun_path);
+  if (bind(sock,(struct sockaddr *)&addr_unix,length) < 0) {
+    LogError(SOCKET_ERR_EXPORT_UNIX,"bind",errno,"%s");
+    close(sock);
+    return -1;
+  }
+  if (listen(sock,5) < 0) {
+    LogError(SOCKET_ERR_EXPORT_UNIX,"listen",errno,"");
+    close(sock);
+    return -1;
   }
   return sock;
+}
+
+/* accept a connection, non-blocking with no_delay */
+static int accept_connection(int sock, int no_delay, int err, struct sockaddr *addr, socklen_t addr_len)
+{
+  int conn_sock;
+
+  conn_sock = accept(sock,addr,&addr_len);
+  if (conn_sock < 0) {
+    LogError(err,"accept",errno,"");
+    return -1;
+  }
+  if (no_delay && fcntl(conn_sock,F_SETFL,O_NDELAY) != 0) {
+    LogError(err,"fcntl",errno,"O_NDELAY");
+    close(conn_sock);
+    return -1;
+  }
+  return conn_sock;
 }
 
 int SocketAcceptInetConnection(int sock, int no_delay)
 {
-  int conn_sock;
-  int *piVar1;
-  int iVar2;
-  char *pcVar3;
-  int addr_len;
   struct sockaddr_in addr_inet;
-  
-  addr_len = 0x10;
-  conn_sock = accept(sock,(struct sockaddr *)&addr_inet,(socklen_t *)&addr_len);
-  if (conn_sock < 0) {
-    pcVar3 = "";
-    piVar1 = __errno_location();
-    LogError(-0x192,"accept",*piVar1,pcVar3);
-    conn_sock = -1;
-  }
-  else if ((no_delay != 0) && (iVar2 = fcntl(conn_sock,4,0x800), iVar2 != 0)) {
-    pcVar3 = "O_NDELAY";
-    piVar1 = __errno_location();
-    LogError(-0x192,"fcntl",*piVar1,pcVar3);
-    close(conn_sock);
-    conn_sock = -1;
-  }
-  return conn_sock;
+
+  return accept_connection(sock,no_delay,SOCKET_ERR_ACCEPT_INET,(struct sockaddr *)&addr_inet,
+                           sizeof(addr_inet));
 }
 
 int SocketAcceptUnixConnection(int sock, int no_delay)
 {
-  int conn_sock;
-  int *piVar1;
-  int iVar2;
-  char *pcVar3;
-  int addr_len;
   struct sockaddr_un addr_unix;
-  
-  addr_len = 0x6e;
-  conn_sock = accept(sock,(struct sockaddr *)&addr_unix,(socklen_t *)&addr_len);
-  if (conn_sock < 0) {
-    pcVar3 = "";
-    piVar1 = __errno_location();
-    LogError(-0x193,"accept",*piVar1,pcVar3);
-    conn_sock = -1;
-  }
-  else if ((no_delay != 0) && (iVar2 = fcntl(conn_sock,4,0x800), iVar2 != 0)) {
-    pcVar3 = "O_NDELAY";
-    piVar1 = __errno_location();
-    LogError(-0x193,"fcntl",*piVar1,pcVar3);
-    close(conn_sock);
-    conn_sock = -1;
-  }
-  return conn_sock;
+
+  return accept_connection(sock,no_delay,SOCKET_ERR_ACCEPT_UNIX,(struct sockaddr *)&addr_unix,
+                           sizeof(addr_unix));
 }
 
+/* make sock non-blocking if no_delay; closes it on failure */
 int SocketNodelayMode(int sock, int no_delay)
 {
-  int iVar1;
-  int *piVar2;
-  char *format;
-  
-  if ((no_delay != 0) && (iVar1 = fcntl(sock,4,0x800), iVar1 != 0)) {
-    format = "O_NDELAY";
-    piVar2 = __errno_location();
-    LogError(-0x194,"fcntl",*piVar2,format);
+  if (no_delay && fcntl(sock,F_SETFL,O_NDELAY) != 0) {
+    LogError(SOCKET_ERR_CONNECT_INET,"fcntl",errno,"O_NDELAY");
     close(sock);
     return -1;
   }
   return 0;
 }
 
+/*
+ * connect(), and what the result means to the Router: the socket (connected, or
+ * still connecting when non-blocking); -2, socket closed, when nobody is there
+ * (refused, timed out, or the not_there errno); -1 for any other error, socket
+ * still open for the caller to log and close.
+ */
+static int finish_connect(int sock, struct sockaddr *addr, socklen_t length, int not_there)
+{
+  if (connect(sock,addr,length) == 0)
+    return sock;
+  if (errno == ECONNREFUSED || errno == ETIMEDOUT || errno == not_there) {
+    close(sock);
+    return -2;
+  }
+  if (errno == EINPROGRESS)
+    return sock;
+  return -1;
+}
+
+/* connect to host:port; returns the socket, -2 if nobody answers, or -1 */
 int SocketMakeInetConnection(char *host, int port, int no_delay)
 {
-  int status;
-  int sock;
-  int *piVar1;
-  int iVar2;
-  int iVar3;
-  char *pcVar4;
-  uint32_t addr;
   struct sockaddr_in addr_inet;
-  
-  status = SocketGetAddr(host,&addr);
-  if (status == 0) {
-    sock = socket(2,1,0);
-    if (sock < 0) {
-      pcVar4 = "";
-      piVar1 = __errno_location();
-      LogError(-0x194,"socket",*piVar1,pcVar4);
-      iVar2 = -1;
-    }
-    else {
-      iVar2 = SocketNodelayMode(sock,no_delay);
-      if (iVar2 == 0) {
-        addr_inet.sin_family = 2;
-        addr_inet.sin_port = htons((uint16_t)port);
-        addr_inet.sin_addr.s_addr = addr;
-        iVar3 = connect(sock,(struct sockaddr *)&addr_inet,0x10);
-        iVar2 = sock;
-        if (iVar3 != 0) {
-          piVar1 = __errno_location();
-          iVar2 = *piVar1;
-          if (iVar2 < 0x70) {
-            if ((0x6d < iVar2) || (iVar2 == 0x65)) {
-              close(sock);
-              return -2;
-            }
-          }
-          else if (iVar2 == 0x73) {
-            return sock;
-          }
-          pcVar4 = "";
-          piVar1 = __errno_location();
-          LogErrorHost(-0x194,"connect",*piVar1,host,port,pcVar4);
-          close(sock);
-          iVar2 = -1;
-        }
-      }
-    }
+  uint32_t addr;
+  int sock, rval;
+
+  if (SocketGetAddr(host,&addr) != 0) {
+    LogErrorHost(SOCKET_ERR_HOST_ADDR,"",0,host,0,"");
+    return -1;
   }
-  else {
-    LogErrorHost(-0x196,"",0,host,0,"");
-    iVar2 = -1;
+  sock = socket(AF_INET,SOCK_STREAM,0);
+  if (sock < 0) {
+    LogError(SOCKET_ERR_CONNECT_INET,"socket",errno,"");
+    return -1;
   }
-  return iVar2;
+  if (SocketNodelayMode(sock,no_delay) != 0)
+    return -1;
+  addr_inet.sin_family = AF_INET;
+  addr_inet.sin_port = htons(port);
+  addr_inet.sin_addr.s_addr = addr;
+  rval = finish_connect(sock,(struct sockaddr *)&addr_inet,sizeof(addr_inet),ENETUNREACH);
+  if (rval == -1) {
+    LogErrorHost(SOCKET_ERR_CONNECT_INET,"connect",errno,host,port,"");
+    close(sock);
+  }
+  return rval;
 }
 
+/* connect to the local socket for port; returns the socket, -2 if no server, or -1 */
 int SocketMakeUnixConnection(int port, int no_delay)
 {
-  int sock;
-  int *piVar1;
-  int iVar2;
-  int length;
-  char *pcVar3;
   struct sockaddr_un addr_unix;
-  
-  sock = socket(1,1,0);
+  int sock, length, rval;
+
+  sock = socket(AF_UNIX,SOCK_STREAM,0);
   if (sock < 0) {
-    pcVar3 = "";
-    piVar1 = __errno_location();
-    LogError(-0x195,"socket",*piVar1,pcVar3);
-    sock = -1;
+    LogError(SOCKET_ERR_CONNECT_UNIX,"socket",errno,"");
+    return -1;
   }
-  else if ((no_delay == 0) || (iVar2 = fcntl(sock,4,0x800), iVar2 == 0)) {
-    length = SocketUnixLoad(&addr_unix,port);
-    iVar2 = connect(sock,(struct sockaddr *)&addr_unix,length);
-    if (iVar2 != 0) {
-      piVar1 = __errno_location();
-      iVar2 = *piVar1;
-      if (iVar2 < 0x70) {
-        if ((0x6d < iVar2) || (iVar2 == 2)) {
-          close(sock);
-          return -2;
-        }
-      }
-      else if (iVar2 == 0x73) {
-        return sock;
-      }
-      pcVar3 = "%s";
-      piVar1 = __errno_location();
-      LogError(-0x195,"connect",*piVar1,pcVar3);
-      close(sock);
-      sock = -1;
-    }
-  }
-  else {
-    pcVar3 = "O_NDELAY";
-    piVar1 = __errno_location();
-    LogError(-0x195,"fcntl",*piVar1,pcVar3);
+  if (no_delay && fcntl(sock,F_SETFL,O_NDELAY) != 0) {
+    LogError(SOCKET_ERR_CONNECT_UNIX,"fcntl",errno,"O_NDELAY");
     close(sock);
-    sock = -1;
+    return -1;
   }
-  return sock;
+  length = SocketUnixLoad(&addr_unix,port);
+  rval = finish_connect(sock,(struct sockaddr *)&addr_unix,length,ENOENT);
+  if (rval == -1) {
+    LogError(SOCKET_ERR_CONNECT_UNIX,"connect",errno,"%s");
+    close(sock);
+  }
+  return rval;
 }
 
+/* set one socket buffer size and check the kernel granted it (Linux doubles
+ * the value; anything from size to twice size is accepted) */
+static int set_buffer(int sock, int option, int size, const char *what, const char *func)
+{
+  int old_size, new_size;
+  socklen_t optlen;
+
+  /* ORIGINAL BUG: the "was" size comes from SO_RCVBUF for both buffers */
+  optlen = sizeof(old_size);
+  getsockopt(sock,SOL_SOCKET,SO_RCVBUF,&old_size,&optlen);
+  if (setsockopt(sock,SOL_SOCKET,option,&size,sizeof(size)) < 0) {
+    LogError(SOCKET_ERR_BUFFER_SIZE,(char *)func,errno,"");
+    return SOCKET_ERR_BUFFER_SIZE;
+  }
+  optlen = sizeof(new_size);
+  getsockopt(sock,SOL_SOCKET,option,&new_size,&optlen);
+  if (new_size < size || new_size > size * 2) {
+    fprintf(stderr,"ERROR! %s size failed (was %d, asked %d, got %d)\n",what,old_size,size,new_size);
+    LogError(SOCKET_ERR_BUFFER_SIZE,(char *)func,errno,"");
+    return SOCKET_ERR_BUFFER_SIZE;
+  }
+  return 0;
+}
+
+/* set the buffer sizes (0: leave alone); either one also turns on TCP_NODELAY
+ * and low-delay TOS. Returns 0 or SOCKET_ERR_BUFFER_SIZE. */
 int SocketSetBufferSize(int sock, int sendbuf, int recvbuf)
 {
-  int *piVar1;
-  char *pcVar2;
   int flag;
-  int old_recvbuf;
-  int old_sendbuf;
-  int size;
-  int rval;
-  int optlen;
-  
-  if (sendbuf != 0) {
-    optlen = 4;
-    getsockopt(sock,1,8,&old_sendbuf,(socklen_t *)&optlen);
-    optlen = 4;
-    rval = setsockopt(sock,1,7,&sendbuf,4);
-    if (rval < 0) {
-      pcVar2 = "";
-      piVar1 = __errno_location();
-      LogError(-0x199,"socket (snd)",*piVar1,pcVar2);
-      return -0x199;
-    }
-    optlen = 4;
-    getsockopt(sock,1,7,&size,(socklen_t *)&optlen);
-    if ((size < sendbuf) || (sendbuf * 2 < size)) {
-      fprintf(stderr,"ERROR! SO_SNDBUF size failed (was %d, asked %d, got %d)\n",old_sendbuf,sendbuf
-              ,size);
-      pcVar2 = "";
-      piVar1 = __errno_location();
-      LogError(-0x199,"socket (snd)",*piVar1,pcVar2);
-      return -0x199;
-    }
-  }
-  if (recvbuf != 0) {
-    optlen = 4;
-    getsockopt(sock,1,8,&old_recvbuf,(socklen_t *)&optlen);
-    optlen = 4;
-    rval = setsockopt(sock,1,8,&recvbuf,4);
-    if (rval < 0) {
-      pcVar2 = "";
-      piVar1 = __errno_location();
-      LogError(-0x199,"socket (rcv)",*piVar1,pcVar2);
-      return -0x199;
-    }
-    optlen = 4;
-    getsockopt(sock,1,8,&size,(socklen_t *)&optlen);
-    if ((size < recvbuf) || (recvbuf * 2 < size)) {
-      fprintf(stderr,"ERROR! SO_RCVBUF size failed (was %d, asked %d, got %d)\n",old_recvbuf,recvbuf
-              ,size);
-      pcVar2 = "";
-      piVar1 = __errno_location();
-      LogError(-0x199,"socket (rcv)",*piVar1,pcVar2);
-      return -0x199;
-    }
-  }
-  if ((sendbuf != 0) || (recvbuf != 0)) {
+
+  if (sendbuf != 0 && set_buffer(sock,SO_SNDBUF,sendbuf,"SO_SNDBUF","socket (snd)") != 0)
+    return SOCKET_ERR_BUFFER_SIZE;
+  if (recvbuf != 0 && set_buffer(sock,SO_RCVBUF,recvbuf,"SO_RCVBUF","socket (rcv)") != 0)
+    return SOCKET_ERR_BUFFER_SIZE;
+  if (sendbuf != 0 || recvbuf != 0) {
+    /* (not supported on local sockets: EOPNOTSUPP is fine) */
     flag = 1;
-    optlen = 4;
-    rval = setsockopt(sock,6,1,&flag,4);
-    if ((rval < 0) && (piVar1 = __errno_location(), *piVar1 != 0x5f)) {
-      pcVar2 = "";
-      piVar1 = __errno_location();
-      LogError(-0x199,"socket (TCP_NODELAY)",*piVar1,pcVar2);
-      return -0x199;
+    if (setsockopt(sock,IPPROTO_TCP,TCP_NODELAY,&flag,sizeof(flag)) < 0 && errno != EOPNOTSUPP) {
+      LogError(SOCKET_ERR_BUFFER_SIZE,"socket (TCP_NODELAY)",errno,"");
+      return SOCKET_ERR_BUFFER_SIZE;
     }
-    flag = 0x10;
-    optlen = 4;
-    rval = setsockopt(sock,0,1,&flag,4);
-    if ((rval < 0) && (piVar1 = __errno_location(), *piVar1 != 0x5f)) {
-      pcVar2 = "";
-      piVar1 = __errno_location();
-      LogError(-0x199,"socket (IP_TOS)",*piVar1,pcVar2);
-      return -0x199;
+    flag = IPTOS_LOWDELAY;
+    if (setsockopt(sock,IPPROTO_IP,IP_TOS,&flag,sizeof(flag)) < 0 && errno != EOPNOTSUPP) {
+      LogError(SOCKET_ERR_BUFFER_SIZE,"socket (IP_TOS)",errno,"");
+      return SOCKET_ERR_BUFFER_SIZE;
     }
   }
   return 0;
@@ -385,223 +259,148 @@ int SocketSetBufferSize(int sock, int sendbuf, int recvbuf)
 
 int SocketClose(int sock)
 {
-  int iVar1;
-  
-  if (sock < 0) {
-    iVar1 = -1;
-  }
-  else {
-    shutdown(sock,2);
-    iVar1 = close(sock);
-  }
-  return iVar1;
+  if (sock < 0)
+    return -1;
+  shutdown(sock,SHUT_RDWR);
+  return close(sock);
 }
 
 int SocketCloseOnly(int sock)
 {
-  int iVar1;
-  
-  if (sock < 0) {
-    iVar1 = -1;
-  }
-  else {
-    iVar1 = close(sock);
-  }
-  return iVar1;
+  if (sock < 0)
+    return -1;
+  return close(sock);
 }
 
 int SocketCloseUnixServer(int sock, int port)
 {
-  int iVar1;
   struct sockaddr_un addr_unix;
-  
+
   SocketUnixLoad(&addr_unix,port);
   unlink(addr_unix.sun_path);
-  iVar1 = close(sock);
-  return iVar1;
+  return close(sock);
 }
 
+/* host name or dotted address -> IPv4 address (network order) */
 int SocketGetAddr(char *host, uint32_t *addr)
 {
-  size_t sVar1;
-  int iVar2;
-  in_addr_t iVar3;
   struct hostent *hp;
-  
-  if ((host == NULL) || (sVar1 = strlen(host), sVar1 == 0)) {
-    iVar2 = -1;
-  }
-  else {
-    iVar3 = inet_addr(host);
-    *addr = iVar3;
-    if (iVar3 == 0xffffffff) {
-      hp = (struct hostent *)gethostbyname(host);
-      if (hp == NULL) {
-        iVar2 = -1;
-      }
-      else {
-        memcpy(addr,*hp->h_addr_list,4);
-        iVar2 = 0;
-      }
-    }
-    else {
-      iVar2 = 0;
-    }
-  }
-  return iVar2;
+
+  if (host == NULL || host[0] == '\0')
+    return -1;
+  *addr = inet_addr(host);
+  if (*addr != INADDR_NONE)
+    return 0;
+  hp = gethostbyname(host);
+  if (hp == NULL)
+    return -1;
+  memcpy(addr,hp->h_addr_list[0],4);
+  return 0;
 }
 
 int SocketGetPeerAddr(int sock, uint32_t *addr)
 {
-  int iVar1;
-  int *piVar2;
-  char *format;
-  int addr_len;
   struct sockaddr_in addr_inet;
-  
-  addr_len = 0x10;
-  iVar1 = getpeername(sock,(struct sockaddr *)&addr_inet,(socklen_t *)&addr_len);
-  if (iVar1 < 0) {
-    format = "";
-    piVar2 = __errno_location();
-    LogError(-0x197,"getpeername",*piVar2,format);
-    iVar1 = -1;
+  socklen_t addr_len = sizeof(addr_inet);
+
+  if (getpeername(sock,(struct sockaddr *)&addr_inet,&addr_len) < 0) {
+    LogError(SOCKET_ERR_PEER_HOST,"getpeername",errno,"");
+    return -1;
   }
-  else {
-    *addr = addr_inet.sin_addr.s_addr;
-    iVar1 = 0;
-  }
-  return iVar1;
+  *addr = addr_inet.sin_addr.s_addr;
+  return 0;
 }
 
 int SocketGetSockAddr(int sock, uint32_t *addr)
 {
-  int iVar1;
-  int *piVar2;
-  char *format;
-  int addr_len;
   struct sockaddr_in addr_inet;
-  
-  addr_len = 0x10;
-  iVar1 = getsockname(sock,(struct sockaddr *)&addr_inet,(socklen_t *)&addr_len);
-  if (iVar1 < 0) {
-    format = "";
-    piVar2 = __errno_location();
-    LogError(-0x198,"getsockname",*piVar2,format);
-    iVar1 = -1;
+  socklen_t addr_len = sizeof(addr_inet);
+
+  if (getsockname(sock,(struct sockaddr *)&addr_inet,&addr_len) < 0) {
+    LogError(SOCKET_ERR_LOCAL_HOST,"getsockname",errno,"");
+    return -1;
   }
-  else {
-    *addr = addr_inet.sin_addr.s_addr;
-    iVar1 = 0;
-  }
-  return iVar1;
+  *addr = addr_inet.sin_addr.s_addr;
+  return 0;
 }
 
+/* IPv4 address -> host name (name_length bytes, always terminated) */
 int SocketGetName(uint32_t addr, char *name, int name_length)
 {
-  struct hostent *hp;
-  int iVar1;
   struct in_addr address;
-  
+  struct hostent *hp;
+
   address.s_addr = addr;
   memset(name,0,name_length);
-  hp = (struct hostent *)gethostbyaddr(&address,4,2);
-  if (hp == NULL) {
-    iVar1 = -1;
-  }
-  else {
-    strncpy(name,hp->h_name,name_length - 1);
-    iVar1 = 0;
-  }
-  return iVar1;
+  hp = gethostbyaddr(&address,4,AF_INET);
+  if (hp == NULL)
+    return -1;
+  strncpy(name,hp->h_name,name_length - 1);
+  return 0;
 }
 
 int SocketIsLocalHost(char *host)
 {
-  int iVar1;
-  int rvalue;
   char *host_name;
   int logger_value;
-  
-  rvalue = 0;
+  int rvalue = 0;
+
   logger_value = LoggerDisable();
-  iVar1 = SocketGetHostName(&host_name);
-  if (iVar1 == 0) {
-    iVar1 = strcmp(host,host_name);
-    if (iVar1 == 0) {
-      rvalue = 1;
-    }
-  }
+  if (SocketGetHostName(&host_name) == 0 && strcmp(host,host_name) == 0)
+    rvalue = 1;
   LoggerRestore(logger_value);
   return rvalue;
 }
 
+/* this host's name, in a static buffer */
 int SocketGetHostName(char **host_name)
 {
   static char name[66];
-  int iVar1;
-  int *piVar2;
-  char *format;
-  
-  memset((void *)&name,0,0x42);
-  *host_name = (char *)&name;
-  iVar1 = gethostname((char *)&name,0x41);
-  if (iVar1 == 0) {
-    iVar1 = 0;
+
+  memset(name,0,sizeof(name));
+  *host_name = name;
+  if (gethostname(name,sizeof(name) - 1) != 0) {
+    LogError(SOCKET_ERR_LOCAL_HOST,"gethostname",errno,"");
+    return -1;
   }
-  else {
-    format = "";
-    piVar2 = __errno_location();
-    LogError(-0x198,"gethostname",*piVar2,format);
-    iVar1 = -1;
-  }
-  return iVar1;
+  return 0;
 }
 
+/* this host's address (looked up again only when the host name changes) */
 int SocketGetHostAddr(uint32_t *addr)
 {
   static char localhost[66];
   static uint32_t localaddr;
-  int iVar1;
   char *host_name;
-  
-  iVar1 = SocketGetHostName(&host_name);
-  if (iVar1 == 0) {
-    iVar1 = strncmp(host_name,(char *)&localhost,0x41);
-    if (iVar1 != 0) {
-      strcpy((char *)&localhost,host_name);
-      iVar1 = SocketGetAddr((char *)&localhost,&localaddr);
-      if (iVar1 != 0) {
-        LogErrorHost(-0x196,"",0,(char *)&localhost,0,"");
-        return -1;
-      }
+
+  if (SocketGetHostName(&host_name) != 0)
+    return -1;
+  if (strncmp(host_name,localhost,sizeof(localhost) - 1) != 0) {
+    strcpy(localhost,host_name);
+    if (SocketGetAddr(localhost,&localaddr) != 0) {
+      LogErrorHost(SOCKET_ERR_HOST_ADDR,"",0,localhost,0,"");
+      return -1;
     }
-    *addr = localaddr;
-    iVar1 = 0;
   }
-  else {
-    iVar1 = -1;
-  }
-  return iVar1;
+  *addr = localaddr;
+  return 0;
 }
 
+/* dotted address, in inet_ntoa()'s static buffer */
 char *SocketAddrStr(uint32_t addr)
 {
-  char *pcVar1;
   struct in_addr inaddr;
-  
-  pcVar1 = inet_ntoa(*(struct in_addr *)&addr);
-  return pcVar1;
+
+  inaddr.s_addr = addr;
+  return inet_ntoa(inaddr);
 }
 
+/* the local socket address for port; returns its length */
 static int SocketUnixLoad(struct sockaddr_un *addr_unix, int port)
 {
-  size_t sVar1;
-  
-  memset(addr_unix,0,0x6e);
-  addr_unix->sun_family = 1;
+  memset(addr_unix,0,sizeof(*addr_unix));
+  addr_unix->sun_family = AF_UNIX;
   /* original: "/usr/tmp/UNIX_%04x" (SGI_L3_SOCKET_DIR overrides) */
   snprintf(addr_unix->sun_path,sizeof(addr_unix->sun_path),"%s/UNIX_%04x",l3path_socket_dir(),port);
-  sVar1 = strlen(addr_unix->sun_path);
-  return sVar1 + 2;
+  return strlen(addr_unix->sun_path) + 2;
 }

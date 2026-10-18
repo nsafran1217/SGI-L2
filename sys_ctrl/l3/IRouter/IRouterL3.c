@@ -282,7 +282,7 @@ int IRouterGetPacketL3(IRIdent *id, IRPacket **pkt, IRClient **client, int wait,
     if ((bVar2) &&
        ((((client == NULL || (*client == NULL)) && (pkt_timeout_id == 0)) ||
         (((client != NULL && (*client != NULL)) &&
-         (pkt_timer.next != (struct _EventTimerEntry *)0xffffffff)))))) {
+         (pkt_timer.next != EVENT_TIMER_ARMED)))))) {
       *pkt = NULL;
       rval = -0x26c;
 LAB_0807e270:
