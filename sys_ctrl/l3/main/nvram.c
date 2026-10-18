@@ -562,7 +562,7 @@ char *nvramLogFetch(void)
   while (blkbeg != NULL) {
     for (c = blkbeg; c < blkend; c = c + 1) {
       if (tcnt == 0) {
-        if (*c == -0x10) {
+        if ((uchar)*c == 0xf0) {
           size = size + 0x12;
           tcnt = 4;
         }
@@ -595,7 +595,7 @@ char *nvramLogFetch(void)
     while (blkbeg != NULL) {
       for (c = blkbeg; c < blkend; c = c + 1) {
         if (tcnt == 0) {
-          if (*c == -0x10) {
+          if ((uchar)*c == 0xf0) {
             tbits = 0;          /* time follows as 4 little-endian bytes */
             tcnt = 4;
           }

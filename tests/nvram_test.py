@@ -110,6 +110,13 @@ def main():
             try:
                 for c in SET:
                     l2cmd(c)
+                # the daemon may still be saving when l2cmd exits (each save truncates
+                # the file first): stop it only once it has logged every disconnection
+                for _ in range(100):
+                    with open(os.path.join(d, "daemon.log"), "rb") as f:
+                        if f.read().count(b"INFO: Disconnection") >= len(SET):
+                            break
+                    time.sleep(0.1)
             finally:
                 stop_l2(proc)
             with open(os.path.join(d, ".l2_NVRAM"), "rb") as f:

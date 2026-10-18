@@ -11,7 +11,9 @@
 CC      ?= gcc
 ARCH    ?= -m32
 CFLAGS  ?= -g -O0
-CFLAGS  += $(ARCH) -std=gnu99 -fcommon -fno-strict-aliasing -fno-builtin -Icompat -Wall \
+# -fsigned-char: the code was written for i386, where char is signed (not so on
+# s390x, ARM, PowerPC)
+CFLAGS  += $(ARCH) -std=gnu99 -fcommon -fno-strict-aliasing -fno-builtin -fsigned-char -Icompat -Wall \
            -Wno-unused-variable -Wno-unused-but-set-variable -Wno-unused-label -Wno-pointer-sign
 # gcc 14 made these errors; the bootstrapped code still trips them (fix, then delete this line)
 CFLAGS  += -Wno-error=int-conversion \
@@ -122,6 +124,16 @@ $(B)/bin/l2cmd: $(L2CMD_SRCS:%.c=$(B)/%.o) $(B)/libsgi.a
 $(B)/bin/l2passwd: $(L2PASSWD_SRCS:%.c=$(B)/%.o) $(B)/libsgi.a
 	@mkdir -p $(dir $@)
 	$(CC) $(LDFLAGS) $^ $(LDLIBS) $(CRYPT) -o $@
+
+# Cross builds: QEMU='qemu-s390x -L <sysroot>' also writes $(B)/qemu-bin/ wrappers,
+# for running the tests with NEW_BIN=$PWD/$(B)/qemu-bin (see README.md)
+ifneq ($(QEMU),)
+all: $(TOOLS:%=$(B)/qemu-bin/%)
+$(B)/qemu-bin/%: $(B)/bin/%
+	@mkdir -p $(dir $@)
+	printf '#!/bin/sh\nexec %s %s "$$@"\n' '$(QEMU)' '$(abspath $<)' > $@
+	chmod +x $@
+endif
 
 test:
 	$(CC) $(CFLAGS) -fsyntax-only tests/layout_check.c

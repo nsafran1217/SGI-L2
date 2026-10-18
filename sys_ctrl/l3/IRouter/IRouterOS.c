@@ -241,7 +241,7 @@ static int pipe_out(int fd, unsigned char *pptr, int plen)
     buff[2] = '\0';
     buff[3] = '\0';
     buff[4] = '\0';
-    if ((char)pptr[5] < '\0') {
+    if ((pptr[5] & 0x80) != 0) {
       buff[6] = '\x01';
       buff[7] = pptr[5] & 0x7f;
     }

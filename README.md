@@ -26,6 +26,17 @@ EXTRA_CFLAGS=-fsanitize=address EXTRA_LDFLAGS=-fsanitize=address`, tested with
 `ASAN_OPTIONS=detect_leaks=0` (the API leaks response packets at exit, as the
 original does).
 
+A big-endian build (s390x), run under qemu-user. `../retools/setup_s390x.sh`
+unpacks the cross toolchain and qemu into `../tools/s390x/` without root:
+
+    . ../tools/s390x/env.sh
+    S=$(cd ../tools/s390x/root/usr && pwd)
+    make CC=s390x-linux-gnu-gcc-14 AR=s390x-linux-gnu-ar ARCH= B=builds390x \
+         QEMU="$S/bin/qemu-s390x -L $S/s390x-linux-gnu"
+    NEW_BIN=$PWD/builds390x/qemu-bin tests/difftest.sh     # etc.
+
+The tests then pit the big-endian tools against the original i386 binaries.
+
 ## Configurable paths
 
 The originals hardcoded these. Unset, each keeps the original value.
@@ -52,6 +63,8 @@ The originals hardcoded these. Unset, each keeps the original value.
   frame prefixes, the NVRAM file — is encoded byte by byte to match what the
   i386 originals produce, so the same code runs on any host. IRouter frames
   carry their own byte-order tag, as in the original (the PPC L2 firmware is
-  big-endian). Not yet run on a big-endian host.
+  big-endian). Verified on s390x (big-endian, 64-bit) under qemu: all
+  differential tests pass against the i386 originals.
+- `char` is signed (`-fsigned-char`), as on i386: the code depends on it.
 - `ORIGINAL_BUGS.md` lists SGI bugs found (kept or fixed); `DEVIATIONS.md`
   lists intentional behaviour differences.
