@@ -488,10 +488,13 @@ void sn1SCUseSCDevice(char *dev)
     }
     else {
       pclose((FILE *)fp);
+      /* drop fgets()'s newline. (Ghidra wrote l2_scdev[len - 1] as
+       * l2_cname[len + 0x7f], l2_cname being the 128 bytes before l2_scdev
+       * in the original's data, which a rebuilt binary need not keep.) */
       sVar2 = strlen(l2_scdev);
-      if (l2_cname[sVar2 + 0x7f] == '\n') {
+      if (l2_scdev[sVar2 - 1] == '\n') {
         sVar2 = strlen(l2_scdev);
-        l2_cname[sVar2 + 0x7f] = '\0';
+        l2_scdev[sVar2 - 1] = '\0';
       }
     }
   }
