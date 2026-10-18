@@ -2,8 +2,9 @@
 
 l2 -net accepts L1 connections on port 9003 (as from SGI's L1 simulator).
 The fake L1 answers the L2's configuration request (task IR_L1_CFG, first
-argument 6) with one brick, echoes loopback requests (task 0x12), and
-answers every other request with a success response
+argument 6) with one brick, echoes loopback requests (task 0x12), adds its
+entry to route requests (task 0x17), answers a request whose text contains
+"errtest" with an IRouter error, and answers every other request with a success response
 whose text echoes the request; it records the text of each request it gets.
 
 Frames are big-endian: a 20-byte header (size, rev, err, seqnum0, fnum,
@@ -19,6 +20,7 @@ import threading
 REQ, RSP = 0, 1
 L1_CFG = 14
 L1_LPBK = 0x12                  # the loopback task: requests are echoed
+L1_ROUTE = 0x17                 # the route task: this L1 adds its entry
 
 
 def l1_addr(rack, slot, task):
@@ -107,6 +109,17 @@ class FakeL1(threading.Thread):
                     self.requests.append((task, [len(a) if isinstance(a, bytes) else a
                                                  for a in p["args"]]))
                     self.sock.sendall(frame(p, p["args"], src=me))
+                elif task == L1_ROUTE:
+                    # the first free pair: this brick (a response), in port IIA
+                    # (33), out port NIA (1), time 1234
+                    args = list(p["args"])
+                    for i in range(0, len(args) - 1, 2):
+                        if args[i] == 0:
+                            args[i] = 1 << 30 | self.slot << 20 | self.rack << 10 | self.type
+                            args[i + 1] = 33 << 24 | 1 << 16 | 1234
+                            break
+                    self.requests.append((task, [len(args)]))
+                    self.sock.sendall(frame(p, args, src=me))
                 elif task == L1_CFG and p["args"] and p["args"][0] == 6:
                     self.config_requests += 1
                     cfg = [l1cfg(self.rack, self.slot, self.type)] + [b"\0" * 112] * 3
@@ -117,7 +130,9 @@ class FakeL1(threading.Thread):
                     self.requests.append((task, texts))
                     reply = ("fake L1 %03d%c%02d: %s\n" % (self.rack, self.type, self.slot,
                                                            " ".join(texts))).encode() + b"\0"
-                    self.sock.sendall(frame(p, [0, reply], src=me))
+                    # "errtest": an IRouter error instead (5, "invalid opcode"?)
+                    err = 5 if any("errtest" in t for t in texts) else 0
+                    self.sock.sendall(frame(p, [] if err else [0, reply], err=err, src=me))
         except OSError:
             return
 

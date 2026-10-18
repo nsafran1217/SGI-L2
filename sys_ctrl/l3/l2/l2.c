@@ -145,15 +145,15 @@ static int run(int rack)
     nvramSet(NVRAM_SLOT,0);
   }
   IRouterInit(l2_ip);
-  IRouterInitID(&l2_id,L2_TASK_MAIN,0);
-  IRouterInitID(&l2_console_id,L2_TASK_CONSOLE,0);
-  IRouterInitID(&l2_modem_id,L2_TASK_MODEM,0);
-  IRouterInitID(&l2_cfg_id,L2_TASK_CFG,0);
-  IRouterInitID(&l2_cmd_id,L2_TASK_CMD,0);
-  IRouterInitID(&l2_cmdusr_id,L2_TASK_CMDUSR,0);
-  IRouterInitID(&l2_lpbk_id,L2_TASK_LPBK,0);
-  IRouterInitID(&l2_route_id,L2_TASK_ROUTE,0);
-  IRouterInitID(&l2_apwr_id,L2_TASK_APWR,0);
+  IRouterInitID(&l2_id,0,0);           /* (task 0) */
+  IRouterInitID(&l2_console_id,IR_L2_CONSOLE,0);
+  IRouterInitID(&l2_modem_id,IR_L2_MODEM,0);
+  IRouterInitID(&l2_cfg_id,IR_L2_CFG,0);
+  IRouterInitID(&l2_cmd_id,IR_L2_CMD,0);
+  IRouterInitID(&l2_cmdusr_id,IR_L2_CMDUSR,0);
+  IRouterInitID(&l2_lpbk_id,IR_L2_LPBK,0);
+  IRouterInitID(&l2_route_id,IR_L2_ROUTE,0);
+  IRouterInitID(&l2_apwr_id,IR_L2_APWR,0);
   l2_flow_setup(l2_flow_hwater,l2_flow_lwater);
   L2CfgInitLocal(l2_ip,NULL);
   l1_open();

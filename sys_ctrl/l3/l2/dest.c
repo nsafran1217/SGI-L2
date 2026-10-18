@@ -153,7 +153,7 @@ int dest_l2(DEST *d, CmdData *cptr)
       continue;
     if (d->count == (int)(sizeof(d->list) / sizeof(d->list[0])))
       break;
-    d->list[d->count++] = IR_ADDR_WITH_TASK(IR_ADDR_FROM_IP(l2node->ip_addr),L2_TASK_CMD);
+    d->list[d->count++] = IR_ADDR_WITH_TASK(IR_ADDR_FROM_IP(l2node->ip_addr),IR_L2_CMD);
   }
   return d->count;
 }

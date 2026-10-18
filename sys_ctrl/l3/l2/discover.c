@@ -3,445 +3,292 @@
  *
  * Reconstructed from the STABS debug info and Ghidra decompilation of l2.
  * Original: /data/cf/sysco/scs123.patch/sys_ctrl/l3/l2/discover.c
+ *
+ * The L2's side of discovery: L3 tools and other L2s broadcast a
+ * "key:value,..." request to DISCOVER_PORT (SCapiL2.c), and every L2 that
+ * matches it (system serial number, system name, ...) answers with its
+ * version, serial number, name, rack and primary/secondary role.
  */
 
-#include "discover.h"   /* needed by the reconstruction */
-#include "smp.h"   /* needed by the reconstruction */
-#include "../sys/syslogLib.h"   /* needed by the reconstruction */
-#include <stdio.h>
-#include <stddef.h>
-#include <stdarg.h>
-#include <stdlib.h>
-#include <sys/types.h>
-#include <time.h>
-#include <string.h>
-#include <sys/socket.h>
-#include <limits.h>
-#include <syslimits.h>
-#include <linux/limits.h>
-#include <sys/ioctl.h>
-#include <sys/time.h>
-#include <net/if.h>
-#include <net/if_arp.h>
-#include <netinet/in.h>
-#include <netinet/if_ether.h>
 #include <arpa/inet.h>
-#include <fcntl.h>
 #include <errno.h>
-#include "../../common/sys/syslog.h"
-#include "../../common/sys/sysctl_types.h"
-#include "../main/nvram.h"
-#include "../../common/main/L2Cfg.h"
-#include "../../common/IRouter/IRouter.h"
-#include "cfg.h"
-#include "l2.h"
-#include <signal.h>
-#include <termios.h>
+#include <netinet/in.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/select.h>
+#include <sys/socket.h>
 #include <unistd.h>
-#include <getopt.h>
-#include "../../common/Router/Socket.h"
-#include "../../common/Router/Event.h"
-#include "../../common/IRouter/IRouter2Router.h"
-#include "../../common/sys/PPP.h"
-#include "../../common/main/EnetServer.h"
-#include "l2_rev.h"
-#include "decomp.h"     /* Ghidra types/macros; remove once the file is cleaned up */
+#include "l2.h"
+#include "discover.h"
+#include "cfg.h"
+#include "../main/nvram.h"
+#include "../sys/syslogLib.h"
 
+#define DISCOVER_PORT   10000   /* plus IR_PORT_BIAS */
+#define RETRIES         10      /* resends of a broadcast reply while the network is down */
+
+/* L2CfgLocal.net.msmode: primary/secondary ("psmode") */
+enum { MS_NONE = 0, MS_SECONDARY = 1, MS_PRIMARY = 2 };
+
+/* discover_debug: bits for the messages below; with the top two bits set,
+ * only for requests from SGI's own test hosts (all messages, or 0x207) */
 int discover_debug;
-char version_attr[30];
-char client_id[30];
+char version_attr[30];          /* "version:<firmware> (SW)," */
+char client_id[30];             /* this l2's own requests: "<ip>.<pid>" */
 int discover_sd;
-static char haystack[2048];
+static char haystack[2048];     /* "<ip>:..." L2s warned about once */
 
 int discover_init(void)
 {
-  int status;
-  __pid_t _Var1;
-  char *pcVar2;
-  int iVar3;
-  char *ver;
-  uint32 discover_ip;
-  char *name;
-  int o;
-  int i;
-  int addrlen;
-  struct sockaddr_in *p;
-  struct ifreq ifr;
   struct sockaddr_in myaddr;
-  
-  p = (struct sockaddr_in *)&ifr.ifr_ifru;
-  addrlen = 0x10;
-  o = 1;
-  name = "eth0";
-  status = SocketGetHostAddr(&discover_ip);
-  if (status == 0) {
-    _Var1 = getpid();
-    pcVar2 = inet_ntoa(*(struct in_addr *)&discover_ip);
-    sprintf(client_id,"%s.%d",pcVar2,_Var1);
-    memset(&ifr,0,sizeof(struct ifreq));
-    strcpy((char *)&ifr,name);
-    discover_sd = socket(2,2,0x11);
-    if (discover_sd < 0) {
-      syslog(3,"discover.c",144,0,"discover_init: socket: %m\n");
-      iVar3 = -1;
-    }
-    else {
-      iVar3 = setsockopt(discover_sd,1,6,&o,4);
-      if (iVar3 < 0) {
-        syslog(3,"discover.c",150,0,"discover_init: setsockopt: %m\n");
-        close(discover_sd);
-        iVar3 = -1;
-      }
-      else {
-        myaddr.sin_family = 2;
-        myaddr.sin_port = htons((short)IR_PORT_BIAS + 10000);
-        myaddr.sin_addr.s_addr = 0;
-        memset(myaddr.sin_zero,0,8);
-        iVar3 = bind(discover_sd,(struct sockaddr *)&myaddr,0x10);
-        if (iVar3 < 0) {
-          syslog(3,"discover.c",176,0,"discover_init: server bind: %m\n");
-          close(discover_sd);
-          iVar3 = -1;
-        }
-        else {
-          pcVar2 = l2_firmware_version();
-          if (*pcVar2 == '\0') {
-            pcVar2 = "INVALID";
-          }
-          sprintf(version_attr,"version:%s (SW),",pcVar2);
-          EventAddInput(discover_sd,discover_service,(EventData)0x0,"discover_init");
-          iVar3 = discover_sd;
-        }
-      }
-    }
-  }
-  else {
+  uint32 discover_ip;
+  const char *ver;
+  int o = 1;
+
+  if (SocketGetHostAddr(&discover_ip) != 0) {
     syslog(2,"discover.c",127,0,"discover_init: couldn\'t get IP address for local host\n");
-    iVar3 = -1;
+    return -1;
   }
-  return iVar3;
+  sprintf(client_id,"%s.%d",inet_ntoa(*(struct in_addr *)&discover_ip),getpid());
+  discover_sd = socket(AF_INET,SOCK_DGRAM,IPPROTO_UDP);
+  if (discover_sd < 0) {
+    syslog(3,"discover.c",144,0,"discover_init: socket: %m\n");
+    return -1;
+  }
+  if (setsockopt(discover_sd,SOL_SOCKET,SO_BROADCAST,&o,sizeof(o)) < 0) {
+    syslog(3,"discover.c",150,0,"discover_init: setsockopt: %m\n");
+    close(discover_sd);
+    return -1;
+  }
+  memset(&myaddr,0,sizeof(myaddr));
+  myaddr.sin_family = AF_INET;
+  myaddr.sin_port = htons(IR_PORT_BIAS + DISCOVER_PORT);
+  myaddr.sin_addr.s_addr = INADDR_ANY;
+  if (bind(discover_sd,(struct sockaddr *)&myaddr,sizeof(myaddr)) < 0) {
+    syslog(3,"discover.c",176,0,"discover_init: server bind: %m\n");
+    close(discover_sd);
+    return -1;
+  }
+  ver = l2_firmware_version();
+  sprintf(version_attr,"version:%s (SW),",*ver != '\0' ? ver : "INVALID");
+  EventAddInput(discover_sd,discover_service,NULL,"discover_init");
+  return discover_sd;
 }
 
+/* the debug flags for a request from src (see discover_debug) */
+static int debug_flags(const char *src)
+{
+  static const char *const ips[] = {
+    "128.162.241.129", "128.162.241.140", "128.162.241.139", "128.162.241.130",
+    "128.162.241.133", "128.162.241.134", "128.162.241.131", "128.162.241.132",
+    "128.162.241.135", "128.162.241.136", "128.162.241.137", "128.162.241.138",
+    "128.162.241.142", "128.162.241.141", "128.162.241.143", "128.162.241.154",
+    "137.38.82.14", "137.38.82.15",
+  };
+  int debug = 0;
+  size_t i;
+
+  if ((discover_debug & 0xc0000000) == 0)
+    return discover_debug;
+  for (i = 0; i < sizeof(ips) / sizeof(ips[0]); i++)
+    if (strcmp(src,ips[i]) == 0)
+      break;
+  if (i == sizeof(ips) / sizeof(ips[0]))
+    return 0;
+  if (discover_debug & 0x80000000)
+    debug = -1;
+  if (discover_debug & 0x40000000)
+    debug = -0x207;
+  return debug;
+}
+
+/* log once that the L2 at addr is answered across primary/secondary modes */
+static void warn_once(const char *fmt, uint32 addr)
+{
+  char msg[128];
+  const char *ip = SocketAddrStr(addr);
+
+  if (strstr(haystack,ip) != NULL)
+    return;
+  sprintf(msg,fmt,ip);
+  nvramLogInsert(msg);
+  /* (the original appended without bound) */
+  if (strlen(haystack) + strlen(ip) + 2 <= sizeof(haystack)) {
+    strcat(haystack,ip);
+    strcat(haystack,":");
+  }
+}
+
+/* a request on the discovery socket: answer it if it matches this L2 */
 void discover_response(void *cd, int sd)
 {
   static int errcnt;
-  int status;
-  int *piVar1;
-  char *src;
-  char *pcVar2;
-  char *pcVar3;
-  uint32 uVar4;
-  char *pcVar5;
-  size_t sVar6;
-  ssize_t sVar7;
-  uint32_t uVar8;
-  L2CfgNode *l2node;
-  int iVar9;
-  unsigned char **ppuVar10;
-  char **ppcVar11;
-  struct sockaddr_in *__addr;
-  socklen_t __addr_len;
-  char msg [128];
-  int ip;
-  int nips;
-  char *ips [18];
-  int debug;
-  char *vptr;
-  char *aptr;
-  char *avptr;
-  char *ccptr;
-  char *cptr;
-  int asize;
-  int retry;
-  int first;
-  int i;
-  char *optr;
-  uint8 outpkt [8192];
-  uint8 inpkt [8192];
+  uint8 outpkt[8192];
+  uint8 inpkt[8192];
   struct sockaddr_in cliaddr;
-  bool from_l2;
-  bool from_master;
-  bool match;
-  bool ssn_matched;
-  
-  asize = 0x10;
-  ssn_matched = false;
-  from_l2 = false;
-  from_master = false;
-  debug = 0;
-  cliaddr.sin_family = 2;
-  cliaddr.sin_port = htons((short)IR_PORT_BIAS + 10000);
-  cliaddr.sin_addr.s_addr = 0;
-  status = recvfrom(sd,inpkt,0x2000,0,(struct sockaddr *)&cliaddr,(socklen_t *)&asize);
+  socklen_t asize = sizeof(cliaddr);
+  int from_l2 = 0;
+  int from_master = 0;
+  int ssn_matched = 0;
+  L2CfgNode *l2node;
+  char *request;
+  char *next;
+  char *key;
+  char *value;
+  char *optr;
+  char *s;
+  ssize_t status;
+  int debug;
+  int retry;
+
+  memset(&cliaddr,0,sizeof(cliaddr));
+  cliaddr.sin_family = AF_INET;
+  cliaddr.sin_port = htons(IR_PORT_BIAS + DISCOVER_PORT);
+  /* (the original took 8192 bytes and wrote the NUL one past them) */
+  status = recvfrom(sd,inpkt,sizeof(inpkt) - 1,0,(struct sockaddr *)&cliaddr,&asize);
   if (status < 0) {
-    piVar1 = __errno_location();
-    if (*piVar1 == 0x6f) {
+    if (errno == ECONNREFUSED || errno == EAGAIN)
       return;
-    }
-    piVar1 = __errno_location();
-    if (*piVar1 == 0xb) {
-      return;
-    }
     syslog(3,"discover.c",268,0,"discover_response: recvfrom: %m\n");
-    iVar9 = errcnt;
-    errcnt = errcnt + 1;
-    if (iVar9 < 0xb) {
+    if (errcnt++ < 11)
       return;
-    }
     syslog(3,"discover.c",270,0,"discover_response: too many RECV errors. Disabling");
     EventRemoveInput(sd);
     return;
   }
   errcnt = 0;
   inpkt[status] = '\0';
-  if ((discover_debug & 0xc0000000U) == 0) {
-    debug = discover_debug;
-  }
-  else {
-    src = inet_ntoa(*(struct in_addr *)&cliaddr.sin_addr.s_addr);
-    /* debug filter: only answer these (SGI-internal, 128.162/16) addresses.
-     * The original copied the initializer for a local 'char *ips[18]'. */
-    static char *const ips_init[18] = {
-      "128.162.241.129",
-      "128.162.241.140",
-      "128.162.241.139",
-      "128.162.241.130",
-      "128.162.241.133",
-      "128.162.241.134",
-      "128.162.241.131",
-      "128.162.241.132",
-      "128.162.241.135",
-      "128.162.241.136",
-      "128.162.241.137",
-      "128.162.241.138",
-      "128.162.241.142",
-      "128.162.241.141",
-      "128.162.241.143",
-      "128.162.241.154",
-      "137.38.82.14",
-      "137.38.82.15"
-    };
-    memcpy(ips, ips_init, sizeof(ips_init));
-    match = false;
-    for (ip = 0; (!match && (ip < 0x12)); ip = ip + 1) {
-      iVar9 = strcmp(src,ips[ip]);
-      if (iVar9 == 0) {
-        match = true;
-      }
-    }
-    if ((match) && ((discover_debug & 0x80000000U) != 0)) {
-      debug = -1;
-    }
-    if ((match) && ((discover_debug & 0x40000000U) != 0)) {
-      debug = -0x207;
-    }
-  }
-  if ((debug & 2U) != 0) {
+  debug = debug_flags(inet_ntoa(cliaddr.sin_addr));
+  if (debug & 2)
     fprintf(stderr,"received discover request: %s\n",inpkt);
-  }
-  pcVar2 = strdup((char *)inpkt);
-  cptr = pcVar2;
-  while ((pcVar5 = cptr, cptr != NULL && (*cptr != '\0'))) {
-    pcVar3 = strchr(cptr,0x2c);
-    if (pcVar3 == NULL) {
-      cptr = NULL;
-    }
-    else {
-      *pcVar3 = '\0';
-      cptr = pcVar3 + 1;
-    }
-    pcVar5 = strtok(pcVar5,":");
-    vptr = strtok(NULL,":");
-    if (vptr == NULL) {
-      vptr = "";
-    }
-    iVar9 = strcmp(pcVar5,"clientid");
-    if (iVar9 == 0) {
-      iVar9 = strcmp(client_id,vptr);
-      if (iVar9 == 0) {
-        if ((debug & 4U) != 0) {
+
+  request = strdup((char *)inpkt);
+  for (next = request; next != NULL && *next != '\0'; ) {
+    key = next;
+    next = strchr(key,',');
+    if (next != NULL)
+      *next++ = '\0';
+    key = strtok(key,":");
+    value = strtok(NULL,":");
+    if (key == NULL)            /* (an empty pair: the original crashed) */
+      continue;
+    if (value == NULL)
+      value = "";
+    if (strcmp(key,"clientid") == 0) {
+      if (strcmp(client_id,value) == 0) {     /* our own request */
+        if (debug & 4)
           fprintf(stderr,"discover: client ID matches, not responding\n");
-        }
-        free(pcVar2);
+        free(request);
         return;
       }
     }
-    else {
-      iVar9 = strcmp(pcVar5,"ssn");
-      if (iVar9 == 0) {
-        pcVar5 = (char *)nvramGet(NVRAM_SERIAL);
-        iVar9 = strcmp(vptr,pcVar5);
-        if (iVar9 != 0) {
-          if ((debug & 8U) != 0) {
-            fprintf(stderr,"discover: ssn doesn\'t match match, not responding\n");
-          }
-          free(pcVar2);
-          return;
-        }
-        ssn_matched = true;
+    else if (strcmp(key,"ssn") == 0) {
+      if (strcmp(value,(char *)nvramGet(NVRAM_SERIAL)) != 0) {
+        if (debug & 8)
+          fprintf(stderr,"discover: ssn doesn\'t match match, not responding\n");
+        free(request);
+        return;
       }
-      else {
-        iVar9 = strcmp(pcVar5,"name");
-        if (iVar9 == 0) {
-          pcVar5 = (char *)nvramGet(NVRAM_SYSNAME);
-          iVar9 = strcmp(vptr,pcVar5);
-          if (iVar9 != 0) {
-            if ((debug & 0x10U) != 0) {
-              fprintf(stderr,"discover: name doesn\'t match match, not responding\n");
-            }
-            free(pcVar2);
-            return;
-          }
-        }
-        else {
-          iVar9 = strcmp(pcVar5,"l2");
-          if (iVar9 == 0) {
-            from_l2 = true;
-            if (l2_discover == 0) {
-              if ((debug & 0x20U) != 0) {
-                fprintf(stderr,"discover: l2_discover is disabled, not responding\n");
-              }
-              free(pcVar2);
-              return;
-            }
-          }
-          else {
-            iVar9 = strcmp(pcVar5,"l2pri");
-            if (iVar9 == 0) {
-              from_l2 = true;
-              from_master = true;
-              if (l2_discover == 0) {
-                if ((debug & 0x20U) != 0) {
-                  fprintf(stderr,"discover: l2_discover is disabled, not responding\n");
-                }
-                free(pcVar2);
-                return;
-              }
-            }
-          }
-        }
+      ssn_matched = 1;
+    }
+    else if (strcmp(key,"name") == 0) {
+      if (strcmp(value,(char *)nvramGet(NVRAM_SYSNAME)) != 0) {
+        if (debug & 0x10)
+          fprintf(stderr,"discover: name doesn\'t match match, not responding\n");
+        free(request);
+        return;
+      }
+    }
+    else if (strcmp(key,"l2") == 0 || strcmp(key,"l2pri") == 0) {
+      from_l2 = 1;
+      if (strcmp(key,"l2pri") == 0)
+        from_master = 1;
+      if (!l2_discover) {
+        if (debug & 0x20)
+          fprintf(stderr,"discover: l2_discover is disabled, not responding\n");
+        free(request);
+        return;
       }
     }
   }
-  free(pcVar2);
-  if ((from_l2) && ((uVar4 = nvramGet(NVRAM_MULTISYS), uVar4 != 0 && (!ssn_matched)))) {
-    if ((debug & 0x80U) == 0) {
-      return;
-    }
-    fprintf(stderr,"discover: multi system mode, but no SSN passed from client, not responding\n");
+  free(request);
+
+  if (from_l2 && nvramGet(NVRAM_MULTISYS) != 0 && !ssn_matched) {
+    if (debug & 0x80)
+      fprintf(stderr,"discover: multi system mode, but no SSN passed from client, not responding\n");
     return;
   }
-  if (((from_l2) && (L2CfgLocal.net.msmode == 1)) && (!from_master)) {
-    if ((debug & 0x100U) == 0) {
-      return;
-    }
-    fprintf(stderr,"discover: master/slave mode, client not a master, not responding\n");
+  if (from_l2 && L2CfgLocal.net.msmode == MS_SECONDARY && !from_master) {
+    if (debug & 0x100)
+      fprintf(stderr,"discover: master/slave mode, client not a master, not responding\n");
     return;
   }
-  if ((L2CfgLocal.net.msmode == 1) && (from_master)) {
+  if (L2CfgLocal.net.msmode == MS_SECONDARY && from_master)
     L2CfgLocal.net.msip = cliaddr.sin_addr.s_addr;
-  }
-  if ((from_l2) && (L2CfgLocal.net.msmode == 2)) {
-    pcVar2 = SocketAddrStr(cliaddr.sin_addr.s_addr);
-    pcVar5 = strstr(haystack,pcVar2);
-    if (pcVar5 == NULL) {
-      sprintf(msg,"WARNING: primary L2 replying to non-primary-secondary L2 at %s\n",pcVar2);
-      nvramLogInsert(msg);
-      strcat(haystack,pcVar2);
-      strcat(haystack,":");
-    }
-  }
-  if (((from_l2) && (L2CfgLocal.net.msmode == 0)) && (from_master)) {
-    pcVar2 = SocketAddrStr(cliaddr.sin_addr.s_addr);
-    pcVar5 = strstr(haystack,pcVar2);
-    if (pcVar5 == NULL) {
-      sprintf(msg,"WARNING: non-primary-secondry L2 replying to primary L2 at %s\n",pcVar2);
-      nvramLogInsert(msg);
-      strcat(haystack,pcVar2);
-      strcat(haystack,":");
-    }
-  }
-  cliaddr.sin_family = 2;
+  if (from_l2 && L2CfgLocal.net.msmode == MS_PRIMARY)
+    warn_once("WARNING: primary L2 replying to non-primary-secondary L2 at %s\n",
+              cliaddr.sin_addr.s_addr);
+  if (from_l2 && L2CfgLocal.net.msmode == MS_NONE && from_master)
+    warn_once("WARNING: non-primary-secondry L2 replying to primary L2 at %s\n",
+              cliaddr.sin_addr.s_addr);
+
+  /* the answer */
+  cliaddr.sin_family = AF_INET;
   optr = (char *)outpkt;
-  outpkt[0] = '\0';
   strcpy(optr,version_attr);
-  sVar6 = strlen(optr);
-  optr = optr + sVar6;
-  pcVar2 = (char *)nvramGet(NVRAM_SERIAL);
-  if (((pcVar2 != NULL) && (pcVar2 != (char *)0xffffffff)) && (*pcVar2 != '\0')) {
-    sprintf(optr,"ssn:%s,",pcVar2);
-    sVar6 = strlen(optr);
-    optr = optr + sVar6;
+  optr += strlen(optr);
+  s = (char *)nvramGet(NVRAM_SERIAL);
+  if (s != NULL && s != (char *)-1 && *s != '\0') {
+    sprintf(optr,"ssn:%s,",s);
+    optr += strlen(optr);
   }
-  pcVar2 = (char *)nvramGet(NVRAM_SYSNAME);
-  if (((pcVar2 != NULL) && (pcVar2 != (char *)0xffffffff)) && (*pcVar2 != '\0')) {
-    sprintf(optr,"name:%s,",pcVar2);
-    sVar6 = strlen(optr);
-    optr = optr + sVar6;
+  s = (char *)nvramGet(NVRAM_SYSNAME);
+  if (s != NULL && s != (char *)-1 && *s != '\0') {
+    sprintf(optr,"name:%s,",s);
+    optr += strlen(optr);
   }
   sprintf(optr,"rack:%d,",L2CfgLocal.rack);
-  sVar6 = strlen(optr);
-  optr = optr + sVar6;
-  if (L2CfgLocal.net.msmode == 1) {
-    sprintf(optr,"l2sec:0");
-  }
-  else if ((L2CfgLocal.net.msmode != 0) && (L2CfgLocal.net.msmode == 2)) {
-    sprintf(optr,"l2pri:0");
-  }
-  sVar6 = strlen(optr);
-  optr = optr + sVar6;
-  *optr = '\0';
-  if ((debug & 0x200U) != 0) {
+  optr += strlen(optr);
+  if (L2CfgLocal.net.msmode == MS_SECONDARY)
+    strcpy(optr,"l2sec:0");
+  else if (L2CfgLocal.net.msmode == MS_PRIMARY)
+    strcpy(optr,"l2pri:0");
+  if (debug & 0x200)
     fprintf(stderr,"sending discover response: %s\n",outpkt);
+  /* a broadcast reply is retried while the network is unreachable */
+  for (retry = 0; ; ) {
+    status = sendto(sd,outpkt,strlen((char *)outpkt) + 1,0,(struct sockaddr *)&cliaddr,
+                    sizeof(cliaddr));
+    if (cliaddr.sin_addr.s_addr != htonl(INADDR_BROADCAST) || status >= 0 ||
+        (errno != EHOSTUNREACH && errno != ECONNREFUSED))
+      break;
+    if (retry++ >= RETRIES)     /* (11 sends; "retry=11" below) */
+      break;
   }
-  retry = 0;
-  do {
-    __addr_len = 0x10;
-    __addr = &cliaddr;
-    iVar9 = 0;
-    sVar6 = strlen((char *)outpkt);
-    sVar7 = sendto(sd,outpkt,sVar6 + 1,iVar9,(struct sockaddr *)__addr,__addr_len);
-    uVar8 = htonl(0xffffffff);
-    if (((cliaddr.sin_addr.s_addr != uVar8) || (-1 < sVar7)) ||
-       ((piVar1 = __errno_location(), *piVar1 != 0x71 &&
-        (piVar1 = __errno_location(), *piVar1 != 0x6f)))) break;
-    iVar9 = retry + 1;
-    from_l2 = retry < 10;
-    retry = iVar9;
-  } while (from_l2);
-  if (sVar7 < 0) {
+  if (status < 0) {
     syslog(3,"discover.c",588,0,"discover_response: sendto: %m\n");
-    iVar9 = retry;
-    piVar1 = __errno_location();
-    fprintf(stderr,"errno=%d retry=%d status=%d\n",*piVar1,iVar9,(int)sVar7);
+    fprintf(stderr,"errno=%d retry=%d status=%d\n",errno,retry,(int)status);
+    return;
   }
-  else if (((cfg_ping_sender_valid != 0) &&
-           (l2node = L2CfgMFindNode(&L2CfgLocal,cliaddr.sin_addr.s_addr,0,NULL),
-           l2node != NULL)) && (l2node->heartbeat != 0xffffffff)) {
-    l2node->heartbeat = l2node->heartbeat + 1;
+  /* (a reply to an L2 counts as its heartbeat) */
+  if (cfg_ping_sender_valid) {
+    l2node = L2CfgMFindNode(&L2CfgLocal,cliaddr.sin_addr.s_addr,0,NULL);
+    if (l2node != NULL && l2node->heartbeat != 0xffffffff)
+      l2node->heartbeat++;
   }
-  return;
 }
 
+/* poll the discovery socket once */
 void discover_service(void)
 {
-  unsigned char *pbVar1;
   static struct timeval to;
-  int iVar2;
-  int __d1;
-  char __result;
-  int __d0;
   fd_set rfd;
-  
+
   FD_ZERO(&rfd);
-  FD_SET(discover_sd, &rfd);
+  FD_SET(discover_sd,&rfd);
   to.tv_sec = 0;
   to.tv_usec = 10;
-  iVar2 = select(discover_sd + 1,(fd_set *)&rfd,NULL,NULL,(struct timeval *)&to);
-  if (iVar2 == 1) {
-    if (FD_ISSET(discover_sd, &rfd) != 0) {
-      discover_response(NULL,discover_sd);
-    }
-  }
-  return;
+  if (select(discover_sd + 1,&rfd,NULL,NULL,&to) == 1 && FD_ISSET(discover_sd,&rfd))
+    discover_response(NULL,discover_sd);
 }

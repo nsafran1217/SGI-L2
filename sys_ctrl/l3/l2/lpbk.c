@@ -20,7 +20,6 @@
 #include "../main/nvram.h"
 
 #define LPBK_SESSIONS   16
-#define L1_LPBK_TASK    0x12    /* the L1's loopback task */
 
 typedef struct {
     int pending;                /* packets still to come back */
@@ -54,7 +53,7 @@ void lpbk(int session, IRAddress addr, int length, int count, SMP *smp)
   l->pending = count;
   l->bcount = count;
   l->blen = length;
-  l->l1addr = IR_ADDR_WITH_TASK(addr,L1_LPBK_TASK);
+  l->l1addr = IR_ADDR_WITH_TASK(addr,IR_L1_LPBK);
   l->smp = smp;
   l->pkt_min_time = 1e+06;
   l->pkt_max_time = 0.0;

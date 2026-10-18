@@ -6,3 +6,5 @@
 r 1 s 2 loopback 8 1
 loopback 8 1
 sel
+1c2 route
+r 1 s 2 route

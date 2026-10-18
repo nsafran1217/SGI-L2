@@ -85,7 +85,7 @@ static IRPacket *command_packet(L2CMD *c, IRAddress addr, const char *cmd)
   IRArgument argv[2];
   char *copy = strdup(cmd);
 
-  addr = IR_ADDR_WITH_TASK(addr,L2_TASK_CMD);
+  addr = IR_ADDR_WITH_TASK(addr,IR_L2_CMD);   /* (an L1's IR_L1_CMD is the same) */
   argv[0]._clas = IR_ARG_VALUE;
   argv[0]._frame = 0;
   argv[0]._val = 0;

@@ -73,8 +73,12 @@ def console(lines):
         out += until_prompt()
     s.close()
     text = out.decode("latin-1").replace("\r", "")
-    return re.sub(r"(time|average|min pkt|max pkt|) +[0-9.]+ (seconds|bytes/second)",
+    text = re.sub(r"(time|average|min pkt|max pkt|) +[0-9.]+ (seconds|bytes/second)",
                   r"\1 <N> \2", text)
+    # route traces: the L2's entries are stamped with the time of day
+    text = re.sub(r"^((?:REQ|RSP): .*?) +-?\d+ \((\s*\d+)\)$",
+                  lambda m: f"{m[1]} <N> ({'<T>' if ' L2-' in m[1] else m[2]})", text, flags=re.M)
+    return text
 
 
 def session(l2bin, env, commands, work, name):
@@ -109,6 +113,18 @@ def session(l2bin, env, commands, work, name):
         with open(os.path.join(HERE, "l1_console_commands.txt")) as f:
             lines = [l.strip() for l in f if l.strip() and not l.startswith("#")]
         out.append(f"=== console\n{mask(console(lines))}")
+        if name == "new":
+            # an IRouter error from the brick: the original's heap breaks
+            # (ORIGINAL_BUGS.md, cmd.c), so only the rebuilt l2 is asked
+            r = subprocess.run([os.path.join(ORIG, "l2cmd"), "--l2", "127.0.0.1", "r", "1", "s",
+                                "2", "l1", "errtest"], capture_output=True, text=True,
+                               errors="replace", timeout=30)
+            time.sleep(0.5)
+            if "ERROR: couldn't send packet to 001c02" not in r.stdout + r.stderr \
+                    or proc.poll() is not None:
+                out.append(f"=== errtest (new only) failed:\n{r.stdout}{r.stderr}")
+            l1.requests = [q for q in l1.requests
+                           if not any(isinstance(t, str) and "errtest" in t for t in q[1])]
         l1.close()
         return "".join(out), l1.requests
     finally:

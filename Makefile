@@ -179,7 +179,10 @@ CLEAN_SRCS := \
 	sys_ctrl/l3/l2/dest.c \
 	sys_ctrl/l3/l2/reqrspq.c \
 	sys_ctrl/l3/l2/broadcast.c \
-	sys_ctrl/l3/l2/l2.c
+	sys_ctrl/l3/l2/l2.c \
+	sys_ctrl/l3/l2/route.c \
+	sys_ctrl/l3/l2/cmd.c \
+	sys_ctrl/l3/l2/discover.c
 $(CLEAN_SRCS:%.c=$(B)/%.o): CFLAGS += -Wunused-variable -Wunused-but-set-variable \
 	-Wunused-label -Wpointer-sign
 

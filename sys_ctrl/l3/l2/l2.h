@@ -44,13 +44,6 @@ enum {
     L2_CONN_SIM = 5,            /* -l1sim, -l1sim_manual (l1sim.c) */
 };
 #define L2_L1_PORTS 40          /* l2_l1_ports[] */
-/* the L2's IRouter tasks (main(); irtr.c delivers by them). Task 1 is
- * IRouter's own, and an L1's commands go to its task 3 too. */
-enum {
-    L2_TASK_MAIN = 0, L2_TASK_CONSOLE = 2, L2_TASK_CMD = 3, L2_TASK_CFG = 4,
-    L2_TASK_LPBK = 5, L2_TASK_MODEM = 7, L2_TASK_APWR = 9, L2_TASK_CMDUSR = 12,
-    L2_TASK_ROUTE = 13,
-};
 
 /* prototypes (not recorded in STABS; reconstructed from definitions) */
 #include <signal.h>   /* for the prototypes */

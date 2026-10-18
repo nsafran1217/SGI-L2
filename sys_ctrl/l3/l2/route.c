@@ -3,501 +3,149 @@
  *
  * Reconstructed from the STABS debug info and Ghidra decompilation of l2.
  * Original: /data/cf/sysco/scs123.patch/sys_ctrl/l3/l2/route.c
+ *
+ * The console's "route" command: a request of ROUTE_ARGS zero arguments to
+ * an L1's route task. Every L2 and L1 it passes fills in the next pair:
+ * who it is (and whether the packet was a request or the response), the
+ * ports it came in and left by, and a 16-bit timestamp. The response is
+ * printed as the trace.
  */
 
-#include "irtr.h"   /* needed by the reconstruction */
-#include <malloc.h>
-#include <stddef.h>
-#include "l2.h"
 #include <stdio.h>
-#include <stdarg.h>
-#include <stdlib.h>
-#include <sys/types.h>
-#include <time.h>
-#include <fcntl.h>
-#include <errno.h>
-#include <signal.h>
-#include <termios.h>
-#include <unistd.h>
-#include <getopt.h>
 #include <string.h>
-#include "../../common/Router/Socket.h"
-#include "../../common/Router/Event.h"
-#include <sys/time.h>
-#include "../../common/IRouter/IRouter.h"
-#include "../../common/sys/sysctl_types.h"
-#include <netinet/in.h>
-#include <limits.h>
-#include <syslimits.h>
-#include <linux/limits.h>
-#include <stdint.h>
-#include "../../common/sys/sysutils.h"
-#include <pthread.h>
-#include <sched.h>
-#include "../../common/sys/Logger.h"
-#include "../sys/LoggerMsg.h"
-#include "../../common/IRouter/IRouter2Router.h"
-#include "../../common/Router/Router.h"
-#include "../../common/sys/PPP.h"
-#include "../../common/sys/brick_types.h"
-#include "../../common/main/EnetServer.h"
-#include "../../common/main/L2Cfg.h"
-#include "../../common/main/L1Cfg.h"
-#include "l2_rev.h"
+#include <time.h>
+#include "l2.h"
 #include "route.h"
-#include "decomp.h"     /* Ghidra types/macros; remove once the file is cleaned up */
-enum __anon_enum_48 {
-    B2B_UART_MIN = 1,
-    B2B_NIA = 1,
-    B2B_NIB = 2,
-    B2B_NIC = 3,
-    B2B_NID = 4,
-    B2B_NIE = 5,
-    B2B_NIF = 6,
-    B2B_NIG = 7,
-    B2B_NIH = 8,
-    B2B_N0A = 1,
-    B2B_N0B = 2,
-    B2B_N0C = 3,
-    B2B_N0D = 4,
-    B2B_N0E = 5,
-    B2B_N0F = 6,
-    B2B_N0G = 7,
-    B2B_N0H = 8,
-    B2B_N1A = 9,
-    B2B_N1B = 10,
-    B2B_N1C = 11,
-    B2B_N1D = 12,
-    B2B_N1E = 13,
-    B2B_N1F = 14,
-    B2B_N1G = 15,
-    B2B_N1H = 16,
-    B2B_N2A = 17,
-    B2B_N2B = 18,
-    B2B_N2C = 19,
-    B2B_N2D = 20,
-    B2B_N2E = 21,
-    B2B_N2F = 22,
-    B2B_N2G = 23,
-    B2B_N2H = 24,
-    B2B_N3A = 25,
-    B2B_N3B = 26,
-    B2B_N3C = 27,
-    B2B_N3D = 28,
-    B2B_N3E = 29,
-    B2B_N3F = 30,
-    B2B_N3G = 31,
-    B2B_N3H = 32,
-    B2B_NI_MAX = 32,
-    B2B_IIA = 33,
-    B2B_IIB = 34,
-    B2B_IIC = 35,
-    B2B_IID = 36,
-    B2B_II_MAX = 36,
-    B2B_SMP = 37,
-    B2B_UART_MAX = 37,
-    B2B_MAX_PORTS = 37,
-    B2B_USB_MIN = 38,
-    B2B_USB0 = 38,
-    B2B_USB1 = 39,
-    B2B_USB_MAX = 39,
-    B2B_NET = 40,
-};
+#include "irtr.h"
+#include "../../common/sys/brick_types.h"
+
+#define ROUTE_ARGS      64
+
+/* an entry's first word: the response bit, and an L2 (its rack) or a brick */
+#define ROUTE_L2        0x80000000
+#define ROUTE_RSP       0x40000000
+#define ROUTE_TYPE(v)   ((v) & 0x3ff)
+#define ROUTE_RACK(v)   (((v) >> 10) & 0x3ff)
+#define ROUTE_SLOT(v)   (((v) >> 20) & 0x3ff)
+/* ... and its second: the ports (in, out) and the timestamp */
+#define ROUTE_IN(v)     ((v) >> 24)
+#define ROUTE_OUT(v)    (((v) >> 16) & 0xff)
+#define ROUTE_TIME(v)   ((v) & 0xffff)
 
 int route_pending;
 static SMP *route_smp;
 static IRAddress route_addr;
 
+/* trace the route to the L1 at addr, for the console smp */
 void route_process_request(IRAddress addr, SMP *smp)
 {
+  IRArgument argv[ROUTE_ARGS];
   IRPacket *p;
-  int arg;
-  int argc;
-  IRArgument argv [64];
-  
-  if (route_pending == 0) {
-    route_pending = 1;
-    route_smp = smp;
-    if ((addr & 0x80000000) == 0) {
-      route_addr = (addr & 0xffffffe0) | 0x17;
-    }
-    else {
-      route_addr = (addr & 0xc0ffffff) | 0x17000000;
-    }
-    for (arg = 0; arg < 0x40; arg = arg + 1) {
-      argv[arg]._clas = '\0';
-      argv[arg]._frame = '\0';
-      argv[arg]._val = 0;
-      argv[arg]._size = 0;
-    }
-    p = IRouterMakePacket(&l2_route_id,&route_addr,0,0,0,2,0x40,argv);
-    IRouterSendPacket(NULL,p);
-  }
-  return;
+
+  if (route_pending)
+    return;
+  route_pending = 1;
+  route_smp = smp;
+  route_addr = IR_ADDR_WITH_TASK(addr,IR_L1_ROUTE);
+  memset(argv,0,sizeof(argv));
+  p = IRouterMakePacket(&l2_route_id,&route_addr,0,0,IR_REQ,2,ROUTE_ARGS,argv);
+  IRouterSendPacket(NULL,p);
 }
 
+/* a port's name on a brick of this type (its ports are numbered from 1) */
 char *pstr(int type, int port)
 {
-  char *pcVar1;
-  
-  if (type == 0x2e) {
-    switch(port) {
-    case 1:
-      return "L0G";
-    case 2:
-      return "L1H";
-    case 3:
-      return "L2G";
-    case 4:
-      return "L3H";
-    case 5:
-      return "R3G";
-    case 6:
-      return "R2H";
-    case 7:
-      return "R1G";
-    case 8:
-      return "R0H";
-    default:
-      return "INV";
-    }
+  static char *const chassis_1932[] = { "B0A", "B0B", "B1A", "B1B" };
+  static char *const router_ports[] = {
+    "N0A", "N0B", "N0C", "N0D", "N0E", "N0F", "N0G", "N0H",
+    "N1A", "N1B", "N1C", "N1D", "N1E", "N1F", "N1G", "N1H",
+    "N2A", "N2B", "N2C", "N2D", "N2E", "N2F", "N2G", "N2H",
+    "N3A", "N3B", "N3C", "N3D", "N3E", "N3F", "N3G", "N3H",
+  };
+  static char *const chassis_191010[] = { "L0G", "L1H", "L2G", "L3H", "R3G", "R2H", "R1G", "R0H" };
+  static char *const vortix[] = { "U-F", "U-G", "U-H", "U-A", "L-F", "L-G", "L-H", "L-A" };
+  static char *const chassis_1955[] = { "LG", "LH", "RG", "RH" };
+  static char *const numalink[] = { "NIA", "NIB", "NIC", "NID", "NIE", "NIF", "NIG", "NIH" };
+  static char *const xio[] = { "IIA", "IIB", "IIC", "IID" };   /* ports 33-36 */
+#define PORT(list) (port >= 1 && port <= (int)(sizeof(list) / sizeof(list[0])) ? list[port - 1] : "INV")
+
+  switch (type) {
+  case ',':
+    return PORT(chassis_1932);
+  case '-':
+    return PORT(router_ports);
+  case '.':
+    return PORT(chassis_191010);
+  case '}':
+    return PORT(chassis_1955);
+  case '@':
+    if (port >= 33 && port <= 36)
+      return xio[port - 33];
+    return PORT(vortix);
+  default:
+    if (port >= 33 && port <= 36)
+      return xio[port - 33];
+    return PORT(numalink);
   }
-  if (type < 0x2f) {
-    if (type == 0x2c) {
-      if (port == 2) {
-        return "B0B";
-      }
-      if (port < 3) {
-        if (port == 1) {
-          return "B0A";
-        }
-      }
-      else {
-        if (port == 3) {
-          return "B1A";
-        }
-        if (port == 4) {
-          return "B1B";
-        }
-      }
-      return "INV";
-    }
-    if (type == 0x2d) {
-      switch(port) {
-      case 1:
-        return "N0A";
-      case 2:
-        return "N0B";
-      case 3:
-        return "N0C";
-      case 4:
-        return "N0D";
-      case 5:
-        return "N0E";
-      case 6:
-        return "N0F";
-      case 7:
-        return "N0G";
-      case 8:
-        return "N0H";
-      case 9:
-        return "N1A";
-      case 10:
-        return "N1B";
-      case 0xb:
-        return "N1C";
-      case 0xc:
-        return "N1D";
-      case 0xd:
-        return "N1E";
-      case 0xe:
-        return "N1F";
-      case 0xf:
-        return "N1G";
-      case 0x10:
-        return "N1H";
-      case 0x11:
-        return "N2A";
-      case 0x12:
-        return "N2B";
-      case 0x13:
-        return "N2C";
-      case 0x14:
-        return "N2D";
-      case 0x15:
-        return "N2E";
-      case 0x16:
-        return "N2F";
-      case 0x17:
-        return "N2G";
-      case 0x18:
-        return "N2H";
-      case 0x19:
-        return "N3A";
-      case 0x1a:
-        return "N3B";
-      case 0x1b:
-        return "N3C";
-      case 0x1c:
-        return "N3D";
-      case 0x1d:
-        return "N3E";
-      case 0x1e:
-        return "N3F";
-      case 0x1f:
-        return "N3G";
-      case 0x20:
-        return "N3H";
-      default:
-        return "INV";
-      }
-    }
-  }
-  else {
-    if (type == 0x40) {
-      if (true) {
-        switch(port) {
-        case 1:
-          return "U-F";
-        case 2:
-          return "U-G";
-        case 3:
-          return "U-H";
-        case 4:
-          return "U-A";
-        case 5:
-          return "L-F";
-        case 6:
-          return "L-G";
-        case 7:
-          return "L-H";
-        case 8:
-          return "L-A";
-        case 0x21:
-          return "IIA";
-        case 0x22:
-          return "IIB";
-        case 0x23:
-          return "IIC";
-        case 0x24:
-          return "IID";
-        }
-      }
-      return "INV";
-    }
-    if (type == 0x7d) {
-      if (port == 2) {
-        return "LH";
-      }
-      if (port < 3) {
-        if (port == 1) {
-          return "LG";
-        }
-      }
-      else {
-        if (port == 3) {
-          return "RG";
-        }
-        if (port == 4) {
-          return "RH";
-        }
-      }
-      return "INV";
-    }
-  }
-  if (false) {
-switchD_08065f40_caseD_9:
-    pcVar1 = "INV";
-  }
-  else {
-    switch(port) {
-    case 1:
-      pcVar1 = "NIA";
-      break;
-    case 2:
-      pcVar1 = "NIB";
-      break;
-    case 3:
-      pcVar1 = "NIC";
-      break;
-    case 4:
-      pcVar1 = "NID";
-      break;
-    case 5:
-      pcVar1 = "NIE";
-      break;
-    case 6:
-      pcVar1 = "NIF";
-      break;
-    case 7:
-      pcVar1 = "NIG";
-      break;
-    case 8:
-      pcVar1 = "NIH";
-      break;
-    default:
-      goto switchD_08065f40_caseD_9;
-    case 0x21:
-      pcVar1 = "IIA";
-      break;
-    case 0x22:
-      pcVar1 = "IIB";
-      break;
-    case 0x23:
-      pcVar1 = "IIC";
-      break;
-    case 0x24:
-      pcVar1 = "IID";
-    }
-  }
-  return pcVar1;
+#undef PORT
 }
 
+/* the trace: one line per hop, with the time since the one before */
 void route_process_response(IRPacket *p)
 {
-  IRArgument *pIVar1;
-  unsigned char *puVar2;
-  char cVar3;
-  char *pcVar4;
-  size_t sVar5;
+  char buff[128];
+  unsigned int last = 0;
   unsigned int val1;
   unsigned int val2;
-  unsigned int uVar6;
   unsigned int ts;
-  char *pcVar7;
-  int slot;
   int type;
-  int iVar8;
-  int iVar9;
-  unsigned int uVar10;
-  unsigned char *puStack_cc;
-  char *wpstr;
-  char *rpstr;
-  int rack;
-  int wport;
-  int rport;
-  int rsp;
-  unsigned int last;
   int arg;
-  char p2 [8];
-  char p1 [8];
-  char buff [128];
-  
-  if (p->_err != '\0') {
-    pcVar4 = IRFmtError((unsigned int)p->_err);
-    sprintf(buff,"ERROR: %s\n",pcVar4);
-    sVar5 = strlen(buff);
-    smp_output(route_smp,buff,sVar5);
+
+  if (p->_err != 0) {
+    sprintf(buff,"ERROR: %s\n",IRFmtError(p->_err));
+    smp_output(route_smp,buff,strlen(buff));
   }
-  if (p->_argc == '\0') {
+  if (p->_argc == 0) {
     sprintf(buff,"no routing data available\n");
-    sVar5 = strlen(buff);
-    smp_output(route_smp,buff,sVar5);
+    smp_output(route_smp,buff,strlen(buff));
   }
-  else {
-    last = 0;
-    for (arg = 0; arg < 0x40; arg = arg + 2) {
-      if ((p->_argv[arg]._clas & 7) == 0) {
-        val1 = p->_argv[arg]._val;
-      }
-      else {
-        val1 = IRArg(p,arg);
-      }
-      if ((p->_argv[arg + 1]._clas & 7) == 0) {
-        val2 = p->_argv[arg + 1]._val;
-      }
-      else {
-        val2 = IRArg(p,arg + 1);
-      }
-      if (val1 != 0) {
-        uVar6 = val2 & 0xffff;
-        if ((val1 & 0x80000000) == 0) {
-          slot = val1 >> 0x14 & 0x3ff;
-          uVar6 = val1 >> 10 & 0x3ff;
-          type = val1 & 0x3ff;
-          ts = val2 & 0xffff;
-          if (last == 0) {
-            puStack_cc = NULL;
-          }
-          else {
-            puStack_cc = (unsigned char *)(intptr_t)(ts - last);   /* slot reused: a number here, a string below */
-          }
-          uVar10 = ts;
-          pcVar4 = pstr(type,val2 >> 0x10 & 0xff);
-          cVar3 = brickTypeToChar(type);
-          iVar8 = (int)cVar3;
-          iVar9 = (int)(intptr_t)puStack_cc;
-          pcVar7 = pstr(type,val2 >> 0x18);
-          if ((val1 & 0x40000000) == 0) {
-            puStack_cc = "REQ";
-          }
-          else {
-            puStack_cc = "RSP";
-          }
-          sprintf(buff,"%s: %s %03d%c%02d %s %3d (%d)\n",puStack_cc,pcVar7,uVar6,iVar8,slot,pcVar4,
-                  iVar9,uVar10);
-          sVar5 = strlen(buff);
-          smp_output(route_smp,buff,sVar5);
-          last = ts;
-        }
-        else {
-          if (last == 0) {
-            puStack_cc = NULL;
-          }
-          else {
-            puStack_cc = (unsigned char *)(intptr_t)(uVar6 - last);
-          }
-          puVar2 = puStack_cc;
-          if ((val1 & 0x40000000) == 0) {
-            puStack_cc = "REQ";
-          }
-          else {
-            puStack_cc = "RSP";
-          }
-          sprintf(buff,"%s:     L2-%-5d   %3d (%3d)\n",puStack_cc,val1 & 0x3fffffff,(int)(intptr_t)puVar2,
-                  uVar6 % 1000);
-          sVar5 = strlen(buff);
-          smp_output(route_smp,buff,sVar5);
-          last = uVar6;
-        }
-      }
+  /* (the original read all ROUTE_ARGS whatever the packet held) */
+  for (arg = 0; arg + 1 < p->_argc && arg < ROUTE_ARGS; arg += 2) {
+    val1 = IRArg(p,arg);
+    val2 = IRArg(p,arg + 1);
+    if (val1 == 0)
+      continue;
+    ts = ROUTE_TIME(val2);
+    if (val1 & ROUTE_L2) {
+      sprintf(buff,"%s:     L2-%-5d   %3d (%3d)\n",val1 & ROUTE_RSP ? "RSP" : "REQ",
+              val1 & 0x3fffffff,last == 0 ? 0 : (int)(ts - last),ts % 1000);
     }
+    else {
+      type = ROUTE_TYPE(val1);
+      sprintf(buff,"%s: %s %03d%c%02d %s %3d (%d)\n",val1 & ROUTE_RSP ? "RSP" : "REQ",
+              pstr(type,ROUTE_IN(val2)),ROUTE_RACK(val1),brickTypeToChar(type),ROUTE_SLOT(val1),
+              pstr(type,ROUTE_OUT(val2)),last == 0 ? 0 : (int)(ts - last),ts);
+    }
+    smp_output(route_smp,buff,strlen(buff));
+    last = ts;
   }
   IRouterFreePacket(p);
   route_pending = 0;
   smp_prompt(route_smp);
-  return;
 }
 
+/* a route packet passing through: this L2's entry in the first free
+ * argument */
 void route_process(IRPacket *p)
 {
-  IRArgument *pIVar1;
-  uint8 uVar2;
-  unsigned int uVar3;
-  unsigned int uVar4;
-  unsigned int val2;
-  unsigned int val1;
-  int response;
   int arg;
-  bool found;
-  
-  uVar2 = p->_clas;
-  found = false;
-  for (arg = 0; (!found && (arg < 0x40)); arg = arg + 1) {
-    if ((p->_argv[arg]._clas & 7) == 0) {
-      uVar3 = p->_argv[arg]._val;
-    }
-    else {
-      uVar3 = IRArg(p,arg);
-    }
-    if (uVar3 == 0) {
-      uVar4 = L2CfgLocal.rack | 0x80000000;
-      uVar3 = time(NULL);
-      p->_argv[arg]._val = (unsigned int)(uVar2 == 1) << 0x1e | uVar4;
-      val2 = uVar3 & 0xffff;
-      p->_argv[arg + 1]._val = val2;
-      found = true;
-    }
+
+  /* (the original looked at all ROUTE_ARGS, and could write one past them) */
+  for (arg = 0; arg + 1 < p->_argc && arg < ROUTE_ARGS; arg++) {
+    if (IRArg(p,arg) != 0)
+      continue;
+    p->_argv[arg]._val = (p->_clas == IR_RSP ? ROUTE_RSP : 0) | ROUTE_L2 | L2CfgLocal.rack;
+    p->_argv[arg + 1]._val = ROUTE_TIME(time(NULL));
+    return;
   }
-  return;
 }

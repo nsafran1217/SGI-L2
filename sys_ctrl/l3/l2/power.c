@@ -21,7 +21,7 @@
 #define STEP            5       /* seconds per countdown step */
 #define MIN_DELAY       30      /* ... and at least this many in all */
 /* this L2's command task: rack and slot all ones */
-#define LOCAL_L2_CMD    IR_ADDR_MAKE(IR_ADDR_L2,0x3ff,0x3f,0,L2_TASK_CMD)
+#define LOCAL_L2_CMD    IR_ADDR_MAKE(IR_ADDR_L2,0x3ff,0x3f,0,IR_L2_CMD)
 
 int power_check;                /* -nopwrchk: power_status() always says on */
 int power_abort;                /* "autopower abort": stop at the next step */
