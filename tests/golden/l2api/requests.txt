@@ -1,0 +1,48 @@
+=== GET /api/v1/l2 None
+200 application/json
+{"host": "127.0.0.1", "connected": true, "l2s": [
+  {"ip": "127.0.0.1", "rack": 0, "serial": "", "sysname": "", "mode": "none"},
+  {"ip": "<L2IP>", "rack": 0, "serial": "", "sysname": "", "mode": "none"}]}
+=== GET /api/v1/config None
+200 application/json
+{"bricks": [
+  {"name": "001c02", "rack": 1, "slot": 2, "type": "C (IP35)", "partition": 0, "power": false, "console": true, "brick_serial": "FAKE0001", "system_serial": ""}]}
+=== POST /api/v1/command '{"command": "version"}'
+200 application/json
+{"status": 0, "output": "L2 version: 1.62.0\n"}
+=== POST /api/v1/command 'r 1 s 2 l1 serial\n'
+200 application/json
+{"status": 0, "output": "001c02:\nfake L1 001C02: serial\n"}
+=== POST /api/v1/command '{"command": "r 1 s 2 l1 say \\"hi\\"\\u0021"}'
+200 application/json
+{"status": 0, "output": "001c02:\nfake L1 001C02: say \"hi\"!\n"}
+=== POST /api/v1/command '{"nothing": 1}'
+400 application/json
+{"error": "no \"command\""}
+=== POST /api/v1/command 'two\nlines'
+400 application/json
+{"error": "one command, one line"}
+=== POST /api/v1/power '{"action": "status"}'
+200 application/json
+{"status": 0, "output": "001c02:\nfake L1 001C02: power check\n"}
+=== POST /api/v1/power '{"action": "up", "target": "r 1 s 2"}'
+200 application/json
+{"status": 0, "output": "001c02:\nfake L1 001C02: power up hold\n001c02:\nfake L1 001C02: reset\n"}
+=== POST /api/v1/power '{"action": "reset", "target": "r 1; s 2"}'
+400 application/json
+{"error": "a target is rack and slot words (e.g. \"r 1 s 7\")"}
+=== POST /api/v1/power '{"action": "explode"}'
+400 application/json
+{"error": "action: up, down, reset or status"}
+=== GET /api/v1/command None
+405 application/json
+{"error": "wrong method for this endpoint"}
+=== GET /api/v1/nothing None
+404 application/json
+{"error": "no such endpoint (see /api/v1/l2, /config, /command, /power, /console, /events)"}
+=== GET / None
+200 application/json
+{"api": "/api/v1"}
+=== GET /api/v1/console None
+400 application/json
+{"error": "a WebSocket upgrade, please"}

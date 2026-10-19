@@ -1,0 +1,6 @@
+?-<L2IP>-L2>version
+L2 version: 1.62.0
+?-<L2IP>-L2>r 1 s 2 l1 serial
+001c02:
+fake L1 001C02: serial
+?-<L2IP>-L2>

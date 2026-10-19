@@ -299,7 +299,8 @@ int sn1SCInitPortAddr(char *cname, char *host, int task, int port, IRAddress add
   if (sn1SCClient() != NULL)
     return -1;
   if (host != NULL && *host != '\0') {
-    set_field(l2_host,sizeof(l2_host),host);
+    if (host != l2_host)        /* (sn1SCGetL2Host()'s: not snprintf() onto itself) */
+      set_field(l2_host,sizeof(l2_host),host);
   }
   else {
     rval = sn1SCFindL2(l2_host);

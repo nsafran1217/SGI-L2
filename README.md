@@ -9,7 +9,7 @@ changing and how far along it is.
 
 ## Build
 
-    make            # build/bin/{l2,l2term,l2cmd,l2gui}
+    make            # build/bin/{l2,l2term,l2cmd,l2api,l2gui}
 
 Needs gcc, make and libusb (Debian: `libusb-1.0-0-dev`; without it `l2`
 has no USB L1s). `l2gui` also needs FLTK 1.3 or 1.4
@@ -40,6 +40,47 @@ create its user); settings are then in `/var/lib/sgi-l2/l2.conf`.
 `contrib/docker/README.md` runs it in a container.
     l2term --l2 localhost             # its console; CTRL-] q quits
     l2cmd --l2 localhost version
+
+## HTTP API (l2api)
+
+`l2api` is an L2 client, like `l2term`, that serves an HTTP API for
+scripts and for a web interface:
+
+    l2api --l2 localhost              # http://127.0.0.1:8080/api/v1/
+    curl localhost:8080/api/v1/config
+    curl -d '{"command": "r 1 s 7 pwr"}' localhost:8080/api/v1/command
+
+| Endpoint | |
+|---|---|
+| `GET /api/v1/l2` | the L2s of the system |
+| `GET /api/v1/config` | the bricks: name (`001c07`), rack, slot, type, partition, power, serial numbers |
+| `POST /api/v1/command` | an L2 command, as `l2cmd` runs it: `{"command": "..."}` or plain text; answers `{"status": 0, "output": "..."}` |
+| `POST /api/v1/power` | `{"action": "up\|down\|reset\|status", "target": "r 1 s 7"}` (target optional: the L2's destination) |
+| `GET /api/v1/console` | a WebSocket to the L2's console, byte for byte, as `l2term` has it |
+| `GET /api/v1/events` | server-sent events: `config`, with the bricks, whenever they change |
+
+`--www <dir>` also serves the files in a directory (a web interface).
+`l2api` has no authentication: it listens on 127.0.0.1 only, unless
+`--listen 0.0.0.0:8080`. To reach it from elsewhere, put a web server with
+TLS and a password in front of it. With Caddy:
+
+    l2.example.net {
+        basic_auth { admin <hash from caddy hash-password> }
+        reverse_proxy 127.0.0.1:8080
+    }
+
+or Apache (mod_proxy, mod_proxy_http, mod_proxy_wstunnel):
+
+    <Location /api/>
+        AuthType Basic
+        AuthName "L2"
+        AuthUserFile /etc/apache2/l2.htpasswd
+        Require valid-user
+        ProxyPass http://127.0.0.1:8080/api/ upgrade=websocket
+    </Location>
+
+Requests are served one at a time: a command holds the others up for as
+long as the L2 takes to answer it.
 
 ## Test
 

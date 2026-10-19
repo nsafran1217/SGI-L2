@@ -1,0 +1,4 @@
+HTTP/1.1 200 OK
+event: config
+data: {"bricks": [
+data:   {"name": "001c02", "rack": 1, "slot": 2, "type": "C (IP35)", "partition": 0, "power": false, "console": true, "brick_serial": "FAKE0001", "system_serial": ""}]}

@@ -109,6 +109,12 @@ L2TERM_SRCS := \
 L2CMD_SRCS := \
 	sys_ctrl/l3/utils/l2cmd.c
 
+L2API_SRCS := \
+	sys_ctrl/l3/l2api/l2api.c \
+	sys_ctrl/l3/l2api/http.c \
+	sys_ctrl/l3/main/SysCfg.c \
+	sys_ctrl/l3/api/SCapiConn.c
+
 L2GUI_SRCS := \
 	sys_ctrl/l3/gui/mainwin.cc \
 	sys_ctrl/l3/gui/logowin.cc \
@@ -145,7 +151,7 @@ CXXFLAGS += $(ARCH) -fno-strict-aliasing -fsigned-char -Icompat -Wall -Wextra -W
 
 
 LIB_OBJS := $(LIB_SRCS:%.c=$(B)/%.o)
-TOOLS    := l2 l2term l2cmd
+TOOLS    := l2 l2term l2cmd l2api
 ifneq ($(WITH_L2GUI),)
 TOOLS    += l2gui
 else ifeq ($(QEMU),)
@@ -196,6 +202,10 @@ $(B)/bin/l2cmd: $(L2CMD_SRCS:%.c=$(B)/%.o) $(B)/libsgi.a
 	@mkdir -p $(dir $@)
 	$(CC) $(LDFLAGS) $^ $(LDLIBS) -o $@
 
+$(B)/bin/l2api: $(L2API_SRCS:%.c=$(B)/%.o) $(B)/libsgi.a
+	@mkdir -p $(dir $@)
+	$(CC) $(LDFLAGS) $^ $(LDLIBS) -o $@
+
 $(B)/bin/l2gui: $(L2GUI_SRCS:%.cc=$(B)/%.o) $(L2GUI_CSRCS:%.c=$(B)/%.o) $(B)/libsgi.a
 	@mkdir -p $(dir $@)
 	$(CXX) $(LDFLAGS) $^ $(LDLIBS) $(FLTK_LDFLAGS) -o $@
@@ -227,7 +237,7 @@ RECON_REF ?= origin/main
 UNIT_LIBSGI = $(if $(ARCH)$(EXTRA_CFLAGS),,LIBSGI=$(abspath $(B))/libsgi.a)
 SESSION_TESTS = tests/difftest.sh tests/l2term_test.py tests/smp_test.py \
 	tests/l1net_test.py tests/l1_test.py tests/l1usb_test.py tests/options_test.sh \
-	tests/l2_options_test.py $(if $(filter l2gui,$(TOOLS)),tests/l2gui_test.py)
+	tests/l2_options_test.py tests/l2api_test.py $(if $(filter l2gui,$(TOOLS)),tests/l2gui_test.py)
 check: all
 	$(if $(QEMU),,@if git rev-parse -q --verify $(RECON_REF) >/dev/null; then \
 	    for t in tests/unit/*_test.sh; do RECON_REF=$(RECON_REF) $(UNIT_LIBSGI) $$t || exit 1; done; \
@@ -273,8 +283,10 @@ install-service: install
 	install -d $(DESTDIR)$(UDEVDIR) $(DESTDIR)$(SYSTEMDDIR)
 	install -m 644 contrib/udev/60-sgi-l1.rules $(DESTDIR)$(UDEVDIR)
 	sed 's|@BINDIR@|$(BINDIR)|g' contrib/systemd/sgi-l2.service > $(DESTDIR)$(SYSTEMDDIR)/sgi-l2.service
+	sed 's|@BINDIR@|$(BINDIR)|g' contrib/systemd/sgi-l2api.service > $(DESTDIR)$(SYSTEMDDIR)/sgi-l2api.service
 	@echo "next: create the sgi-l2 user (see $(SYSTEMDDIR)/sgi-l2.service), then"
 	@echo "      udevadm control --reload && udevadm trigger && systemctl daemon-reload && systemctl enable --now sgi-l2"
+	@echo "      (and for the HTTP API: systemctl enable --now sgi-l2api)"
 
 clean:
 	rm -rf $(B)
