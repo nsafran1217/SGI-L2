@@ -2,7 +2,7 @@
  * Equivalence test for SGI's syslog() (l3/sys/syslogLib.c): each level and
  * message through the rewritten and the original (main branch) version;
  * the stderr output and the callback's level and text must match. (Levels
- * 0-2 print a string's address as their "line": masked.) Run by
+ * 0-2's file and line are masked: the original printed an address.) Run by
  * tests/unit/syslog_test.sh.
  */
 #include <ctype.h>
@@ -55,11 +55,14 @@ static void capture(int orig, int level, int msgno, const char *msg, char *out, 
   out[n] = '\0';
   fclose(f);
   strncat(out, cb_text, size - 1 - strlen(out));
-  /* "line <address>" of levels 0-2 */
-  for (p = out; (p = strstr(p, " line ")) != NULL; p++)
-    if ((level & 0xff) <= 2)
-      for (p += 6; *p == '-' || isdigit((unsigned char)*p); p++)
-        *p = '#';
+  /* levels 0-2: "L3: <where> line <n> ; " (the original's printed "(null)"
+   * and an address; the modern one the file and line) */
+  if ((level & 0xff) <= 2)
+    for (p = out; (p = strstr(p, "L3: ")) != NULL; p++) {
+      char *end = strstr(p, " ; ");
+      if (end != NULL)
+        memmove(p + 4, end, strlen(end) + 1);
+    }
 }
 
 int main(void)
