@@ -10,7 +10,7 @@
  *    L1 port, and closed when it goes or after repeated errors;
  *  - a serial line (-serial <device>) or a serial line on a terminal
  *    server (-serial <host> <port>): one port, PPP-framed;
- *  - sockets (-net, the simulator): l1net.c accepts them.
+ *  - sockets (-net): l1net.c accepts them.
  * Packets are read and written whole through IRouterReadPacket() and
  * IRouterWritePacket() with the link's read and write functions.
  */
@@ -29,7 +29,6 @@
 #include "dmp.h"
 #include "irtr.h"
 #include "l1net.h"
-#include "l1sim.h"
 #include "serial.h"
 #include "sgil1.h"
 #include "smp.h"
@@ -522,9 +521,6 @@ void l1_open(void)
   case L2_CONN_SERIAL_NET:
     status = l1_open_serial_enet();
     break;
-  case L2_CONN_SIM:
-    status = l1sim_export();
-    break;
   }
   if (status != 0) {
     fprintf(stderr,"FATAL: can\'t open connection to L1\n");
@@ -543,7 +539,6 @@ void l1_close(int fd)
 
   switch (l2_l1_conn_mode) {
   case L2_CONN_NET:
-  case L2_CONN_SIM:
     l1net_close(fd);
     break;
   case L2_CONN_USB:
@@ -767,7 +762,6 @@ static int (*read_fcn(void))()
 {
   switch (l2_l1_conn_mode) {
   case L2_CONN_NET:
-  case L2_CONN_SIM:
     return l1_read_l1net;
   case L2_CONN_USB:
     return l1_read_usb;
@@ -782,7 +776,6 @@ static int (*write_fcn(void))()
 {
   switch (l2_l1_conn_mode) {
   case L2_CONN_NET:
-  case L2_CONN_SIM:
     return l1_write_l1net;
   case L2_CONN_USB:
     return l1_write_usb;
@@ -820,7 +813,7 @@ void l1_read_packet(int port, int fd)
     IRouterSendPacket(NULL,p);
   }
   else if (status == IR_ERRNO(IRERR_READ_FAILED_EOF)) {
-    if (l2_l1_conn_mode == L2_CONN_NET || l2_l1_conn_mode == L2_CONN_SIM)
+    if (l2_l1_conn_mode == L2_CONN_NET)
       l1_close(fd);
   }
   else if (fd_ok(fd)) {

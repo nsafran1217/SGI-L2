@@ -65,7 +65,6 @@ L2_SRCS := \
 	sys_ctrl/l3/l2/l2.c \
 	sys_ctrl/l3/l2/l1.c \
 	sys_ctrl/l3/l2/l1net.c \
-	sys_ctrl/l3/l2/l1sim.c \
 	sys_ctrl/l3/l2/serial.c \
 	sys_ctrl/l3/l2/smp.c \
 	sys_ctrl/l3/l2/enet.c \

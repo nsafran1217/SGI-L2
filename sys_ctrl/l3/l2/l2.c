@@ -27,7 +27,6 @@
 #include "cmd.h"
 #include "discover.h"
 #include "irtr.h"
-#include "l1sim.h"
 #include "broadcast.h"
 #include "target.h"
 #include "../main/nvram.h"
@@ -124,7 +123,7 @@ static void ignore_signal(int sig)
 }
 
 /* start the L2 and run it; returns only if the event loop does */
-static int run(int rack)
+static int run(void)
 {
   struct sigaction sa;
 
@@ -140,10 +139,6 @@ static int run(int rack)
     broadcast_response_timeout = nvramGet(NVRAM_BROADCAST_TIMEOUT);
   if (nvramGet(NVRAM_TARGET_TIMEOUT) != 0)
     target_response_timeout = nvramGet(NVRAM_TARGET_TIMEOUT);
-  if (rack != 0) {
-    nvramSet(NVRAM_RACK,rack);
-    nvramSet(NVRAM_SLOT,0);
-  }
   IRouterInit(l2_ip);
   IRouterInitID(&l2_id,0,0);           /* (task 0) */
   IRouterInitID(&l2_console_id,IR_L2_CONSOLE,0);
@@ -190,7 +185,6 @@ int main(int argc, char **argv, char **envp)
   char *myhost;
   char *pw;
   char *ssn;
-  int rack = 0;
   int i;
 
   syslogLibInit(syslog_msg);
@@ -215,23 +209,6 @@ int main(int argc, char **argv, char **envp)
       l2_l1_conn_mode = L2_CONN_USB;
     else if (strcmp(arg,"-noconn") == 0)
       l2_l1_conn_mode = L2_CONN_NONE;
-    else if (strcmp(arg,"-l1sim_manual") == 0) {
-      /* [<rack>]: wait for simulated L1s started by hand */
-      l2_l1_conn_mode = L2_CONN_SIM;
-      l1sim_auto = 0;
-      nvramSim = 1;
-      if (more > 0)
-        rack = atoi(argv[++i]);
-    }
-    else if (strcmp(arg,"-l1sim") == 0) {
-      /* [<rack> [<partition>]] */
-      l2_l1_conn_mode = L2_CONN_SIM;
-      if (more > 0) {
-        rack = atoi(argv[++i]);
-        if (more > 1)
-          l1sim_partition = atoi(argv[++i]);
-      }
-    }
     else if (strcmp(arg,"--copy") == 0) {
       /* <n>: copy n of l2 on this host, its ports biased by 10 n */
       if (more == 0 || argv[i + 1][0] == '-') {
@@ -303,7 +280,7 @@ int main(int argc, char **argv, char **envp)
     else
       syntax();
   }
-  return run(rack);
+  return run();
 }
 
 char *l2_firmware_version(void)

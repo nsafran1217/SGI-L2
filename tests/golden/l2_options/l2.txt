@@ -98,44 +98,18 @@ INFO: SMP listening on port: 8003
 L2               0 EVT(3,0,1) D: L1    0. 0, 0,  0  S: IP e 02 1010000
 L2               2 EVT(3,0,1) D: L1    0. 0, 0,  0  S: IP e 02 1010000
 ?-<L2IP>-L2>=== l2 -nodiscover -l1sim
-exit running
-nvram ('772206d6423ce18d8c85479de4dba7cb', ['checksum error (CH) - nvram reset.', ''])
-
-
-SGI L2 Controller
-Current L2 version: 1.62.0 
-
-INFO: NVRAM file './.l2_NVRAM' doesn't exist.....initializing
-INFO: L1 simulator port 9003 initialized
-SORRY--can't find the simulator executable!!
-INFO: SMP listening on port: 8001
-INFO: SMP listening on port: 8003
-?-<L2IP>-L2>=== l2 -nodiscover -l1sim 4 2
-exit running
-nvram ('6712b8e9f74a4ccc271833c3ffa99062', ['checksum error (CH) - nvram reset.', ''])
-
-
-SGI L2 Controller
-Current L2 version: 1.62.0 
-
-INFO: NVRAM file './.l2_NVRAM' doesn't exist.....initializing
-INFO: L1 simulator port 9003 initialized
-SORRY--can't find the simulator executable!!
-INFO: SMP listening on port: 8001
-INFO: SMP listening on port: 8003
-?-004-L2>=== l2 -nodiscover -l1sim_manual 6
-exit running
+exit 0
 nvram None
-
-
-SGI L2 Controller
-Current L2 version: 1.62.0 
-
-INFO: L1 simulator port 9003 initialized
-SORRY--can't find the simulator executable!!
-INFO: SMP listening on port: 8001
-INFO: SMP listening on port: 8003
-?-006-L2>=== l2 -nodiscover -net
+usage: <l2> -enet | -usb | -serial [ <device> | <ipaddr> <port>]  [ -noconn -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
+=== l2 -nodiscover -l1sim 4 2
+exit 0
+nvram None
+usage: <l2> -enet | -usb | -serial [ <device> | <ipaddr> <port>]  [ -noconn -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
+=== l2 -nodiscover -l1sim_manual 6
+exit 0
+nvram None
+usage: <l2> -enet | -usb | -serial [ <device> | <ipaddr> <port>]  [ -noconn -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
+=== l2 -nodiscover -net
 exit running
 nvram ('772206d6423ce18d8c85479de4dba7cb', ['checksum error (CH) - nvram reset.', ''])
 

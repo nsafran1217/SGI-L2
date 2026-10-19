@@ -165,7 +165,6 @@ void cfg_ping_l1(int device)
   switch (l2_l1_conn_mode) {
   case L2_CONN_NET:
   case L2_CONN_USB:
-  case L2_CONN_SIM:
     port = device;
     break;
   case L2_CONN_SERIAL:

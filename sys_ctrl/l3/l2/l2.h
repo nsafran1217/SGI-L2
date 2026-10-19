@@ -41,7 +41,6 @@ enum {
     L2_CONN_USB = 2,            /* -usb (the default): the sgil1 driver */
     L2_CONN_SERIAL = 3,         /* -serial <device> */
     L2_CONN_SERIAL_NET = 4,     /* -serial <host> [<port>]: a serial line over TCP */
-    L2_CONN_SIM = 5,            /* -l1sim, -l1sim_manual (l1sim.c) */
 };
 #define L2_L1_PORTS 40          /* l2_l1_ports[] */
 

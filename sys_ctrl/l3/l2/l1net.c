@@ -4,9 +4,9 @@
  * Reconstructed from the STABS debug info and Ghidra decompilation of l2.
  * Original: /data/cf/sysco/scs123.patch/sys_ctrl/l3/l2/l1net.c
  *
- * L1s over a socket instead of USB ("-net", and the L1 simulator): they
- * connect to L1NET_PORT, locally or over TCP, and each connection becomes
- * one of the L2's L1 ports.
+ * L1s over a socket instead of USB ("-net", which SGI's L1 simulator
+ * used): they connect to L1NET_PORT, locally or over TCP, and each
+ * connection becomes one of the L2's L1 ports.
  */
 
 #include <stdio.h>
@@ -17,11 +17,6 @@
 #include "cfg.h"
 
 #define L1NET_PORT  9003        /* plus IR_PORT_BIAS */
-
-static const char *conn_type(void)
-{
-  return l2_l1_conn_mode == L2_CONN_SIM ? "simulator" : "network";
-}
 
 /* a connection on the listening socket sd: give it a free L1 port */
 void l1net_accept(void *cd, int sd)
@@ -35,12 +30,12 @@ void l1net_accept(void *cd, int sd)
     fprintf(stderr,"INFO: accept of L1 simulator connection failed\n");
     return;
   }
-  fprintf(stderr,"INFO: accepted L1 %s connection\n",conn_type());
+  fprintf(stderr,"INFO: accepted L1 network connection\n");
   SocketSetBufferSize(fd,0x400,0x400);
   for (device = 0; device < L2_L1_PORTS && l2_l1_ports[device].fd != -1; device++)
     ;
   if (device == L2_L1_PORTS) {
-    fprintf(stderr,"ERROR: no device for L1 %s connection available\n",conn_type());
+    fprintf(stderr,"ERROR: no device for L1 network connection available\n");
     SocketClose(fd);            /* (the original left it open) */
     return;
   }
@@ -65,17 +60,17 @@ int l1net_export(void)
 
   sd = SocketExportUnixConnection(port);
   if (sd == -1) {
-    fprintf(stderr,"ERROR: can\'t export L1 %s port %d\n",conn_type(),port);
+    fprintf(stderr,"ERROR: can\'t export L1 network port %d\n",port);
     return -1;
   }
   EventAddInput(sd,l1net_accept,NULL,"l1net_export");
   sd = SocketExportInetConnection(port);
   if (sd == -1) {
-    fprintf(stderr,"ERROR: can\'t export L1 %s port %d\n",conn_type(),port);
+    fprintf(stderr,"ERROR: can\'t export L1 network port %d\n",port);
     return -1;
   }
   EventAddInput(sd,l1net_accept,NULL,"l1net_export");
-  fprintf(stderr,"INFO: L1 %s port %d initialized\n",conn_type(),port);
+  fprintf(stderr,"INFO: L1 network port %d initialized\n",port);
   return 0;
 }
 
