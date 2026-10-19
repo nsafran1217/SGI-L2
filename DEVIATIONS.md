@@ -1,8 +1,12 @@
-# Intentional differences from the original binaries
+# Differences from SGI's 1.62.0 tools
 
-Behaviour that differs from SGI's 1.62.0 binaries because the original relied
-on something modern systems no longer have. (SGI's own bugs, kept or fixed,
-are in ORIGINAL_BUGS.md.)
+Every way these tools behave differently from SGI's binaries. The first
+table is from the reconstruction: what the originals relied on that current
+systems no longer have. The second lists the modern changes (MODERN.md);
+each one updated tests/golden/ in its commit. (SGI's own bugs, kept or
+fixed, are in ORIGINAL_BUGS.md.)
+
+## From the reconstruction
 
 | Where | Difference | Why |
 |---|---|---|
@@ -13,3 +17,8 @@ are in ORIGINAL_BUGS.md.)
 | `l3/gui/l2gui.cc` | Labels use FLTK size 12. | FLNX asked Nano-X for Arial TrueType fonts the L2 never had and fell back to Nano-X's 13-pixel System font; FLTK's default size 14 is too big for the 320x240 layouts. |
 | `l3/gui/fl.h` `fl_sleep()` | Waits on a timeout instead of looping on `Fl::wait(t)`. | FLTK 1.0's `Fl::wait(t)` returned the time left; later versions do not. |
 | `l3/gui/flboxtype.cc` (added) | Flat, up, down and round boxes are redrawn FLTK 1.0's way: an inactive widget keeps its fill color, only its bevels and text are grayed. | FLTK 1.1 and later fade the fill as well, which grays the white status area and logo while the command window is up; the original (FLTK 1.0) left them white. |
+
+## Modern changes
+
+| Where | Difference | Why |
+|---|---|---|

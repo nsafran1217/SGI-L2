@@ -1,64 +1,62 @@
-# SGI L3 system-controller tools, reconstructed
+# SGI L2 controller tools, modern
 
-Source for SGI's `l2` (the L2 controller emulator), `l2term`, `l2cmd`,
-`l2passwd` and `l2gui` (the L2's touch-screen GUI) from snxsc_l3 1.62.0
-(IST 3.24), rebuilt from the original i386 binaries' STABS debug info and
-Ghidra decompilation. The layout mirrors SGI's original tree (`sys_ctrl/...`).
+`l2` (the L2 system controller, as SGI's L3 software emulated it on a PC),
+and its clients `l2term`, `l2cmd` and `l2gui`, rebuilt from source for
+current Linux. The source was reconstructed from SGI's snxsc_l3 1.62.0
+binaries (IST 3.24); this repository is where it becomes a tool for
+hobbyists with an Origin 3000, Altix or Onyx: see MODERN.md for what is
+changing and how far along it is.
 
-## Build and test
+## Build
 
-    make            # build/bin/{l2,l2term,l2cmd,l2passwd,l2gui}: 32-bit, matching the original ABI
-    make ARCH=-m64 B=build64          # native 64-bit build in build64/
-    make test       # every SGI struct's size and field offsets match the originals (32-bit)
-    make difftest   # l2/l2cmd/l2term outputs and the NVRAM file match the original binaries
+    make            # build/bin/{l2,l2term,l2cmd,l2passwd,l2gui}
 
-The 32-bit build needs gcc with 32-bit support (Debian: `gcc-multilib`).
+Needs gcc and make. `l2gui` also needs FLTK 1.3 or 1.4
+(`FLTK_CONFIG=<path to fltk-config>`); without it, `make` skips `l2gui`.
+In the reconstruction workspace, `../retools/setup_fltk.sh 64` builds one
+into `../tools/fltk/`.
 
-`l2gui` needs FLTK. `../retools/setup_fltk.sh 32` (or `64`, for `ARCH=-m64`)
-builds FLTK 1.3.8 from the `../refs/fltk` checkout into `../tools/fltk/`, with
-no root needed (the 32-bit build links the host's i386 X11 runtime libraries).
-Without it, `make` skips `l2gui`; `FLTK_CONFIG=<path to fltk-config>` uses
-another FLTK 1.3 or 1.4. The windows are FLUID files (`sys_ctrl/l3/gui/ui/*.fl`)
-that FLUID turns into code at build time, as SGI's build did.
-`make difftest` uses the original binaries from
-`../ist/ist-software-extracted/IST/snxsc_l3/stand/sysco/bin`; to test another
-build, run the scripts with `NEW_BIN`:
+Other builds:
 
-    NEW_BIN=$PWD/build64/bin tests/difftest.sh
-    NEW_BIN=$PWD/build64/bin tests/l2term_test.py
-    NEW_BIN=$PWD/build64/bin tests/nvram_test.py
-    NEW_BIN=$PWD/build64/bin tests/l2gui_test.py   # needs Xvfb, xdotool, ImageMagick, strace
+    make ARCH=-m32 B=build32          # 32-bit (the original binaries' struct layouts)
+    make B=build64asan EXTRA_CFLAGS=-fsanitize=address EXTRA_LDFLAGS=-fsanitize=address
 
-`tests/l1_test.py` covers the L1 side, which the other tests (all `l2
--noconn`) never reach: the original and the rebuilt `l2 -net` each get a fake
-L1 (`tests/fakel1.py`, one brick) and the commands in `tests/l1_commands.txt`;
-transcripts and the requests the L1 receives must match. The original needs
-`tests/usrtmp_shim.c` (built on the fly, 32-bit) for its hardcoded `/usr/tmp`.
-`tests/l1net_test.py` is a quicker smoke test of the same path.
+## Run
 
-`tests/l2gui_test.py` runs the same touch session (destination window, power
-and reset commands, the logo screen) through the original and the rebuilt
-`l2gui` under Xvfb and compares every byte each exchanges with the L2;
-`KEEP=1` keeps a screenshot of each step.
-An AddressSanitizer build: `make ARCH=-m64 B=build64asan
-EXTRA_CFLAGS=-fsanitize=address EXTRA_LDFLAGS=-fsanitize=address`, tested with
-`ASAN_OPTIONS=detect_leaks=0` (the API leaks response packets at exit, as the
-original does).
+Until phase 3 is done, `l2 -usb` still needs SGI's `sgil1` kernel driver
+(the port for current kernels is in SGI-L2-Docker). Without L1s:
 
-A big-endian build (s390x), run under qemu-user. `../retools/setup_s390x.sh`
-unpacks the cross toolchain and qemu into `../tools/s390x/` without root:
+    l2 -noconn                        # an L2 with no bricks
+    l2term --l2 localhost             # its console; CTRL-] q quits
+    l2cmd --l2 localhost version
 
-    . ../tools/s390x/env.sh
-    S=$(cd ../tools/s390x/root/usr && pwd)
-    make CC=s390x-linux-gnu-gcc-14 AR=s390x-linux-gnu-ar ARCH= B=builds390x \
-         QEMU="$S/bin/qemu-s390x -L $S/s390x-linux-gnu"
-    NEW_BIN=$PWD/builds390x/qemu-bin tests/difftest.sh     # etc.
+## Test
 
-The tests then pit the big-endian tools against the original i386 binaries.
+    make check      # unit tests, then every session test against tests/golden/
+    make golden     # rewrite tests/golden/ from this build: review the diff
+    make interop    # also run SGI's original binaries (../ist, or ORIG_BIN=<dir>)
+    make test       # struct layouts as in the original i386 binaries
+
+The session tests (`tests/*_test.py`, `difftest.sh`, `options_test.sh`)
+run the tools of one build (`NEW_BIN=<build>/bin`, default `build/bin`)
+and compare what they print, what the fake L1 receives and the bytes
+`l2gui` exchanges with the golden transcripts. They were recorded while the
+tools still matched SGI's binaries exactly; any intentional change updates
+them in the same commit. Run one test at a time: they share ports 8000-8003
+(and display :77).
+
+`make interop` adds runs with SGI's original binaries: the original
+clients against this `l2` must produce the goldens, and this build's
+clients against the original `l2` must produce what the original clients
+do. That is the check that the wire format stays compatible.
+
+The unit tests (`tests/unit/`) compare modules with the faithful
+reconstruction in `origin/main` (`RECON_REF=<ref>`) and are skipped if
+it is not in git.
+
+`l2gui_test.py` needs Xvfb, xdotool, ImageMagick and strace.
 
 ## Configurable paths
-
-The originals hardcoded these. Unset, each keeps the original value.
 
 | Variable | What | Default |
 |---|---|---|
@@ -68,25 +66,11 @@ The originals hardcoded these. Unset, each keeps the original value.
 | `SGI_L3_ROOT` | prefix for the files `l2passwd` rewrites | empty: the real `/etc/passwd`, `/etc/.rhosts`, `/rhosts.allow` |
 | `SGI_L3_MTRACE_DIR` | `--mtrace` output | `/tmp` |
 
-`l2passwd` sets the host's root password from the L2 NVRAM. Without
-`SGI_L3_ROOT` it edits the real `/etc/passwd`, as the original did.
+## Documents
 
-## Status
+- MODERN.md: the plan and its progress.
+- DEVIATIONS.md: every way the tools differ from SGI's 1.62.0.
+- ORIGINAL_BUGS.md: SGI's bugs found in the reconstruction, kept or fixed.
 
-- All five tools build and match the originals on the differential tests.
-- `l2gui` sends and receives byte-identical L2 traffic. It draws with FLTK
-  1.3 on X11 rather than SGI's FLNX on Nano-X, so the pixels differ (see
-  `DEVIATIONS.md`).
-- Files still include `compat/decomp.h` (Ghidra's types) and carry Ghidra's
-  naming; cleanup into idiomatic C continues file by file.
-- 64-bit: builds without pointer/integer conversion warnings and passes the
-  differential tests (also under ASan) against the original i386 binaries.
-- Byte order: everything the tools write — the Router wire format, IRouter
-  frame prefixes, the NVRAM file — is encoded byte by byte to match what the
-  i386 originals produce, so the same code runs on any host. IRouter frames
-  carry their own byte-order tag, as in the original (the PPC L2 firmware is
-  big-endian). Verified on s390x (big-endian, 64-bit) under qemu: all
-  differential tests pass against the i386 originals.
-- `char` is signed (`-fsigned-char`), as on i386: the code depends on it.
-- `ORIGINAL_BUGS.md` lists SGI bugs found (kept or fixed); `DEVIATIONS.md`
-  lists intentional behaviour differences.
+The SGI code is SGI's; this is a reconstruction for running and preserving
+their hardware.
