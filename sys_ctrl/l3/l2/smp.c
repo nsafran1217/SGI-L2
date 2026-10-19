@@ -1182,14 +1182,15 @@ void smp_write(SMP *smp, char *ibptr, int iblen)
       smp->hung = 1;
       return;
     }
-    /* (Linux's select() leaves the time left in wtime) */
+    /* (Linux's select() leaves the time left in wtime; only a wait of a
+     * 2.4 kernel's tick, 10 ms, or more is logged, as SGI's l2 saw them) */
     dtime.tv_sec = 5 - wtime.tv_sec;
     dtime.tv_usec = -wtime.tv_usec;
     if (dtime.tv_usec < 0) {
       dtime.tv_sec = 4 - wtime.tv_sec;
       dtime.tv_usec += 1000000;
     }
-    if (dtime.tv_sec > 0 || dtime.tv_usec > 0) {
+    if (dtime.tv_sec > 0 || dtime.tv_usec >= 10000) {
       sprintf(x,"SMP %d waited %d.%06d",smp->grpid,(int)dtime.tv_sec,(int)dtime.tv_usec);
       nvramLogFinsert("%s",x);
     }

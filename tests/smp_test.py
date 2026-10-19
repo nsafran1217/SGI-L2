@@ -98,6 +98,9 @@ def stdin_session(fd, logname, lines):
 def mask(data):
     text = data.decode("latin-1")     # (with the CRs: the console sends CR LF)
     text = re.sub(r"^.*SMP \d+ waited [0-9.]+\r?\n", "", text, flags=re.M)
+    # the "log" command's answer: the original's ring wraps with "SMP n waited"
+    # entries (and a wrapped log shows as empty); nvram_test.py compares the log
+    text = re.sub(r"(-L2>log\r?\n)(?:(?![^\n]*-L2>)[^\n]*\n)*", r"\1<LOG>\n", text)
     text = re.sub(r"[A-Z][a-z]{2} [A-Z][a-z]{2} +\d+ [\d:]{8} \d{4}", "<DATE>", text)
     text = re.sub(r"\d{2}:\d{2}:\d{2}", "<TIME>", text)
     text = re.sub(r"\d{2}/\d{2}/\d{2}", "<DATE>", text)
