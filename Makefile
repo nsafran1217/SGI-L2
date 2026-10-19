@@ -1,27 +1,32 @@
-# Reconstructed SGI L3 system-controller tools.
+# SGI L2 controller tools for current systems (from the reconstruction of
+# SGI's snxsc_l3 1.62.0).
 #
-#   make            build everything into build/ (32-bit, matching the original ABI)
-#   make test       layout checks: every SGI struct must match the original binaries
-#   make check      every differential test (l2cmd, l2term, NVRAM, L1, l2gui sessions)
-#                   against this build: outputs must match the original binaries'
-#   make check-all  the same for the 32-bit, 64-bit and ASan builds (check-s390x: big-endian)
+#   make            build everything into build/ (native)
+#   make test       layout checks: every SGI struct as in the original i386 binaries
+#   make check      unit tests, and every session test (l2cmd, l2term, consoles, L1,
+#                   l2gui) against this build: outputs must match tests/golden/
+#   make golden     rewrite tests/golden/ from this build (review the diff!)
+#   make interop    the session tests with SGI's original binaries as well (needs
+#                   ../ist or ORIG_BIN): old clients against this l2, and the reverse
+#   make check-all  check for the native, 32-bit and ASan builds (check-s390x: big-endian)
 #   make clean
 #
 # l2gui also needs FLTK, built from ../refs/fltk by ../retools/setup_fltk.sh
 # (32 or 64 to match ARCH); without it l2gui is skipped. FLTK_CONFIG=<fltk-config>
 # selects another FLTK 1.3/1.4 build.
 #
-# ARCH=-m32 keeps struct layouts identical to the originals (checked by make test).
+# ARCH=-m32 B=build32 builds with the original binaries' struct layouts.
 
 CC      ?= gcc
-ARCH    ?= -m32
+ARCH    ?=
 CFLAGS  ?= -g -O0
 # -fsigned-char: the code was written for i386, where char is signed (not so on
 # s390x, ARM, PowerPC)
 CFLAGS  += $(ARCH) -std=gnu99 -fcommon -fno-strict-aliasing -fno-builtin-fprintf -include compat/printf_check.h -fsigned-char -Icompat -Wall -Wextra -Wno-unused-parameter -Wno-format-zero-length
 # Debian's libc6-dev-i386 puts the 32-bit glibc headers under the x86_64 multiarch dir
+ISYSTEM32 := $(if $(wildcard /usr/include/i386-linux-gnu/bits),,-isystem /usr/include/x86_64-linux-gnu)
 ifeq ($(ARCH),-m32)
-ISYSTEM := $(if $(wildcard /usr/include/i386-linux-gnu/bits),,-isystem /usr/include/x86_64-linux-gnu)
+ISYSTEM := $(ISYSTEM32)
 CFLAGS  += $(ISYSTEM)
 endif
 # the tree builds warning-free with gcc 14; WERROR= for other compilers
@@ -142,7 +147,7 @@ else ifeq ($(QEMU),)
 $(info l2gui skipped: no $(FLTK_CONFIG) (run ../retools/setup_fltk.sh $(FLTK_BITS)))
 endif
 
-.PHONY: all test check check-all check-s390x difftest clean
+.PHONY: all test check check-all check-s390x difftest golden interop clean
 all: $(TOOLS:%=$(B)/bin/%)
 
 $(B)/%.o: %.c Makefile
@@ -194,34 +199,43 @@ $(B)/qemu-bin/%: $(B)/bin/%
 	chmod +x $@
 endif
 
+# (always 32-bit: the layouts checked are the original i386 binaries')
 test:
-	$(CC) $(CFLAGS) -fsyntax-only tests/layout_check.c
+	$(CC) $(CFLAGS) -m32 $(ISYSTEM32) -fsyntax-only tests/layout_check.c
 	@echo "layout check passed"
 
-# make check: every differential test against this build (B=; cross builds run
-# through their qemu wrappers). make check-all: the 32-bit, 64-bit and ASan
-# builds; make check-s390x the big-endian one.
-CHECK_BIN = $(abspath $(B))/$(if $(QEMU),qemu-bin,bin)
+# make check: the unit tests and every session test against this build (B=;
+# cross builds run through their qemu wrappers). The unit tests compare
+# modules with the faithful reconstruction (RECON_REF, default origin/main:
+# the src repository's main) and are skipped without it.
+# make check-all: the native, 32-bit and ASan builds; make check-s390x the
+# big-endian one.
+CHECK_BIN  = $(abspath $(B))/$(if $(QEMU),qemu-bin,bin)
+RECON_REF ?= origin/main
+SESSION_TESTS = tests/difftest.sh tests/l2term_test.py tests/smp_test.py \
+	tests/l1net_test.py tests/l1_test.py tests/l1usb_test.py tests/options_test.sh \
+	tests/l2_options_test.py $(if $(filter l2gui,$(TOOLS)),tests/l2gui_test.py)
 check: all
-	$(if $(QEMU),,for t in tests/unit/*_test.sh; do $$t || exit 1; done)
-	NEW_BIN=$(CHECK_BIN) tests/difftest.sh
-	NEW_BIN=$(CHECK_BIN) tests/l2term_test.py
-	NEW_BIN=$(CHECK_BIN) tests/smp_test.py
-	NEW_BIN=$(CHECK_BIN) tests/nvram_test.py
-	NEW_BIN=$(CHECK_BIN) tests/l1net_test.py
-	NEW_BIN=$(CHECK_BIN) tests/l1_test.py
-	NEW_BIN=$(CHECK_BIN) tests/l1usb_test.py
-	NEW_BIN=$(CHECK_BIN) tests/options_test.sh
-	NEW_BIN=$(CHECK_BIN) tests/l2_options_test.py
-	NEW_BIN=$(CHECK_BIN) tests/l1direct_test.py
-	$(if $(filter l2gui,$(TOOLS)),NEW_BIN=$(CHECK_BIN) tests/l2gui_test.py)
+	$(if $(QEMU),,@if git rev-parse -q --verify $(RECON_REF) >/dev/null; then \
+	    for t in tests/unit/*_test.sh; do RECON_REF=$(RECON_REF) $$t || exit 1; done; \
+	else echo "SKIP  unit tests: no $(RECON_REF) (the faithful reconstruction) in git"; fi)
+	@fail=0; for t in $(SESSION_TESTS); do NEW_BIN=$(CHECK_BIN) $$t || fail=1; done; exit $$fail
 
 difftest: check
+
+golden: all
+	@for t in $(SESSION_TESTS); do GOLDEN=update NEW_BIN=$(CHECK_BIN) $$t || exit 1; done
+	git status --short tests/golden
+
+# (nvram_test and l1direct_test compare with the originals directly)
+interop: all
+	@fail=0; for t in $(SESSION_TESTS) tests/nvram_test.py tests/l1direct_test.py; do \
+	    INTEROP=1 NEW_BIN=$(CHECK_BIN) $$t || fail=1; done; exit $$fail
 
 S390X := $(abspath ../tools/s390x/root/usr)
 check-all:
 	$(MAKE) check
-	$(MAKE) check ARCH=-m64 B=build64
+	$(MAKE) check ARCH=-m32 B=build32
 	ASAN_OPTIONS=detect_leaks=0 $(MAKE) check ARCH=-m64 B=build64asan \
 	    EXTRA_CFLAGS=-fsanitize=address EXTRA_LDFLAGS=-fsanitize=address
 

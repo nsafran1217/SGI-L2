@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
-"""Differential test of l2's USB L1 link (l1.c: l1_open_usb() and on), with a fake driver.
+"""l2's USB L1 link (l1.c: l1_open_usb() and on), with a fake driver.
 
-    tests/l1usb_test.py [ORIG_BIN_DIR]
+    tests/l1usb_test.py
 
-Each l2 (original and rebuilt) runs '-usb' with tests/sgil1_shim.c
-preloaded: its /dev/sgil1_* devices are Unix packet sockets served here,
-where a fake L1 (tests/fakel1.py) behind device 0 reports brick 001c02.
-Each command in tests/l1_commands.txt goes through the original l2cmd; then
+l2 runs '-usb' with tests/sgil1_shim.c preloaded: its /dev/sgil1_* devices
+are Unix packet sockets served here, where a fake L1 (tests/fakel1.py)
+behind device 0 reports brick 001c02. Each command in
+tests/l1_commands.txt goes through l2cmd; then
 device reads fail (once; twice, then a good one; the device is unplugged and
 plugged in again; three times, which closes and reopens it; with ENODEV,
-which closes it until it is plugged in again), with commands in between. The transcripts, the daemons'
-logs and the requests the fake L1 got must match.
+which closes it until it is plugged in again), with commands in between.
+The transcript, the daemon's log and the requests the fake L1 got must match
+tests/golden/l1usb/ (INTEROP=1: also with SGI's original l2cmd;
+tests/golden.py).
 """
 
-import difflib
 import os
 import re
 import shutil
@@ -25,12 +26,9 @@ import threading
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SRC = os.path.dirname(HERE)
-ORIG = sys.argv[1] if len(sys.argv) > 1 else os.path.join(
-    SRC, "..", "ist/ist-software-extracted/IST/snxsc_l3/stand/sysco/bin")
-NEW = os.environ.get("NEW_BIN", os.path.join(SRC, "build/bin"))
 sys.path.insert(0, HERE)
 from fakel1 import FakeL1   # noqa: E402
+from golden import Golden, INTEROP, NEW, ORIG   # noqa: E402
 from l1_test import mask    # noqa: E402
 
 DEVICES = 40                # the driver's status bytes
@@ -112,8 +110,11 @@ def wait(cond, secs=10):
     return False
 
 
+L2CMD = os.path.join(NEW, "l2cmd")     # (the interop run: the original's)
+
+
 def l2cmd(c):
-    r = subprocess.run([os.path.join(ORIG, "l2cmd"), "--l2", "127.0.0.1", *c.split()],
+    r = subprocess.run([L2CMD, "--l2", "127.0.0.1", *c.split()],
                        capture_output=True, text=True, errors="replace", timeout=30)
     return f"=== {c}\n{mask(r.stdout + r.stderr)}"
 
@@ -196,34 +197,27 @@ def session(l2bin, preload, commands, work, name):
 
 
 def main():
+    global L2CMD
     commands = [l.strip() for l in open(os.path.join(HERE, "l1_commands.txt")) if l.strip()]
+    g = Golden("l1usb")
     work = tempfile.mkdtemp()
-    ok = True
     try:
-        orig_l2, new_l2 = os.path.join(ORIG, "l2"), os.path.join(NEW, "l2")
-        ref = session(orig_l2, [build_shim(work, "usrtmp_shim.c", 32),
-                                build_shim(work, "sgil1_shim.c", 32)], commands, work, "orig")
-        new = session(new_l2, [build_shim(work, "sgil1_shim.c", elf_bits(new_l2))], commands,
-                      work, "new")
-        for what, a, b in zip(("transcript", "daemon log", "L1 requests"), ref, new):
-            if a != b:
-                ok = False
-                print(f"FAIL  l1usb: {what} differs")
-                if isinstance(a, str):
-                    for line in list(difflib.unified_diff(a.split("\n"), b.split("\n"), "orig",
-                                                          "new", lineterm=""))[:40]:
-                        print("   ", line)
-                else:
-                    print("     orig", a, "\n     new ", b)
-        if ok:
-            print(f"PASS  l1usb: l2 -usb with a fake driver ({len(commands)} commands, unplug and "
-                  f"replug, {len(ref[2])} L1 requests)")
+        new_l2 = os.path.join(NEW, "l2")
+        shim = build_shim(work, "sgil1_shim.c", elf_bits(new_l2))
+        runs = [("l2cmd=new", NEW)] + ([("l2cmd=orig", ORIG)] if INTEROP else [])
+        for label, cdir in runs:
+            L2CMD = os.path.join(cdir, "l2cmd")
+            text, daemon, reqs = session(new_l2, [shim], commands, work, label)
+            g.check("transcript", text, label)
+            g.check("daemon", daemon, label)
+            g.check("l1_requests", reqs, label)
     finally:
         if os.environ.get("KEEP"):
             print("kept", work)
         else:
             shutil.rmtree(work)
-    return 0 if ok else 1
+    print(f"{len(commands)} commands, unplug and replug")
+    return g.status()
 
 
 if __name__ == "__main__":

@@ -1,0 +1,226 @@
+=== config
+L2 <L2IP>: - ---- (no rack ID set) (LOCAL)
+L1 <L2IP>:0:0         - 001c02    
+=== config verbose
+L2 <L2IP>: - ---- (no rack ID set) (IR 80000101, C 00000000) (LOCAL)
+L1 <L2IP>:0:0         - 001c02     (socket <l1net 0>)
+L3 Clients:
+   127.0.0.1: (IR ce000101) <USER> (<GECOS>) @ localhost running 'l2cmd'
+=== config summary
+L2s: 1
+L1s: 1
+  C Bricks: 1
+=== pwr
+001c02:
+fake L1 001C02: power check
+=== pwr s
+all 1 bricks appear powered off
+margin: 1 default, 0 low, 0 normal, 0 high, 0 custom, 0 other
+=== pwr up
+001c02:
+fake L1 001C02: power up hold
+001c02:
+fake L1 001C02: reset
+=== pwr down
+001c02:
+fake L1 001C02: power down
+=== reset
+001c02:
+fake L1 001C02: reset
+=== r 1 pwr
+001c02:
+fake L1 001C02: power check
+=== r 1 s 2 pwr
+001c02:
+fake L1 001C02: power check
+=== r 1 s 2 pwr up
+001c02:
+fake L1 001C02: power up hold
+001c02:
+fake L1 001C02: reset
+=== r 2 pwr
+ERROR: no L1s found to match that destination
+=== r 1 s 3 pwr
+ERROR: no L1s found to match that destination
+=== l1 ver
+001c02:
+fake L1 001C02: ver 
+=== r 1 s 2 l1 ver
+001c02:
+fake L1 001C02: ver 
+=== r 1 s 2 l1 serial
+001c02:
+fake L1 001C02: serial 
+=== nmi
+001c02:
+fake L1 001C02: nmi 
+=== r 1 nmi
+001c02:
+fake L1 001C02: nmi 
+=== dest
+rack all slot all
+001c02 (<L2IP>:0:0)
+=== r 1 s 2 dest
+1 default destination(s) set
+=== dest
+rack all slot all
+001c02 (<L2IP>:0:0)
+=== pwr
+001c02:
+fake L1 001C02: power check
+=== dest reset
+default destination reset to all bricks and slots
+=== ver s
+L2 Controller is running firmware version 1.62.0
+
+WARNING: ERRORS occurred while reading flash versions from L1 Controllers:
+    ERROR: could not get flash version of 001c02
+
+=== ver c
+=== env s
+001c02: environmental summary not supported
+=== r 1 env s
+001c02: environmental summary not supported
+=== sel
+ERROR: this command must be run from an SMP (terminal) session (i.e. via l2term or telnet to the L2)
+=== route
+001c02:
+fake L1 001C02: route 
+=== r 1 s 2 route
+ERROR: this command must be run from an SMP (terminal) session (i.e. via l2term or telnet to the L2)
+=== pbay cfg
+PowerBay fake L1 001C02: pbay serial: 001c02 
+=== pbay status
+001c02:   [PowerBay fake L1 001C02: pbay serial]
+fake L1 001C02: pbay status 
+=== ver c
+=== pwr s
+all 1 bricks appear powered off
+margin: 1 default, 0 low, 0 normal, 0 high, 0 custom, 0 other
+=== pwr delay
+delay is set to 500 milliseconds
+=== pwr mode
+power up mode is fast (power up RTRs in parallel)
+=== r 1 dest
+1 default destination(s) set
+=== dest
+rack all slot all
+001c02 (<L2IP>:0:0)
+=== dest reset
+default destination reset to all bricks and slots
+=== env s
+001c02: environmental summary not supported
+=== r 1 s 2 env s
+001c02: environmental summary not supported
+=== console
+?-<L2IP>-L2>1c2 loopback 16 3
+loopback 0 completed:
+  packets          3
+  size            16 bytes
+  total           48 bytes
+  time <N> seconds
+  average <N> bytes/second
+ <N> seconds/packet
+  min pkt <N> seconds
+  max pkt <N> seconds
+?-<L2IP>-L2>1c2 loopback 2 100 2
+loopback 2 completed:
+  packets          2
+  size           100 bytes
+  total          200 bytes
+  time <N> seconds
+  average <N> bytes/second
+ <N> seconds/packet
+  min pkt <N> seconds
+  max pkt <N> seconds
+?-<L2IP>-L2>1c2 loopback 1 1
+loopback 0 completed:
+  packets          1
+  size             1 bytes
+  total            1 bytes
+  time <N> seconds
+  average <N> bytes/second
+ <N> seconds/packet
+  min pkt <N> seconds
+  max pkt <N> seconds
+?-<L2IP>-L2>r 1 s 2 loopback 8 1
+001c02:
+fake L1 001C02: loopback 8 1
+?-<L2IP>-L2>loopback 8 1
+001c02:
+fake L1 001C02: loopback 8 1
+?-<L2IP>-L2>sel
+known system consoles (non-partitioned)
+
+	001c02 - L2 detected
+
+current system console
+
+console input: 001c02 CPU0
+console output: not filtered
+?-<L2IP>-L2>1c2 route
+REQ:     L2-0 <N> (<T>)
+RSP: IIA 001c02 NIA <N> (1234)
+RSP:     L2-0 <N> (<T>)
+?-<L2IP>-L2>r 1 s 2 route
+REQ:     L2-0 <N> (<T>)
+RSP: IIA 001c02 NIA <N> (1234)
+RSP:     L2-0 <N> (<T>)
+?-<L2IP>-L2>sel 1 2
+INFO: default system console override, changed to: 001c02 CPU0
+console input: 001c02 CPU0 (CAUTION: default overrode!)
+console output: not filtered
+?-<L2IP>-L2>sel
+known system consoles (non-partitioned)
+
+	001c02 - L2 detected
+
+current system console
+
+console input: 001c02 CPU0 (CAUTION: default overrode!)
+console output: not filtered
+?-<L2IP>-L2>sel sub con
+INFO: default system console override, changed to: 001c02 console
+console input: 001c02 console (CAUTION: default overrode!)
+console output: not filtered
+?-<L2IP>-L2>sel sub a
+INFO: default system console override, changed to: 001c02 CPU0
+console input: 001c02 CPU0 (CAUTION: default overrode!)
+console output: not filtered
+?-<L2IP>-L2>sel sub 0a
+INFO: default system console override, changed to: 001c02 CPU0
+console input: 001c02 CPU0 (CAUTION: default overrode!)
+console output: not filtered
+?-<L2IP>-L2>sel sub console0
+INFO: default system console override, changed to: 001c02 console
+console input: 001c02 console (CAUTION: default overrode!)
+console output: not filtered
+?-<L2IP>-L2>sel filter on
+console input: 001c02 console (CAUTION: default overrode!)
+console output: filtered
+?-<L2IP>-L2>sel t
+console input: 001c02 console (CAUTION: default overrode!)
+console output: filtered
+?-<L2IP>-L2>sel filter off
+console input: 001c02 console (CAUTION: default overrode!)
+console output: not filtered
+?-<L2IP>-L2>sel 1 2 0b
+INFO: default system console override, changed to: 001c02 CPU1
+console input: 001c02 CPU1 (CAUTION: default overrode!)
+console output: not filtered
+?-<L2IP>-L2>sel p 0
+console input: 001c02 CPU0
+console output: not filtered
+?-<L2IP>-L2>sel reset
+console input: 001c02 CPU0
+console output: not filtered
+?-<L2IP>-L2>sel
+known system consoles (non-partitioned)
+
+	001c02 - L2 detected
+
+current system console
+
+console input: 001c02 CPU0
+console output: not filtered
+?-<L2IP>-L2>

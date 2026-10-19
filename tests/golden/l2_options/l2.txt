@@ -1,0 +1,165 @@
+=== l2 -help
+exit 0
+nvram None
+usage: <l2> -enet | -usb | -serial [ <device> | <ipaddr> <port>]  [ -noconn -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
+=== l2 --copy
+exit 0
+nvram None
+<l2>: --copy option missing <copy#>
+usage: <l2> -enet | -usb | -serial [ <device> | <ipaddr> <port>]  [ -noconn -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
+=== l2 --copy -noconn
+exit 0
+nvram None
+<l2>: --copy option missing <copy#>
+usage: <l2> -enet | -usb | -serial [ <device> | <ipaddr> <port>]  [ -noconn -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
+=== l2 --copy 200
+exit 0
+nvram None
+<l2>: --copy: copy 200 invalid (must be 0 through 128)
+usage: <l2> -enet | -usb | -serial [ <device> | <ipaddr> <port>]  [ -noconn -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
+=== l2 --copy -5
+exit 0
+nvram None
+<l2>: --copy option missing <copy#>
+usage: <l2> -enet | -usb | -serial [ <device> | <ipaddr> <port>]  [ -noconn -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
+=== l2 -serial
+exit 0
+nvram None
+usage: <l2> -enet | -usb | -serial [ <device> | <ipaddr> <port>]  [ -noconn -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
+=== l2 -usbpath
+exit 0
+nvram None
+usage: <l2> -enet | -usb | -serial [ <device> | <ipaddr> <port>]  [ -noconn -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
+=== l2 -password
+exit 0
+nvram ('b8e5c586bdf5363c6b4de240ed3b7706', ['checksum error (CH) - nvram reset.', ''])
+INFO: NVRAM file './.l2_NVRAM' doesn't exist.....initializing
+=== l2 -password -noconn
+exit 0
+nvram ('b8e5c586bdf5363c6b4de240ed3b7706', ['checksum error (CH) - nvram reset.', ''])
+INFO: NVRAM file './.l2_NVRAM' doesn't exist.....initializing
+=== l2 -syncssn NEWSSN01
+exit 0
+nvram ('d7f6a106da83a549818004c3dd356826', ['checksum error (CH) - nvram reset.', ''])
+INFO: NVRAM file './.l2_NVRAM' doesn't exist.....initializing
+=== l2 -noconn -nodiscover
+exit running
+nvram ('772206d6423ce18d8c85479de4dba7cb', ['checksum error (CH) - nvram reset.', ''])
+
+
+SGI L2 Controller
+Current L2 version: 1.62.0 
+
+WARNING: No connections will be made to L1's (-noconn)
+INFO: NVRAM file './.l2_NVRAM' doesn't exist.....initializing
+INFO: SMP listening on port: 8001
+INFO: SMP listening on port: 8003
+?-<L2IP>-L2>=== l2 -noconn -nodiscover --copy 3
+exit running
+nvram None
+
+
+SGI L2 Controller
+Current L2 version: 1.62.0 
+
+WARNING: No connections will be made to L1's (-noconn)
+INFO: NVRAM file './.l2_NVRAM.3' doesn't exist.....initializing
+INFO: SMP listening on port: 8031
+INFO: SMP listening on port: 8033
+?-<L2IP>-L2>=== l2 -noconn -nodiscover --copy 0
+exit running
+nvram ('772206d6423ce18d8c85479de4dba7cb', ['checksum error (CH) - nvram reset.', ''])
+
+
+SGI L2 Controller
+Current L2 version: 1.62.0 
+
+WARNING: No connections will be made to L1's (-noconn)
+INFO: NVRAM file './.l2_NVRAM' doesn't exist.....initializing
+INFO: SMP listening on port: 8001
+INFO: SMP listening on port: 8003
+?-<L2IP>-L2>=== l2 -noconn -nodiscover -smpenet
+exit running
+nvram ('772206d6423ce18d8c85479de4dba7cb', ['checksum error (CH) - nvram reset.', ''])
+=== l2 -noconn -nodiscover -debug -irtr -nopwrchk
+exit running
+nvram ('772206d6423ce18d8c85479de4dba7cb', ['checksum error (CH) - nvram reset.', ''])
+
+
+SGI L2 Controller
+Current L2 version: 1.62.0 
+
+WARNING: No connections will be made to L1's (-noconn)
+INFO: NVRAM file './.l2_NVRAM' doesn't exist.....initializing
+l1_open() in
+l1_open() out
+INFO: SMP listening on port: 8001
+INFO: SMP listening on port: 8003
+L2               0 EVT(3,0,1) D: L1    0. 0, 0,  0  S: IP e 02 1010000
+L2               2 EVT(3,0,1) D: L1    0. 0, 0,  0  S: IP e 02 1010000
+?-<L2IP>-L2>=== l2 -nodiscover -l1sim
+exit running
+nvram ('772206d6423ce18d8c85479de4dba7cb', ['checksum error (CH) - nvram reset.', ''])
+
+
+SGI L2 Controller
+Current L2 version: 1.62.0 
+
+INFO: NVRAM file './.l2_NVRAM' doesn't exist.....initializing
+INFO: L1 simulator port 9003 initialized
+SORRY--can't find the simulator executable!!
+INFO: SMP listening on port: 8001
+INFO: SMP listening on port: 8003
+?-<L2IP>-L2>=== l2 -nodiscover -l1sim 4 2
+exit running
+nvram ('6712b8e9f74a4ccc271833c3ffa99062', ['checksum error (CH) - nvram reset.', ''])
+
+
+SGI L2 Controller
+Current L2 version: 1.62.0 
+
+INFO: NVRAM file './.l2_NVRAM' doesn't exist.....initializing
+INFO: L1 simulator port 9003 initialized
+SORRY--can't find the simulator executable!!
+INFO: SMP listening on port: 8001
+INFO: SMP listening on port: 8003
+?-004-L2>=== l2 -nodiscover -l1sim_manual 6
+exit running
+nvram None
+
+
+SGI L2 Controller
+Current L2 version: 1.62.0 
+
+INFO: L1 simulator port 9003 initialized
+SORRY--can't find the simulator executable!!
+INFO: SMP listening on port: 8001
+INFO: SMP listening on port: 8003
+?-006-L2>=== l2 -nodiscover -net
+exit running
+nvram ('772206d6423ce18d8c85479de4dba7cb', ['checksum error (CH) - nvram reset.', ''])
+
+
+SGI L2 Controller
+Current L2 version: 1.62.0 
+
+INFO: NVRAM file './.l2_NVRAM' doesn't exist.....initializing
+INFO: L1 network port 9003 initialized
+INFO: SMP listening on port: 8001
+INFO: SMP listening on port: 8003
+?-<L2IP>-L2>=== l2 -noconn -nodiscover --mtrace
+exit running
+nvram ('772206d6423ce18d8c85479de4dba7cb', ['checksum error (CH) - nvram reset.', ''])
+
+
+SGI L2 Controller
+Current L2 version: 1.62.0 
+
+WARNING: No connections will be made to L1's (-noconn)
+INFO: NVRAM file './.l2_NVRAM' doesn't exist.....initializing
+INFO: SMP listening on port: 8001
+INFO: SMP listening on port: 8003
+?-<L2IP>-L2>=== l2 -noconn -nodiscover -noconn -bogus
+exit 0
+nvram None
+usage: <l2> -enet | -usb | -serial [ <device> | <ipaddr> <port>]  [ -noconn -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]

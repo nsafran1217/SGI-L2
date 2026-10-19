@@ -1,19 +1,17 @@
 #!/bin/bash
-# Differential test against SGI's original binaries.
+# The L2's commands through l2cmd, against golden transcripts.
 #
-#   tests/difftest.sh [ORIG_BIN_DIR]
+#   tests/difftest.sh
 #
-# Runs each command in tests/l2_commands.txt through l2cmd in four pairings
-# (original/rebuilt l2 daemon x original/rebuilt l2cmd) and requires the
-# output to match the all-original pairing. Each daemon runs 'l2 -noconn'
-# (no L1s) in its own temp directory, so the NVRAM file it creates
-# (./.l2_NVRAM) never touches the tree. Lines with clock times are masked.
+# Runs each command in tests/l2_commands.txt through l2cmd against 'l2
+# -noconn' (no L1s), in a temp directory so the files it writes stay out of
+# the tree, and compares the output and the daemon's own log with
+# tests/golden/difftest/. Lines with clock times are masked. INTEROP=1 also
+# pits SGI's original l2cmd and l2 against these (tests/golden.sh).
 set -u
 
 here=$(cd "$(dirname "$0")" && pwd)
-src=$(cd "$here/.." && pwd)
-orig=${1:-$src/../ist/ist-software-extracted/IST/snxsc_l3/stand/sysco/bin}
-new=${NEW_BIN:-$src/build/bin}   # NEW_BIN: test another build (e.g. build64/bin)
+. "$here/golden.sh"
 cmds=$here/l2_commands.txt
 work=$(mktemp -d)
 trap 'kill $dpid 2>/dev/null; [ "${KEEP:-}" ] && echo "kept $work" || rm -rf "$work"' EXIT INT TERM
@@ -57,34 +55,22 @@ run_all() {         # run_all <l2cmd binary> <outfile>
     done < "$cmds"
 }
 
-fail=0
-for daemon in orig new; do
-    eval d=\$$daemon
-    start_l2 "$d/l2" "$work/$daemon" || exit 1
-    for client in orig new; do
-        eval c=\$$client
-        run_all "$c/l2cmd" "$work/$daemon-$client.txt"
-    done
+start_l2 "$new/l2" "$work/new" || exit 1
+run_all "$new/l2cmd" "$work/new-new.txt"
+sleep 0.5
+mask < "$work/new/daemon.log" > "$work/daemon.txt"
+[ -n "${INTEROP:-}" ] && run_all "$orig/l2cmd" "$work/new-orig.txt"
+stop_l2
+golden_check difftest l2cmd "$work/new-new.txt"
+golden_check difftest daemon "$work/daemon.txt"
+if [ -n "${INTEROP:-}" ]; then
+    golden_check difftest l2cmd "$work/new-orig.txt"    # (the original l2cmd)
+    start_l2 "$orig/l2" "$work/orig" || exit 1
+    run_all "$orig/l2cmd" "$work/orig-orig.txt"
+    run_all "$new/l2cmd" "$work/orig-new.txt"
     stop_l2
-done
-
-for pair in orig-new new-orig new-new; do
-    if cmp -s "$work/orig-orig.txt" "$work/$pair.txt"; then
-        echo "PASS  l2=${pair%-*} l2cmd=${pair#*-}"
-    else
-        echo "FAIL  l2=${pair%-*} l2cmd=${pair#*-}"
-        diff "$work/orig-orig.txt" "$work/$pair.txt" | head -40
-        fail=1
-    fi
-done
-# the daemons' own output (connections, validation, the commands' messages)
-if cmp -s <(mask < "$work/orig/daemon.log") <(mask < "$work/new/daemon.log") 2>/dev/null ||
-   diff <(mask < "$work/orig/daemon.log") <(mask < "$work/new/daemon.log") > "$work/daemon.diff"; then
-    echo "PASS  l2 daemon output: l2=orig and l2=new agree"
-else
-    echo "FAIL  l2 daemon output"
-    head -40 "$work/daemon.diff"
-    fail=1
+    golden_same "difftest: l2=orig, l2cmd=new gives the original l2cmd's output" \
+        "$work/orig-orig.txt" "$work/orig-new.txt"
 fi
-echo "$(grep -c '^===' "$work/orig-orig.txt") commands"
-exit $fail
+echo "$(grep -c '^===' "$work/new-new.txt") commands"
+exit $golden_fail

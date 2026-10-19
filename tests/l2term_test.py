@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Differential test of interactive sessions: drive l2term in a pty.
+"""Interactive sessions: drive l2term in a pty.
 
-    tests/l2term_test.py [ORIG_BIN_DIR]
+    tests/l2term_test.py
 
-For each pairing of original/rebuilt l2 daemon and original/rebuilt l2term,
-open a session, wait for the L2 prompt, type each command from
-tests/l2term_commands.txt, and compare the transcript with the all-original
-one. Daemons run 'l2 -noconn' in temp directories (see difftest.sh).
+Open a session against 'l2 -noconn' (in a temp directory, see difftest.sh),
+wait for the L2 prompt, type each command from tests/l2term_commands.txt,
+and compare the transcript with tests/golden/l2term/. INTEROP=1 also runs
+SGI's original l2term and l2 (tests/golden.py).
 """
 
 import os
@@ -21,10 +21,8 @@ import tempfile
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SRC = os.path.dirname(HERE)
-ORIG = sys.argv[1] if len(sys.argv) > 1 else os.path.join(
-    SRC, "..", "ist/ist-software-extracted/IST/snxsc_l3/stand/sysco/bin")
-NEW = os.environ.get("NEW_BIN", os.path.join(SRC, "build/bin"))   # NEW_BIN: test another build
+sys.path.insert(0, HERE)
+from golden import Golden, INTEROP, NEW, ORIG   # noqa: E402
 PROMPT = re.compile(rb"L2>\s*$")
 
 
@@ -95,39 +93,34 @@ def mask(text):
 def main():
     with open(os.path.join(HERE, "l2term_commands.txt")) as f:
         commands = [l.rstrip("\n") for l in f if l.strip() and not l.startswith("#")]
+    g = Golden("l2term")
     work = tempfile.mkdtemp()
-    results = {}
     try:
-        for dname, ddir in (("orig", ORIG), ("new", NEW)):
-            proc = start_l2(os.path.join(ddir, "l2"), os.path.join(work, dname))
+        proc = start_l2(os.path.join(NEW, "l2"), os.path.join(work, "new"))
+        try:
+            g.check("session", session(os.path.join(NEW, "l2term"), commands))
+            if INTEROP:
+                g.check("session", session(os.path.join(ORIG, "l2term"), commands),
+                        "l2term=orig")
+        finally:
+            proc.terminate()
+            proc.wait()
+        if INTEROP:
+            proc = start_l2(os.path.join(ORIG, "l2"), os.path.join(work, "orig"))
             try:
-                for cname, cdir in (("orig", ORIG), ("new", NEW)):
-                    results[(dname, cname)] = session(os.path.join(cdir, "l2term"), commands)
+                ref = session(os.path.join(ORIG, "l2term"), commands)
+                new = session(os.path.join(NEW, "l2term"), commands)
             finally:
                 proc.terminate()
                 proc.wait()
+            g.same("l2=orig: l2term=new gives the original l2term's transcript", ref, new)
     finally:
         if os.environ.get("KEEP"):
             print("kept", work)
         else:
             shutil.rmtree(work)
-    ref = results[("orig", "orig")]
-    if os.environ.get("KEEP"):
-        with open(os.path.join(work, "orig-orig.txt"), "w") as f:
-            f.write(ref)
-    ok = True
-    for key, text in results.items():
-        if key == ("orig", "orig"):
-            continue
-        same = text == ref
-        ok &= same
-        print(f"{'PASS' if same else 'FAIL'}  l2={key[0]} l2term={key[1]}")
-        if not same:
-            import difflib
-            for line in list(difflib.unified_diff(ref.split("\n"), text.split("\n"), lineterm=""))[:40]:
-                print("   ", line)
-    print(f"{len(commands)} commands, {len(ref.splitlines())} transcript lines")
-    return 0 if ok else 1
+    print(f"{len(commands)} commands")
+    return g.status()
 
 
 if __name__ == "__main__":

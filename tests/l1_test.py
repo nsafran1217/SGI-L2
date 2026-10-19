@@ -1,21 +1,18 @@
 #!/usr/bin/env python3
-"""Differential test of the L1 side of l2, with a fake L1.
+"""The L1 side of l2, with a fake L1.
 
-    tests/l1_test.py [ORIG_BIN_DIR]
+    tests/l1_test.py
 
-The other tests run 'l2 -noconn', so no brick is ever known. Here each l2
-(original and rebuilt) runs '-net' and a fake L1 (tests/fakel1.py) connects
-to its L1 port, reporting one brick (001c02). Each command in
-tests/l1_commands.txt then goes through the original l2cmd, and each line of
-tests/l1_console_commands.txt is typed at the L2's console (SMP port 8001,
-for commands only the console has, such as loopback). The transcripts
-must match, and so must the requests the fake L1 receives. The original l2
-runs with a 32-bit LD_PRELOAD shim (tests/usrtmp_shim.c) because it
-hardcodes /usr/tmp for its local sockets. NEW_BIN selects the rebuilt
-binaries, as in difftest.sh.
+The other tests run 'l2 -noconn', so no brick is ever known. Here l2 runs
+'-net' and a fake L1 (tests/fakel1.py) connects to its L1 port, reporting
+one brick (001c02). Each command in tests/l1_commands.txt then goes through
+l2cmd, and each line of tests/l1_console_commands.txt is typed at the L2's
+console (SMP port 8001, for commands only the console has, such as
+loopback). The transcript and the requests the fake L1 receives must match
+tests/golden/l1/. INTEROP=1 runs the session again with SGI's original
+l2cmd (tests/golden.py).
 """
 
-import difflib
 import os
 import re
 import select
@@ -27,21 +24,9 @@ import tempfile
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SRC = os.path.dirname(HERE)
-ORIG = sys.argv[1] if len(sys.argv) > 1 else os.path.join(
-    SRC, "..", "ist/ist-software-extracted/IST/snxsc_l3/stand/sysco/bin")
-NEW = os.environ.get("NEW_BIN", os.path.join(SRC, "build/bin"))
 sys.path.insert(0, HERE)
 from fakel1 import FakeL1   # noqa: E402
-
-
-def build_shim(work):
-    so = os.path.join(work, "usrtmp_shim.so")
-    cmd = ["gcc", "-m32", "-shared", "-fPIC", "-o", so, os.path.join(HERE, "usrtmp_shim.c"), "-ldl"]
-    if not os.path.isdir("/usr/include/i386-linux-gnu/bits"):
-        cmd[2:2] = ["-isystem", "/usr/include/x86_64-linux-gnu"]
-    subprocess.run(cmd, check=True)
-    return so
+from golden import Golden, INTEROP, NEW, ORIG   # noqa: E402
 
 
 def mask(text):
@@ -81,7 +66,7 @@ def console(lines):
     return text
 
 
-def session(l2bin, env, commands, work, name):
+def session(l2bin, l2cmd, env, commands, work, name):
     d = os.path.join(work, name)
     os.makedirs(d)
     fifo = os.path.join(d, "stdin")
@@ -107,24 +92,23 @@ def session(l2bin, env, commands, work, name):
         time.sleep(1)
         out = []
         for c in commands:
-            r = subprocess.run([os.path.join(ORIG, "l2cmd"), "--l2", "127.0.0.1", *c.split()],
+            r = subprocess.run([l2cmd, "--l2", "127.0.0.1", *c.split()],
                                capture_output=True, text=True, errors="replace", timeout=30)
             out.append(f"=== {c}\n{mask(r.stdout + r.stderr)}")
         with open(os.path.join(HERE, "l1_console_commands.txt")) as f:
             lines = [l.strip() for l in f if l.strip() and not l.startswith("#")]
         out.append(f"=== console\n{mask(console(lines))}")
-        if name == "new":
-            # an IRouter error from the brick: the original's heap breaks
-            # (ORIGINAL_BUGS.md, cmd.c), so only the rebuilt l2 is asked
-            r = subprocess.run([os.path.join(ORIG, "l2cmd"), "--l2", "127.0.0.1", "r", "1", "s",
-                                "2", "l1", "errtest"], capture_output=True, text=True,
-                               errors="replace", timeout=30)
-            time.sleep(0.5)
-            if "ERROR: couldn't send packet to 001c02" not in r.stdout + r.stderr \
-                    or proc.poll() is not None:
-                out.append(f"=== errtest (new only) failed:\n{r.stdout}{r.stderr}")
-            l1.requests = [q for q in l1.requests
-                           if not any(isinstance(t, str) and "errtest" in t for t in q[1])]
+        # an IRouter error from the brick (the original l2's heap broke
+        # here, ORIGINAL_BUGS.md, cmd.c)
+        r = subprocess.run([l2cmd, "--l2", "127.0.0.1", "r", "1", "s",
+                            "2", "l1", "errtest"], capture_output=True, text=True,
+                           errors="replace", timeout=30)
+        time.sleep(0.5)
+        if "ERROR: couldn't send packet to 001c02" not in r.stdout + r.stderr \
+                or proc.poll() is not None:
+            out.append(f"=== errtest (new only) failed:\n{r.stdout}{r.stderr}")
+        l1.requests = [q for q in l1.requests
+                       if not any(isinstance(t, str) and "errtest" in t for t in q[1])]
         l1.close()
         return "".join(out), l1.requests
     finally:
@@ -134,30 +118,24 @@ def session(l2bin, env, commands, work, name):
 
 def main():
     commands = [l.strip() for l in open(os.path.join(HERE, "l1_commands.txt")) if l.strip()]
+    g = Golden("l1")
     work = tempfile.mkdtemp()
     try:
-        shim = build_shim(work)
-        ref, ref_reqs = session(os.path.join(ORIG, "l2"), {"LD_PRELOAD": shim}, commands, work,
-                                "orig")
-        new, new_reqs = session(os.path.join(NEW, "l2"), {}, commands, work, "new")
-        for name, text in (("orig", ref), ("new", new)):
-            with open(os.path.join(work, name, "transcript.txt"), "w") as f:
+        runs = [("l2cmd=new", NEW)] + ([("l2cmd=orig", ORIG)] if INTEROP else [])
+        for label, cdir in runs:
+            text, reqs = session(os.path.join(NEW, "l2"), os.path.join(cdir, "l2cmd"), {},
+                                 commands, work, label)
+            with open(os.path.join(work, label, "transcript.txt"), "w") as f:
                 f.write(text)
-        ok = ref == new and ref_reqs == new_reqs and ref_reqs
-        print(f"{'PASS' if ok else 'FAIL'}  l1: l2=new with a fake L1 ({len(commands)} commands, "
-              f"{len(ref_reqs)} L1 requests)")
-        if ref != new:
-            for line in list(difflib.unified_diff(ref.split("\n"), new.split("\n"), "orig", "new",
-                                                  lineterm=""))[:40]:
-                print("   ", line)
-        if ref_reqs != new_reqs:
-            print("    L1 requests differ:\n     orig", ref_reqs, "\n     new ", new_reqs)
+            g.check("transcript", text, label)
+            g.check("l1_requests", reqs, label)
     finally:
         if os.environ.get("KEEP"):
             print("kept", work)
         else:
             shutil.rmtree(work)
-    return 0 if ok else 1
+    print(f"{len(commands)} commands")
+    return g.status()
 
 
 if __name__ == "__main__":

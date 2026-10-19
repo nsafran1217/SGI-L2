@@ -1,0 +1,155 @@
+=== --l2 127.0.0.1 version
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+L2 version: 1.62.0
+exit 0
+=== --l2
+./l2cmd: --l2 option missing <hostname>
+./l2cmd: error while parsing library command arguments
+exit 255
+=== --l2 --irtr version
+./l2cmd: --l2 option missing <hostname>
+./l2cmd: error while parsing library command arguments
+exit 255
+=== --if
+./l2cmd: --if option missing <net iface>
+./l2cmd: error while parsing library command arguments
+exit 255
+=== --if 0 --l2 127.0.0.1 version
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+L2 version: 1.62.0
+exit 0
+=== --interface lo --l2 127.0.0.1 version
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+L2 version: 1.62.0
+exit 0
+=== --ssn
+./l2cmd: --ssn option missing <system serial number>
+./l2cmd: error while parsing library command arguments
+exit 255
+=== --ssn ABC:x --l2 127.0.0.1 version
+./l2cmd: bad rack number on --ssn option
+./l2cmd: error while parsing library command arguments
+exit 255
+=== --ssn ABC:0 --l2 127.0.0.1 version
+./l2cmd: bad rack number on --ssn option
+./l2cmd: error while parsing library command arguments
+exit 255
+=== --ssn ABC:2 --l2 127.0.0.1 version
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+L2 version: 1.62.0
+exit 0
+=== --sysname foo:2 --l2 127.0.0.1 version
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+L2 version: 1.62.0
+exit 0
+=== --sysname
+./l2cmd: --sysname option missing <name>
+./l2cmd: error while parsing library command arguments
+exit 255
+=== --r
+--r: ./l2cmd option missing <copy#>
+./l2cmd: error while parsing library command arguments
+exit 255
+=== --rack 3 --l2 127.0.0.1 version
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+L2 version: 1.62.0
+exit 0
+=== --pw
+./l2cmd: --pw option missing <password>
+./l2cmd: error while parsing library command arguments
+exit 255
+=== --pw secret --l2 127.0.0.1 version
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+L2 version: 1.62.0
+exit 0
+=== --copy
+./l2cmd: --copy option missing <copy#>
+./l2cmd: error while parsing library command arguments
+exit 255
+=== --copy 999 --l2 127.0.0.1 version
+./l2cmd: --copy: copy 999 invalid (must be 0 through 128)
+./l2cmd: error while parsing library command arguments
+exit 255
+=== --copy -1 --l2 127.0.0.1 version
+./l2cmd: --copy option missing <copy#>
+./l2cmd: error while parsing library command arguments
+exit 255
+=== --copy 1 --l2 127.0.0.1 version
+INFO: attempting connection to 127.0.0.1:8010
+INFO: connection to 127.0.0.1:8010 failed: Router:Connection attempt failed
+ERROR: IRouterConnect to 127.0.0.1 failed: Router:Connection attempt failed
+using copy 1    (biasing all network ports by 10)
+exit 255
+=== --irtr --l2 127.0.0.1 version
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+PKT send:    0 REQ(2,0) D: L2 1023.63, 0,  3  S: L3 1023.63, 0,  0 
+PKT recv:        0 RSP(2,0,0) D: IP f 0b 1010000 S: IP e 03 1010000
+dumping IR pkts
+L2 version: 1.62.0
+exit 0
+=== --irtr --l2 127.0.0.1 l1 version
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+PKT send:    0 REQ(2,0) D: L2 1023.63, 0,  3  S: L3 1023.63, 0,  0 
+PKT recv:        0 RSP(2,0,0) D: IP f 0b 1010000 S: IP e 03 1010000
+dumping IR pkts
+ERROR: no L1s found to match that destination
+exit 0
+=== --quiet --l2 127.0.0.1 version
+L2 version: 1.62.0
+exit 0
+=== --timeout
+./l2cmd: --timeout option missing <value>
+./l2cmd: error while parsing library command arguments
+exit 255
+=== --timeout 5 --l2 127.0.0.1 version
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+L2 version: 1.62.0
+exit 0
+=== --scdev
+./l2cmd: --scdev option missing <device>
+./l2cmd: error while parsing library command arguments
+exit 255
+=== --scdev /nonexistent/sc version
+ERROR: can't open /nonexistent/sc, errno 2.
+
+exit 255
+=== --sc version
+Could not find an L1 Controller (/dev/snsc/*) to communicate with!
+ERROR: can't open , errno 2.
+
+exit 255
+=== --l2 127.0.0.1 --unknown version
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+ERROR: no L1s found to match that destination
+exit 0
+=== --l2 127.0.0.1
+usage: ./l2cmd [sysco options] <command>
+System Controller command options
+    --l2 <host>          hostname or IP address of L2 to connect to
+    --sc                 connect via dflt. system controller (lowest rack/slot)
+    --scdev <device>     connect via specified system controller device
+    --interface|--if <iface>  net interface (ie. eth0) of L2 network to connect to
+    --ssn <serial>[:<rack>]  serial number (ie. L01234567) of system to connect to
+    --sysname <name>[:<rack>]    system name of system to connect to
+    --pw <password>      L2 password
+    --irtr               (debug) show IRouter packets sent/received
+    --serial <host>:<port>        ethernet (i.e. Annex) hostname and port
+    --dev <device name>           local serial port device name
+exit 255
+=== --mtrace --l2 127.0.0.1 version
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+memory tracing invoked--output file '<work>/mtrace'
+L2 version: 1.62.0
+exit 0

@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
-"""Differential test of the L2's own consoles (SMP): the network ports and stdin.
+"""The L2's own consoles (SMP): the network ports and stdin.
 
-    tests/smp_test.py [ORIG_BIN_DIR]
+    tests/smp_test.py
 
-Starts the original and the rebuilt 'l2 -noconn', and in each:
+Starts 'l2 -noconn', and:
   - connects to SMP port 8001 and to the quiet port 8003, types the lines of
     tests/smp_commands.txt (Python string escapes, so editing keys can be
     sent) and records what comes back;
   - types the same lines on the daemon's stdin (the serial console) and
     records its output.
-Every transcript, and the daemon's log, must match the original's.
+Every transcript, and the daemon's log, must match tests/golden/smp/
+(tests/golden.py; only the daemon runs, so there is no interop run).
 """
 
 import os
@@ -23,10 +24,8 @@ import tempfile
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SRC = os.path.dirname(HERE)
-ORIG = sys.argv[1] if len(sys.argv) > 1 else os.path.join(
-    SRC, "..", "ist/ist-software-extracted/IST/snxsc_l3/stand/sysco/bin")
-NEW = os.environ.get("NEW_BIN", os.path.join(SRC, "build/bin"))
+sys.path.insert(0, HERE)
+from golden import Golden, NEW   # noqa: E402
 PROMPT = re.compile(rb"L2>\s*$")
 
 
@@ -124,16 +123,15 @@ def main():
     with open(os.path.join(HERE, "smp_commands.txt")) as f:
         lines = [l.rstrip("\n") for l in f if l.strip() and not l.startswith("#")]
     lines = [l.encode().decode("unicode_escape").encode("latin-1") for l in lines]
+    g = Golden("smp")
     work = tempfile.mkdtemp()
     try:
-        ref = run(ORIG, os.path.join(work, "orig"), lines)
         new = run(NEW, os.path.join(work, "new"), lines)
     finally:
         if os.environ.get("KEEP"):
             print("kept", work)
         else:
             shutil.rmtree(work)
-    ok = True
     # the rebuilt l2 alone: a line too long for the console's 128 bytes
     # rings the bell, and the console goes on working (the original's did
     # not: ORIGINAL_BUGS.md, smp.c)
@@ -149,18 +147,11 @@ def main():
     finally:
         shutil.rmtree(work2)
     long_ok = out.count(b"\a") == 3 and re.search(rb"version.*\n.*\d+\.\d+\.\d+", out, re.S) is not None
-    ok &= long_ok
+    g.ok &= long_ok
     print(f"{'PASS' if long_ok else 'FAIL'}  smp: a 130-character line, then a command")
-    for key in ref:
-        same = new[key] == ref[key]
-        ok &= same
-        print(f"{'PASS' if same else 'FAIL'}  smp {key}: {len(ref[key].splitlines())} lines")
-        if not same:
-            import difflib
-            for line in list(difflib.unified_diff(ref[key].split("\n"), new[key].split("\n"),
-                                                  lineterm=""))[:40]:
-                print("   ", line)
-    return 0 if ok else 1
+    for key in new:
+        g.check(key, new[key])
+    return g.status()
 
 
 if __name__ == "__main__":

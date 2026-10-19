@@ -1,0 +1,615 @@
+=== hlp router
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+router|io|compute|other <command> 
+	targets command to class of bricks
+=== hlp autopower
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+autopower|apwr 
+	shows current auto power up setting
+autopower|apwr on 
+	enables auto power on
+autopower|apwr off 
+	disables auto power on
+autopower|apwr abort 
+	aborts auto power on
+autopower|apwr delay <exp> 
+	sets delay (in seconds) before auto-powerup
+=== hlp config
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+config|cfg 
+	shows configuration information (normal)
+config|cfg summary|s 
+	shows configuration information (summary)
+config|cfg verbose|v 
+	shows configuration information (verbose)
+config|cfg l2 
+	shows L2 configuration information (normal)
+config|cfg l2 verbose|v 
+	shows L2 configuration information (verbose)
+config|cfg re|rescan 
+	forces L1 config update
+config|cfg auto 
+	enables automatic L1 config updates
+config|cfg man|manual 
+	disables automatic L1 config updates
+config|cfg print 
+	debugging only (local config)
+config|cfg print all 
+	debugging only (full config)
+config|cfg l|list 
+	shows configuration information (list)
+config|cfg t|times 
+	shows various L2 process information
+=== hlp connect
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+connect <str> 
+	connects to L2 at host specified
+=== hlp date
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+date tz 
+	display current timezone settings
+date tz <str> 
+	set UNIX timezone string (ex: date tz CST6CDT)
+date 
+	display current L2 date and time
+date raw 
+	display current L2 time
+date sync 
+	set all L1's and L2's to this L2's timezone and time
+date <str> 
+	set L2 date and time (date MMDDhhmm[[CC]YY][.ss])
+date <str> <str> 
+	set L2 timezone and date
+=== hlp demo
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+demo 
+	dumps the contents of the L2 demo database
+demo current <exp> 
+	selects the specified msgno as the default message
+demo <exp> <command> 
+	sets the value of the specified msgno in the demo database
+=== hlp destination
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+destination|dest 
+	shows default destination(s)
+rack|r <rng> [ slot|s <rng> ] destination|dest 
+	sets default destination to selected racks and slots
+destination|dest reset|rst 
+	resets default default to all rack and slots
+=== hlp dhcpserver
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+dhcpserver|dhcps 
+	show current DHCP server setting
+dhcpserver|dhcps on|enable 
+	enables startup of DHCP server (if no other DHCP server found)
+dhcpserver|dhcps off|disable 
+	disables startup of DHCP server
+=== hlp env
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+env summary|s 
+	shows environmental status summary
+rack|r <rng> [ slot|s <rng> ] env summary|s 
+	shows environmental status summary
+=== hlp help
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+help|hlp 
+	get list of commands
+help|hlp <str> 
+	get help on a single command.
+=== hlp ip
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+ip 
+	shows static IP address settings
+ip gw|gateway <str> 
+	set the L2's static IP gateway address
+ip <str> <str> 
+	set the L2's static IP config: <addr> <netmask>
+ip <str> <str> <str> 
+	set the L2's static IP config: <addr> <netmask> <broadcast>
+ip clear|reset 
+	clears static IP address settings
+=== hlp l2dbg
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+l2dbg 
+	show current L2 debug states
+l2dbg malloc <exp> 
+	set irouter malloc/free debug level
+l2dbg packets <exp> 
+	set irouter packet debug level
+l2dbg packets 
+	show packet usage and high water
+l2dbg packets reset 
+	reset packet usage and high water counters
+l2dbg config <exp> 
+	set L2 configuration debug level
+l2dbg meminfo|mem 
+	display dynamic memory usage
+l2dbg smp <exp> 
+	set SMP input debug level
+l2dbg broadcast <exp> 
+	set broadcast debug level
+l2dbg discovery|disc <exp> 
+	set L2 discovery debug level
+l2dbg usb <exp> 
+	set L2 USB debug level (0=off,1=debug,2=verbose)
+l2dbg e|estat 
+	report Event processor stats
+l2dbg e|estat r|reset 
+	report Event processor stats and reset to zero
+l2dbg sbuf <exp> <exp> 
+	set L2<->L2 socket send/recv buffer size
+l2dbg events io 
+	show I/O events
+l2dbg events timers 
+	show timer event
+l2dbg console <exp> 
+	show console tracking messages
+l2dbg mstat|ms 
+	show malloc history
+l2dbg mmap|mm 
+	show malloc map
+l2dbg mreset 
+	reset malloc profiling
+l2dbg menable 
+	enable malloc profiling
+l2dbg mdisable 
+	disable malloc profiling
+l2dbg mmalloc <exp> 
+	allocate a buffer
+l2dbg qstat 
+	show Router client queue statistics
+l2dbg qstat reset 
+	resets cumulative queue statistics for each Router client
+l2dbg load <exp> 
+	enable/disable simulated L2 load
+l2dbg flow <exp> <exp> 
+	set net conn flow ctrl (high/low water mark pkt count)
+l2dbg throttle <exp> 
+	set L1 input throttle frequency (msecs)
+l2dbg brspto <exp> 
+	set broadcast response timeout limit
+l2dbg trspto <exp> 
+	set target response timeout limit
+l2dbg dump|d <str> <exp> <exp> 
+	l2dbg dump|d a|x <addr> <len>
+l2dbg smp response <exp> 
+	debug SMP responses
+l2dbg str <exp> 
+	debug SMP string processing
+=== hlp l1
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+l1 
+	engages L1 command processor
+rack|r <rng> [ slot|s <rng> ] l1 
+	engages L1 command processor at rack and slot
+<rack>.<slot> l1 
+	engages L1 command processor at rack and slot
+rack|r <rng> [ slot|s <rng> ] l1 <command> 
+	sends L1 command to selected L1(s)
+<rack>.<slot> l1 <command> 
+	sends L1 command to selected L1
+l1 <command> 
+	sends L1 command to default destinations
+=== hlp l2
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+l2 
+	engages L2 command processor
+rack|r <rng> [ slot|s <rng> ] l2 
+	engages L2 command processor at specified rack
+l2 <command> 
+	sends L2 command to local l2
+rack|r <rng> [ slot|s <rng> ] l2 <command> 
+	sends L2 command to selected L2(s)
+=== hlp l2dsp
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+l2dsp|l2display debug <exp> 
+	set L2 display debug flags
+l2dsp|l2display debug 
+	show L2 display debug flags
+l2dsp|l2display enable 
+	enable touch-screen input from the L2 display
+l2dsp|l2display disable 
+	lock the L2 display (disable touch-screen input)
+l2dsp|l2display 
+	show the L2 display lock setting
+=== hlp l2find
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+l2find 
+	print list of L2's on the same subnet as this one
+=== hlp log
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+log 
+	dump log
+log clear|reset 
+	clear log
+log insert <command> 
+	insert entry into log
+=== hlp loopback
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+<rack>.<slot> loopback <exp> <exp> 
+	loopback data to L1 (size,count)
+<rack>.<slot> loopback <exp> <exp> <exp> 
+	loopback data to L1 (session, size, count)
+=== hlp route
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+rack|r <rng> [ slot|s <rng> ] route 
+	trace route to L1
+<rack>.<slot> route 
+	trace route to L1
+=== hlp nvram
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+nvram reset 
+	return L2 NVRAM settings to factory default
+=== hlp ping
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+ping 
+	show L2 to L2/L1 ping configuration
+ping min <exp> 
+	sets L2 to L2 ping response minumum
+ping max <exp> 
+	sets L2 to L2 ping response maximum
+ping l2 <exp> 
+	sets L2 to L2 ping frequency in seconds
+ping sender <exp> 
+	enables (1) or disables (0) sender ping as valid response
+ping l1 <exp> 
+	sets L2 to L1 ping frequency in seconds
+ping throttle <exp> 
+	set L2 configuration throttle frequency
+ping reset 
+	resets L2 to L2/L1 ping configuration to defaults
+=== hlp password
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+password|pw 
+	display L2 password status
+password|pw set <str> 
+	set/change the password required to access this L2
+password|pw clear 
+	clear the L2 password (only allowed from L2 Console/Modem serial ports)
+password|pw clear <str> 
+	clear the L2 password (<str> is current L2 password)
+=== hlp pbay
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+pbay cfg|config 
+	report the bricks connected to each PowerBay
+pbay <command> 
+	send pbay <command> to one L1 connected to each PowerBay
+rack|r <rng> [ slot|s <rng> ] pbay cfg|config 
+	report the bricks connected to each PowerBay
+rack|r <rng> [ slot|s <rng> ] pbay <command> 
+	send pbay <command> to one L1 connected to each PowerBay
+=== hlp power
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+power|pwr 
+	show power status of each selected brick
+power|pwr up|u 
+	powers up each selected brick
+power|pwr down|d 
+	powers down each selected brick
+power|pwr summary|s 
+	power status summary
+power|pwr delay 
+	shows delay between power commands
+power|pwr delay <exp> 
+	sets delay between power commands in milliseconds
+rack|r <rng> [ slot|s <rng> ] power|pwr 
+	show power status of each selected brick
+rack|r <rng> [ slot|s <rng> ] power|pwr up|u 
+	powers up each selected brick
+rack|r <rng> [ slot|s <rng> ] power|pwr down|d 
+	powers down each selected brick
+rack|r <rng> [ slot|s <rng> ] power|pwr summary|s 
+	power status summary
+=== hlp quit
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+quit 
+	exit the L2
+=== hlp halt_l2
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+halt_l2 
+	halt the L2
+=== hlp rackid
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+rackid 
+	print the rack ID of the L2
+rackid <decimal exp> 
+	set the rack ID for the L2
+=== hlp reboot_l2
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+=== hlp reset
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+reset|rst 
+	reset each selected brick
+rack|r <rng> [ slot|s <rng> ] reset|rst 
+	reset each selected brick
+=== hlp select
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+select|sel 
+	shows system console information
+select|sel terse|t 
+	shows system console information - terse version
+select|sel subchannel|sub|s console|con 
+	sets 'console' subchannel for console I/O, current brick
+select|sel subchannel|sub|s a|b|c|d 
+	sets selected CPU subchannel for console I/O, current brick
+select|sel subchannel|sub|s <exp> 
+	sets selected CPU subchannel for console I/O, current brick
+select|sel subchannel|sub|s <str> 
+	sets selected CPU subchannel for console I/O, current brick (multi-node/brick)
+select|sel <exp> <exp> 
+	sets rack and slot for console I/O, subchannel ?
+select|sel <rack>.<slot> 
+	sets rack and slot for console I/O, subchannel ?
+select|sel reset|rst 
+	reset console I/O selections to defaults
+select|sel partition|part|p <exp> 
+	sets partition (and system console) for console access
+select|sel filter on 
+	enables console output filter
+select|sel filter off 
+	disables console output filter
+select|sel <exp> <exp> <str> 
+	sets select rack, slot and subchannel for console I/O
+=== hlp smp
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+smp 
+	show status of SMP connections
+smp verbose|v 
+	show status of SMP connections (verbose)
+smp join <exp> 
+	joins to specified SMP group
+smp leave 
+	leaves the current SMP group
+smp modem baud 9600 
+	sets modem port baud rate to 9600
+smp modem baud 19200 
+	sets modem port baud rate to 19200
+smp modem baud 38400 
+	sets modem port baud rate to 38400
+=== hlp serial
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+serial 
+	shows the L2 system serial number
+serial set <str> 
+	sets the L2 system serial number
+=== hlp multisys
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+multisys|msys 
+	show current setting for multiple system network sharing
+multisys|msys on 
+	enable multiple systems on same network (L2's talk by system SN)
+multisys|msys off 
+	disable multiple systems on same network (L2's talk to all L2's)
+=== hlp share
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+share net 
+	show current setting for multiple system network sharing
+share net on 
+	enable multiple systems on same network (L2's talk by system SN)
+share net off 
+	disable multiple systems on same network (L2's talk to all L2's)
+=== hlp psmode
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+psmode|ps 
+	query L2 primary/secondary mode
+psmode|ps none|n|secondary|s|primary|p 
+	set L2 primary/secondary mode
+psmode|ps none|n|secondary-external|sx|primary-external|px 
+	set L2 primary/secondary mode
+=== hlp sysname
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+sysname 
+	shows the system name
+sysname reset 
+	resets the system name
+sysname <str> 
+	set the system name
+=== hlp shell
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+shell|! 
+	escape to L3/L2 OS
+shell|! <command> 
+	send <command> to the L3/L2 OS
+=== hlp version
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+version|ver 
+	show L2 firmware version (use "l1 version" for L1 firmware revisions)
+version|ver v|verbose 
+	show L2 firmware version with L2 emulator and display firmware versions
+version|ver s|summary 
+	display summary of L1 and L2 firmware versions currently running in the system
+version|ver c|check 
+	display any L1 or L2 firmware versions mismatches
+rack|r <rng> [ slot|s <rng> ] version|ver s|summary 
+	display summary of L1 and L2 firmware versions currently running in the system
+rack|r <rng> [ slot|s <rng> ] version|ver c|check 
+	display any L1 or L2 firmware versions mismatches
+=== help
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+Commands are:
+router|io|compute|otherautopower|apwr     config|cfg         connect            
+date               demo               destination|dest   dhcpserver|dhcps   
+env                help|hlp           ip                 l2dbg              
+l1                 l2                 l2dsp|l2display    l2find             
+log                loopback           route              nvram              
+ping               password|pw        pbay               power|pwr          
+quit               halt_l2            rackid             reboot_l2          
+reset|rst          select|sel         smp                serial             
+multisys|msys      share              psmode|ps          sysname            
+shell|!            version|ver        <command>          
+enter 'hlp <cmd>' for more help on a single command.
+
+The general form of a command is: <target> <command>
+
+A <target> (optional) has serveral forms:
+
+<rack>.<slot>        
+   targets a single L1
+<ip>:<port>:<l1>     
+   targets a single L1 without a rack and slot set
+rack|r <rng> [ slot|s <rng> ] 
+   targets a group of racks and slots
+partition|p <rng>
+   targets a group of L1s in a partition
+
+A <rng> is a comma or dashed seperated list of numbers.  A <rng> of "rack 2,4"
+targets racks 2 and 4.  A <rng> of "rack 2-4" targets racks 2, 3 and 4.
+
+A <rng> of "*" or "all" can be used to target all racks or slots.  An "*"
+or "all" alone targets all racks and slots depending on the command.
+
+If no <target> is specfied and <command> is an L2 command it is executed on the
+local L2 only.  If the command is not understood by the L2, it is passed to all
+L1s in the default destination (the "destination" command shows the default 
+destinations).
+
+If a <target> is specified and <command> is an L2 command it is executed on the
+targeted L2s.  If the command is not understood by the L2, it is passed to all
+L1s in the target list.
+
+For overlapping L2 and L1 commands, preceed the <command> with "l1" to over-
+ride the L2 interpretation. 
+=== version
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+L2 version: 1.62.0
+=== config
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+L2 <L2IP>: - ---- (no rack ID set) (LOCAL)
+=== destination
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+rack all slot all
+=== env
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+ERROR: no L1s found to match that destination
+=== ip
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+INFO:  ip command only supported on the Hardware/PC L2
+=== l2
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+ERROR: this command must be run from an SMP (terminal) session (i.e. via l2term or telnet to the L2)
+=== l2dsp
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+L2 display input enabled
+=== route
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+ERROR: no L1s found to match that destination
+=== nvram
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+ERROR: no L1s found to match that destination
+=== smp
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+Session Who          Baud  Group Mode              Console          
+------- ------------ ----- ----- ----------------- -----------------
+      0 console port 38400     0 L2                not defined
+=== serial
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+L2 system serial number: not set.
+=== multisys
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+L2 multiple system network support enabled.
+L2's will only connect to L2's with same system SN
+=== share
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+ERROR: no L1s found to match that destination
+=== psmode
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+Primary/Secondary mode is currently disabled.
+=== sysname
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+L2 system name: not set.
+=== rackid
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+rack ID is 0
+=== select
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+ERROR: this command must be run from an SMP (terminal) session (i.e. via l2term or telnet to the L2)
+=== dhcpserver
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+DHCP server startup enabled (if no other DHCP server is found).
+=== log
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+10/19/26 <TIME> checksum error (CH) - nvram reset.
+=== autopower
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+auto powerup disabled
+auto powerup delay 30 seconds
+=== l2dbg
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+irouter malloc debugging 0
+irouter packet debugging 0
+L2 configuration debugging 0
+SMP input debugging 0
+console tracking debugging 0
+broadcast debugging 0
+discovery debugging 0
+USB debugging 0
+L2 load debugging 0
+L2 net conn flow ctrl     hwater 0  lwater 0
+L1 input throttle disabled (50 msec)
+socket send bufsize 0, receive bufsize 0
+broadcast response timeout 15
+target response timeout 10
+=== bogus_command
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+ERROR: no L1s found to match that destination

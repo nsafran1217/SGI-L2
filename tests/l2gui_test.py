@@ -1,21 +1,22 @@
 #!/usr/bin/env python3
-"""Differential test of l2gui: a scripted touch session under Xvfb.
+"""l2gui: a scripted touch session under Xvfb.
 
-    tests/l2gui_test.py [ORIG_BIN_DIR]
+    tests/l2gui_test.py
 
-The original and the rebuilt l2gui each connect to an original 'l2 -noconn'
-and go through the same clicks: the destination window (partition mode, ALL,
+l2gui connects to 'l2 -noconn' and goes through these clicks: the destination window (partition mode, ALL,
 Apply, Reset DEST, Cancel), Power DOWN/NMI with OK, RESET with Cancel, and the
-logo window. The L2 traffic (every byte each l2gui writes and reads on its
-connection, from strace) must be identical, apart from Router argument
-padding, which the original leaves uninitialized. KEEP=1 keeps the screenshots of
-each step (<step>-orig.png, <step>-new.png) for a visual comparison: the
-renderings differ (the original draws through Nano-X, with its own fonts).
-Needs Xvfb, xdotool, ImageMagick's import and strace. NEW_BIN selects the
-rebuilt binaries, as in difftest.sh.
+logo window. The L2 traffic (every byte l2gui writes and reads on its
+connection, from strace) must match tests/golden/l2gui/, apart from Router
+argument padding, which SGI's original leaves uninitialized. INTEROP=1 also
+runs SGI's original l2gui against this l2, and this l2gui against the
+original l2 (tests/golden.py). KEEP=1 keeps the screenshots of each step
+(<step>-<run>.png) for a visual comparison: the original's renderings differ
+(it draws through Nano-X, with its own fonts). Needs Xvfb, xdotool,
+ImageMagick's import and strace.
 """
 
 import os
+import pwd
 import re
 import shutil
 import subprocess
@@ -24,10 +25,8 @@ import tempfile
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SRC = os.path.dirname(HERE)
-ORIG = sys.argv[1] if len(sys.argv) > 1 else os.path.join(
-    SRC, "..", "ist/ist-software-extracted/IST/snxsc_l3/stand/sysco/bin")
-NEW = os.environ.get("NEW_BIN", os.path.join(SRC, "build/bin"))
+sys.path.insert(0, HERE)
+from golden import Golden, INTEROP, NEW, ORIG   # noqa: E402
 DISPLAY = ":77"
 PORT = 9002             # the L2's port for its 'l2gui' client (task 6)
 
@@ -59,12 +58,12 @@ def x(*args, **kw):
                           capture_output=True, text=True, **kw).stdout
 
 
-def start_l2(workdir):
+def start_l2(workdir, l2bin):
     fifo = os.path.join(workdir, "stdin")
     os.mkfifo(fifo)
     log = open(os.path.join(workdir, "daemon.log"), "wb")
     fd = os.open(fifo, os.O_RDWR)        # l2 spins on stdin EOF
-    proc = subprocess.Popen([os.path.join(ORIG, "l2"), "-noconn"], cwd=workdir, stdin=fd,
+    proc = subprocess.Popen([l2bin, "-noconn"], cwd=workdir, stdin=fd,
                             stdout=log, stderr=log)
     os.close(fd)
     for _ in range(30):
@@ -123,13 +122,13 @@ def mask_padding(data):
     return bytes(b)
 
 
-def run_session(gui, name, work):
+def run_session(gui, l2bin, name, work):
     d = os.path.join(work, name)
     os.makedirs(d)
     xvfb = subprocess.Popen(["Xvfb", DISPLAY, "-screen", "0", "800x600x24", "-nolisten", "tcp"],
                             stderr=subprocess.DEVNULL)
     time.sleep(1)
-    l2 = start_l2(d)
+    l2 = start_l2(d, l2bin)
     log = open(os.path.join(d, "gui.log"), "wb")
     trace = os.path.join(d, "strace.log")
     proc = subprocess.Popen(["strace", "-f", "-o", trace, "-s", "65536", "-xx", "-e",
@@ -174,34 +173,44 @@ def run_session(gui, name, work):
     return traffic(trace)
 
 
+def as_text(session):
+    """One line per read or write. The connection's identity message (user
+    name, GECOS, the L2's address) varies by host: only its direction is kept
+    (the interop run compares it byte for byte)."""
+    user = pwd.getpwuid(os.getuid()).pw_name.encode() + b"\0"
+    return "".join(f"{'>>' if out else '<<'} "
+                   f"{'<identity>' if user in data else data.hex()}\n" for out, data in session)
+
+
 def main():
     for tool in ("Xvfb", "xdotool", "import", "xwininfo", "strace"):
         if not shutil.which(tool):
             print(f"SKIP  l2gui test: {tool} not found")
             return 0
+    g = Golden("l2gui")
     work = tempfile.mkdtemp()
     try:
-        a = run_session(os.path.join(ORIG, "l2gui"), "orig", work)
-        b = run_session(os.path.join(NEW, "l2gui"), "new", work)
+        new_l2, orig_l2 = os.path.join(NEW, "l2"), os.path.join(ORIG, "l2")
+        a = run_session(os.path.join(NEW, "l2gui"), new_l2, "new", work)
         writes = sum(1 for out, _ in a if out)
-        if a == b and writes > 3:
-            print(f"PASS  l2gui session: identical L2 traffic ({len(a)} reads/writes, "
-                  f"{sum(len(d) for _, d in a)} bytes, {len(SESSION)} steps)")
-            ok = True
-        else:
-            ok = False
-            print(f"FAIL  l2gui session: L2 traffic differs ({len(a)} vs {len(b)} reads/writes)")
-            for i, (p, q) in enumerate(zip(a + [None] * len(b), b + [None] * len(a))):
-                if p != q:
-                    for tag, e in (("orig", p), ("new ", q)):
-                        print(f"    {i} {tag}", e and ((">>" if e[0] else "<<") + " " + e[1].hex()[:120]))
-                    break
+        if writes <= 3:
+            print(f"FAIL  l2gui session: only {writes} writes to the L2")
+            g.ok = False
+        g.check("traffic", as_text(a))
+        if INTEROP:
+            b = run_session(os.path.join(ORIG, "l2gui"), new_l2, "orig-gui", work)
+            g.check("traffic", as_text(b), "l2gui=orig")
+            ref = run_session(os.path.join(ORIG, "l2gui"), orig_l2, "orig-orig", work)
+            new = run_session(os.path.join(NEW, "l2gui"), orig_l2, "orig-l2", work)
+            g.same("l2=orig: l2gui=new sends and gets the original l2gui's traffic",
+                   as_text(ref), as_text(new))
     finally:
         if os.environ.get("KEEP"):
             print("kept", work)
         else:
             shutil.rmtree(work)
-    return 0 if ok else 1
+    print(f"{len(SESSION)} steps")
+    return g.status()
 
 
 if __name__ == "__main__":
