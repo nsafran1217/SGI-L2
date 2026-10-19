@@ -4,7 +4,7 @@
  * Reconstructed from the STABS debug info and Ghidra decompilation of l2.
  * Original: /data/cf/sysco/scs123.patch/sys_ctrl/l3/l2/smp.c
  *
- * SMP: the L2's consoles (its serial console and modem, and telnet-style
+ * SMP: the L2's consoles (its serial console, and telnet-style
  * network sessions, serial.c and enet.c). A session reads a command line
  * with simple editing and runs it through l2cmd.c; in console mode its
  * keys go to the system console's brick and the console output comes back
@@ -85,9 +85,7 @@ static SMPGroup *new_group(SMP *smp)
  * for network sessions */
 SMP *smp_init(IRIdent *id, int rfd, int wfd, void (*rfcn)(), uint32 host, int port)
 {
-  int task = IR_ADDR_TASK(id->addr);
   SMP *smp;
-  int baud;
 
   smp_input_debug = 0;
   smp_console_debug = 0;
@@ -98,27 +96,14 @@ SMP *smp_init(IRIdent *id, int rfd, int wfd, void (*rfcn)(), uint32 host, int po
   smp->wfd = wfd;
   smp->rfcn = rfcn;
   smp->id = id;
-  smp->grpid = task == IR_L2_MODEM ? 1 : smp->rfd;
+  smp->grpid = smp->rfd;
   smp->grp = new_group(smp);
   smp->grp->mode = SMP_MODE_L2;
   smp->grp->l2cmd = l2cmd_init(smp->id,smp_timeout,smp_etimeout,smp_command_done,smp);
   smp->next = smp_list;
   smp_count++;
   smp_list = smp;
-  baud = B38400;
-  if (task == IR_L2_MODEM) {
-    switch (nvramGet(NVRAM_MODEM_BAUD)) {
-    case 1:
-      baud = B19200;
-      break;
-    case 2:
-      baud = B9600;
-      break;
-    default:
-      nvramSet(NVRAM_MODEM_BAUD,0);
-    }
-  }
-  smp_tty_config(smp->rfd,baud);
+  smp_tty_config(smp->rfd,B38400);
   EventAddInput(smp->rfd,smp_read,(EventData)smp,"smp_init");
   smp_event(SMP_EV_OPEN,smp->grpid,NULL);
   smp_prompt(smp);
@@ -194,21 +179,6 @@ int smp_is_valid(SMP *smp)
   for (tsmp = smp_list; tsmp != NULL && tsmp != smp; tsmp = tsmp->next)
     ;
   return tsmp != NULL;
-}
-
-/* "smp modem baud": 0 38400, 1 19200, 2 9600 */
-void smp_baud(int baud)
-{
-  SMP *s;
-
-  nvramSet(NVRAM_MODEM_BAUD,baud);
-  baud = baud == 1 ? B19200 : baud == 0 ? B38400 : B9600;
-  for (s = smp_list; s != NULL; s = s->next) {
-    if (IR_ADDR_TYPE(s->id->addr) == IR_ADDR_IP && IR_ADDR_TASK(s->id->addr) == IR_L2_MODEM) {
-      smp_tty_config(s->rfd,baud);
-      return;
-    }
-  }
 }
 
 /* the sessions in console mode, and (into pselect, if given) the
@@ -351,22 +321,6 @@ void smp_query(SMP *smp, int verbose, char **results)
       switch (IR_ADDR_TASK(s->id->addr)) {
       case IR_L2_CONSOLE:
         rptr += sprintf(rptr,"console port 38400 ");
-        break;
-      case IR_L2_MODEM:
-        rptr += sprintf(rptr,"modem port   ");
-        switch (nvramGet(NVRAM_MODEM_BAUD)) {
-        case 1:
-          rptr += sprintf(rptr,"19200 ");
-          break;
-        case 0:
-          rptr += sprintf(rptr,"38400 ");
-          break;
-        case 2:
-          rptr += sprintf(rptr," 9600 ");
-          break;
-        default:
-          rptr += sprintf(rptr,"%5d ",(int)nvramGet(NVRAM_MODEM_BAUD));
-        }
         break;
       default:
         rptr += sprintf(rptr,"unknown        n/a ");
@@ -1176,8 +1130,7 @@ void smp_tty_config(int fd, int baud)
   termios.c_iflag = (termios.c_iflag & ~(INLCR | IGNCR | ICRNL | IUCLC | IXON | IXOFF)) | ISTRIP;
   termios.c_oflag |= OPOST;
   termios.c_lflag &= ~(ICANON | ECHO);
-  if (!l2_pc)
-    termios.c_cflag |= CRTSCTS;
+  termios.c_cflag |= CRTSCTS;
   termios.c_cc[VINTR] = 0;
   termios.c_cc[VSUSP] = 0;
   termios.c_cc[VMIN] = 1;

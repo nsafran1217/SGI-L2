@@ -269,9 +269,6 @@ Cmd l2cmd_cmds[] = {
   { .toks = { "smp", "verbose|v" }, .func = l2cmd_smp, .params = { 0, 1 }, .desc = "show status of SMP connections (verbose)" },
   { .toks = { "smp", "join", CMD_TOK(CMD_EXP) }, .func = l2cmd_smp, .params = { 1 }, .desc = "joins to specified SMP group" },
   { .toks = { "smp", "leave" }, .func = l2cmd_smp, .params = { 2 }, .desc = "leaves the current SMP group" },
-  { .toks = { "smp", "modem", "baud", "9600" }, .func = l2cmd_smp, .params = { 3, 2 }, .desc = "sets modem port baud rate to 9600" },
-  { .toks = { "smp", "modem", "baud", "19200" }, .func = l2cmd_smp, .params = { 3, 1 }, .desc = "sets modem port baud rate to 19200" },
-  { .toks = { "smp", "modem", "baud", "38400" }, .func = l2cmd_smp, .params = { 3 }, .desc = "sets modem port baud rate to 38400" },
   { .toks = { "serial" }, .func = l2cmd_serial, .desc = "shows the L2 system serial number" },
   { .toks = { "serial", "set", CMD_TOK(CMD_STR) }, .func = l2cmd_serial, .params = { 1 }, .desc = "sets the L2 system serial number" },
   { .toks = { "multisys|msys" }, .func = l2cmd_multisys, .desc = "show current setting for multiple system network sharing" },
@@ -567,8 +564,7 @@ static int l2cmd_rtc(CmdData *cptr, char **results, L2CMD *c)
       strcpy(*results,"ERROR: destination set.\n");
       return -1;
     }
-    if (!l2_pc)
-      sprintf(*results,"WARNING: cannot sync timezone when running the L2 emulator on a PC\n");
+    sprintf(*results,"WARNING: cannot sync timezone when running the L2 emulator on a PC\n");
     break;
   }
   return 0;
@@ -1575,14 +1571,9 @@ void quit(void)
   exit(0);
 }
 
-/* "quit": l2 exits (not a PC L2) */
+/* "quit": l2 exits */
 static int l2cmd_quit(CmdData *cptr, char **results, L2CMD *c)
 {
-  if (l2_pc) {
-    response(results,160);
-    sprintf(*results,"INFO: can\'t quit PC L2\n");
-    return 0;
-  }
   smp_reset();
   exit(2);
 }
@@ -1731,7 +1722,7 @@ static int l2cmd_l2find(CmdData *cptr, char **results)
   return 0;
 }
 
-/* "smp [verbose]|join <group>|leave|modem baud <rate>" */
+/* "smp [verbose]|join <group>|leave" */
 static int l2cmd_smp(CmdData *cptr, char **results, L2CMD *c)
 {
   if (c == NULL)
@@ -1755,11 +1746,6 @@ static int l2cmd_smp(CmdData *cptr, char **results, L2CMD *c)
       strcpy(*results,"ERROR: you are already in your own group\n");
       return -1;
     }
-    break;
-  case 3:
-    smp_baud(cptr->params[1]);
-    response(results,160);
-    strcpy(*results,"modem port baud rate changed\n");
     break;
   }
   return 0;

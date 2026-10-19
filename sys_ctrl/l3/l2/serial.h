@@ -13,8 +13,6 @@
 /* prototypes (not recorded in STABS; reconstructed from definitions) */
 /* serial.c */
 extern SMP *serial_console;
-extern SMP *serial_modem;
-extern char *serial_com2;
 void serial_init(void);
 void serial_reset(int sd);
 

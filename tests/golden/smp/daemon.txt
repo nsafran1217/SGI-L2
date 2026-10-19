@@ -168,12 +168,6 @@ smp join <exp>
 	joins to specified SMP group
 smp leave 
 	leaves the current SMP group
-smp modem baud 9600 
-	sets modem port baud rate to 9600
-smp modem baud 19200 
-	sets modem port baud rate to 19200
-smp modem baud 38400 
-	sets modem port baud rate to 38400
 ?-<L2IP>-L2>hlp shell
 ERROR: command shell not found.
 ?-<L2IP>-L2>shell

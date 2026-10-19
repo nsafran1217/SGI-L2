@@ -69,7 +69,6 @@ void smp_free(SMP *smp);
 void smp_cleanup(void);
 void smp_reset(void);
 int smp_is_valid(SMP *smp);
-void smp_baud(int baud);
 int smp_console_count(unsigned char *pselect);
 int smp_get_mode(SMP *smp);
 int smp_set_mode(SMP *smp, int mode);

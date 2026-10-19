@@ -52,7 +52,6 @@ int l2_debug;
 int l2_discover;
 int l2_l1_conn_mode = L2_CONN_USB;
 int l2_l1_local_port = -1;      /* the first L1 port in use */
-int l2_pc;                      /* -pc: a PC-based L2 (modem port, discovery) */
 int l2_hardware;
 int l2_flow_hwater;
 int l2_flow_lwater;
@@ -62,7 +61,6 @@ int l2_l1_control;              /* the sgil1 driver's control device */
 char *l2_l1_device;
 IRIdent l2_id;
 IRIdent l2_console_id;
-IRIdent l2_modem_id;
 IRIdent l2_cfg_id;
 IRIdent l2_lpbk_id;
 IRIdent l2_route_id;
@@ -139,7 +137,6 @@ static int run(void)
   IRouterInit(l2_ip);
   IRouterInitID(&l2_id,0,0);           /* (task 0) */
   IRouterInitID(&l2_console_id,IR_L2_CONSOLE,0);
-  IRouterInitID(&l2_modem_id,IR_L2_MODEM,0);
   IRouterInitID(&l2_cfg_id,IR_L2_CFG,0);
   IRouterInitID(&l2_cmd_id,IR_L2_CMD,0);
   IRouterInitID(&l2_cmdusr_id,IR_L2_CMDUSR,0);
@@ -196,10 +193,6 @@ int main(int argc, char **argv, char **envp)
 
     if (strcmp(arg,"-net") == 0)
       l2_l1_conn_mode = L2_CONN_NET;
-    else if (strcmp(arg,"-pc") == 0) {
-      l2_pc = 1;
-      l2_discover = 1;
-    }
     else if (strcmp(arg,"-usb") == 0)
       l2_l1_conn_mode = L2_CONN_USB;
     else if (strcmp(arg,"-noconn") == 0)
