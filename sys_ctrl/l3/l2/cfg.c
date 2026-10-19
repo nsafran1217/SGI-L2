@@ -167,10 +167,6 @@ void cfg_ping_l1(int device)
   case L2_CONN_USB:
     port = device;
     break;
-  case L2_CONN_SERIAL:
-  case L2_CONN_SERIAL_NET:
-    port = 0;
-    break;
   default:
     return;
   }

@@ -52,14 +52,11 @@ int l2_debug;
 int l2_discover;
 int l2_l1_conn_mode = L2_CONN_USB;
 int l2_l1_local_port = -1;      /* the first L1 port in use */
-int l2_l1_serial_hostport = 2345;
 int l2_pc;                      /* -pc: a PC-based L2 (modem port, discovery) */
 int l2_hardware;
 int l2_flow_hwater;
 int l2_flow_lwater;
 int l2_copynum;                 /* --copy */
-char l2_l1_serial_device[512];   /* original: 32 */
-char l2_l1_serial_hostname[32];
 L2L1Port l2_l1_ports[L2_L1_PORTS];
 int l2_l1_control;              /* the sgil1 driver's control device */
 char *l2_l1_device;
@@ -189,8 +186,6 @@ int main(int argc, char **argv, char **envp)
 
   syslogLibInit(syslog_msg);
   l2_myname = argv[0];
-  strcpy(l2_l1_serial_hostname,"local_host");
-  strcpy(l2_l1_serial_device,l3path_dev("com2"));   /* original: "/dev/com2" */
   if (SocketGetHostName(&myhost) == -1)
     myhost = "localhost";
   SocketGetAddr(myhost,&l2_ip);
@@ -228,23 +223,6 @@ int main(int argc, char **argv, char **envp)
       l2_discover = 1;
     else if (strcmp(arg,"-nodiscover") == 0)
       l2_discover = 0;
-    else if (strcmp(arg,"-serial") == 0) {
-      /* <device> | <host> [<port>] */
-      if (more == 0)
-        syntax();
-      arg = argv[++i];
-      if (arg[0] == '/') {
-        l2_l1_conn_mode = L2_CONN_SERIAL;
-        /* (the original strcpy()ed into 32 bytes) */
-        snprintf(l2_l1_serial_device,sizeof(l2_l1_serial_device),"%s",arg);
-      }
-      else {
-        l2_l1_conn_mode = L2_CONN_SERIAL_NET;
-        snprintf(l2_l1_serial_hostname,sizeof(l2_l1_serial_hostname),"%s",arg);
-        if (more > 1)
-          sscanf(argv[++i],"%d",&l2_l1_serial_hostport);
-      }
-    }
     else if (strcmp(arg,"-usbpath") == 0) {
       if (more == 0 || l1_parse_usbpath(argv[++i]) != 0)
         syntax();
@@ -307,7 +285,7 @@ static void l2_flow_control(void *data, RouterClient *client, int overflow)
 static void syntax(void)
 {
   fprintf(stdout,
-          "usage: %s -enet | -usb | -serial [ <device> | <ipaddr> <port>]  [ -noconn -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]\n"
+          "usage: %s -net | -usb | -noconn  [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]\n"
           ,l2_myname);
   exit(0);
 }

@@ -8,8 +8,6 @@
  *  - USB (the default): the sgil1 driver (sgil1.h). The control device
  *    reports which devices are present; each present one is opened as an
  *    L1 port, and closed when it goes or after repeated errors;
- *  - a serial line (-serial <device>) or a serial line on a terminal
- *    server (-serial <host> <port>): one port, PPP-framed;
  *  - sockets (-net): l1net.c accepts them.
  * Packets are read and written whole through IRouterReadPacket() and
  * IRouterWritePacket() with the link's read and write functions.
@@ -21,7 +19,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
-#include <termios.h>
 #include <unistd.h>
 #include "l2.h"
 #include "l1.h"
@@ -29,7 +26,6 @@
 #include "dmp.h"
 #include "irtr.h"
 #include "l1net.h"
-#include "serial.h"
 #include "sgil1.h"
 #include "smp.h"
 #include "../main/nvram.h"
@@ -39,13 +35,10 @@
 
 #define MAX_FDS         64      /* lasterr[] and the like, by descriptor */
 #define READ_ERRORS     3       /* a device is closed after this many in a row */
-#define CAN             0x18    /* the serial protocol's opening */
 
 static char *l1_usb_path_str(sgil1_cfg_t *cfg, int format);
 
 int l1_throttle_freq = 50;      /* ms between reads while throttled */
-unsigned char l1_pkt_in[1] = { CAN };
-unsigned char l1_pkt_out[1] = "\r";
 static char **l1_usbpath_list;  /* -usbpath: only devices on these paths */
 static int l1_usbpath_count;
 static int l1_usbpath_size;
@@ -53,9 +46,6 @@ static int l1_do_ioctls = 1;    /* 0 once the driver turned out to have none */
 static int sgil1_rev;
 int l1usb_debug;                /* (USB messages as console events) */
 EventID l1_throttle_timerid;
-PPPInstance ppp;
-unsigned char ppp_ibuf[8];
-unsigned char ppp_obuf[256];
 /* the last read error on each descriptor, and how often it repeated */
 static int lasterr[MAX_FDS];
 static int lastcnt[MAX_FDS];
@@ -371,132 +361,6 @@ int l1_close_usb(void)
   return 0;
 }
 
-/* --- serial --- */
-
-static void serial_opened(int fd, const char *name)
-{
-  if (fd_ok(fd)) {
-    lasterr[fd] = 0;
-    lastcnt[fd] = 0;
-  }
-  if (l2_l1_local_port == -1)
-    l2_l1_local_port = 0;
-  copy_field(l2_l1_ports[0].device,sizeof(l2_l1_ports[0].device),name);
-}
-
-int l1_open_serial_direct(void)
-{
-  if (l2_debug)
-    fprintf(stderr,"l1_open_serial_direct() in\n");
-  l2_l1_ports[0].fd = l1_tty_open(l2_l1_serial_device);
-  if (l2_l1_ports[0].fd < 0) {
-    fprintf(stderr,"ERROR: can\'t open device %s, errno: %d\n",l2_l1_serial_device,errno);
-    return -1;
-  }
-  /* (the original strcpy()ed the device into its 20 bytes) */
-  serial_opened(l2_l1_ports[0].fd,l2_l1_serial_device);
-  if (l2_debug)
-    fprintf(stderr,"l1_open_serial_direct() out\n");
-  return 0;
-}
-
-int l1_close_serial_direct(void)
-{
-  if (l1_tty_close(l2_l1_ports[0].fd) != 0) {
-    fprintf(stderr,"ERROR: can\'t close device %s, errno: %d\n",l2_l1_serial_device,errno);
-    return -1;
-  }
-  return 0;
-}
-
-int l1_open_serial_enet(void)
-{
-  if (l2_debug)
-    fprintf(stderr,"l1_open_serial_enet() in\n");
-  l2_l1_ports[0].fd = SocketMakeInetConnection(l2_l1_serial_hostname,l2_l1_serial_hostport,0);
-  if (l2_l1_ports[0].fd < 0) {
-    fprintf(stderr," ERROR: can\'t open connection %s:%d, errno: %d\n",l2_l1_serial_hostname,
-            l2_l1_serial_hostport,errno);
-    return -1;
-  }
-  serial_opened(l2_l1_ports[0].fd,"ENET");
-  if (l2_debug)
-    fprintf(stderr,"l1_open_serial_enet() out\n");
-  return 0;
-}
-
-int l1_close_serial_enet(void)
-{
-  if (SocketClose(l2_l1_ports[0].fd) != 0) {
-    fprintf(stderr," ERROR: can\'t close connection %s:%d, errno: %d\n",l2_l1_serial_hostname,
-            l2_l1_serial_hostport,errno);
-    return -1;
-  }
-  return 0;
-}
-
-/* a byte to the serial link; 1 if written */
-static int serial_put(int fd, unsigned char c)
-{
-  if (l2_l1_conn_mode == L2_CONN_SERIAL)
-    return write(fd,&c,1);
-  return SocketWrite(fd,&c,1);
-}
-
-static int serial_get(int fd, unsigned char *c)
-{
-  if (l2_l1_conn_mode == L2_CONN_SERIAL)
-    return read(fd,c,1);
-  return SocketRead(fd,c,1);
-}
-
-/* the serial protocol's opening: a CR, after two seconds a CAN, and the L1
- * echoes the CAN; then the line is an L1 port. Exits if it fails. */
-static void serial_start(void)
-{
-  int fd = l2_l1_ports[0].fd;
-  unsigned char echo;
-  int status;
-
-  PPPInit(&ppp,ppp_ibuf,sizeof(ppp_ibuf),ppp_obuf,sizeof(ppp_obuf),0,1,IR_FRAME_PREFIX,0,l1_ppperr,NULL);
-  if (serial_put(fd,'\r') != 1) {
-    fprintf(stderr,"FATAL: can\'t initiate L1 protocol, errno: %d\n",errno);
-    exit(1);
-  }
-  sleep(2);
-  if (serial_put(fd,CAN) != 1) {
-    fprintf(stderr,"FATAL: can\'t initiate L1 protocol, errno: %d\n",errno);
-    exit(1);
-  }
-  for (;;) {
-    errno = 0;
-    if (l2_debug)
-      fprintf(stderr,"l1_open() waiting\n");
-    echo = 0;
-    status = serial_get(fd,&echo);
-    if (status < 1) {
-      fprintf(stderr,"FATAL: can\'t confirm L1 protocol, errno: %d\n",errno);
-      exit(1);
-    }
-    if (l2_debug)
-      fprintf(stderr,"l1_open() read %02x, status %d, errno %d\n",(int)(signed char)echo,status,errno);
-    if (echo == CAN)
-      break;
-  }
-  status = SocketNodelayMode(fd,1);
-  if (status != 0) {
-    fprintf(stderr,"FATAL: can\'t set delay mode on L1 connection, status: %d, errno: %d\n",status,errno);
-    exit(1);
-  }
-  if (L2CfgMAddPort(&L2CfgLocal,0,l2_l1_serial_device,NULL,1,fd) == -1) {
-    fprintf(stderr,"WARNING: device is already in use.\n");
-    return;
-  }
-  /* (the descriptor as the port number: any is port 0 on a serial link) */
-  EventAddTimeOut(1,0,cfg_ping_l1,(EventData)(intptr_t)fd,"l1_open");
-  EventAddInput(fd,l1_read_packet,NULL,"l1_open");
-}
-
 /* open the L1 link(s); exits if it can't */
 void l1_open(void)
 {
@@ -515,19 +379,11 @@ void l1_open(void)
   case L2_CONN_USB:
     status = l1_open_usb();
     break;
-  case L2_CONN_SERIAL:
-    status = l1_open_serial_direct();
-    break;
-  case L2_CONN_SERIAL_NET:
-    status = l1_open_serial_enet();
-    break;
   }
   if (status != 0) {
     fprintf(stderr,"FATAL: can\'t open connection to L1\n");
     exit(1);
   }
-  if (l2_l1_conn_mode == L2_CONN_SERIAL || l2_l1_conn_mode == L2_CONN_SERIAL_NET)
-    serial_start();
   if (l2_debug)
     fprintf(stderr,"l1_open() out\n");
 }
@@ -544,76 +400,11 @@ void l1_close(int fd)
   case L2_CONN_USB:
     status = l1_close_usb();
     break;
-  case L2_CONN_SERIAL:
-  case L2_CONN_SERIAL_NET:
-    EventRemoveInput(l2_l1_ports[0].fd);
-    if (l2_l1_ports[0].timer != 0)
-      EventRemoveTimeOut(l2_l1_ports[0].timer);
-    l2_l1_ports[0].timer = 0;
-    smp_input_l1sysco(serial_console,'\r');
-    status = l2_l1_conn_mode == L2_CONN_SERIAL ? l1_close_serial_direct() : l1_close_serial_enet();
-    break;
   }
   if (status != 0) {
     fprintf(stderr,"FATAL: can\'t close connection to L1\n");
     exit(1);
   }
-}
-
-void l1_tty_debug(int td)
-{
-  struct termios termios;
-  int i;
-
-  if (tcgetattr(td,&termios) == -1) {
-    fprintf(stderr,"WARNING: can\'t get termios, errno: %d\n",errno);
-    return;
-  }
-  fprintf(stderr,"---\niflag:  0x%04x\n",termios.c_iflag);
-  fprintf(stderr,"oflag:  0x%04x\n",termios.c_oflag);
-  fprintf(stderr,"cflag:  0x%04x\n",termios.c_cflag);
-  fprintf(stderr,"lflag:  0x%04x\n",termios.c_lflag);
-  fprintf(stderr,"ispeed:  %8d\n",termios.c_ispeed);
-  fprintf(stderr,"ospeed:  %8d\n",termios.c_ospeed);
-  for (i = 0; i < 0x20; i++)
-    fprintf(stderr,"cc_c[0x%2x]: 0x%04x\n",i,termios.c_cc[i]);
-}
-
-/* open a serial device raw, 8 bits, hardware flow control */
-int l1_tty_open(char *device)
-{
-  struct termios termios;
-  int td;
-
-  td = open(device,O_RDWR);
-  if (td == -1) {
-    fprintf(stderr,"ERROR: can\'t open %s, errno %d\n",device,errno);
-    return -1;
-  }
-  if (tcgetattr(td,&termios) == -1) {
-    fprintf(stderr,"ERROR: can\'t get termios, errno %d.\n",errno);
-    return -1;
-  }
-  termios.c_iflag = IGNBRK | IGNPAR;
-  termios.c_oflag = 0;
-  /* (no speed bits: the original put B38400 in the c_ispeed/c_ospeed
-   * fields, which Linux's tcsetattr() ignores, so the line is set to B0) */
-  termios.c_cflag = CRTSCTS | CLOCAL | CREAD | CS8;
-  termios.c_lflag = 0;
-  termios.c_ospeed = B38400;
-  termios.c_ispeed = B38400;
-  termios.c_cc[VMIN] = 1;
-  termios.c_cc[VTIME] = 0;
-  if (tcsetattr(td,TCSANOW,&termios) == -1) {
-    fprintf(stderr,"ERROR: can\'t put termios, errno %d.\n",errno);
-    return -1;
-  }
-  return td;
-}
-
-int l1_tty_close(int td)
-{
-  return close(td) == 0 ? 0 : -1;
 }
 
 /* after a failed read or write: a device that is gone is closed (0); 1 if
@@ -678,49 +469,6 @@ int l1_read_usb(int fd, unsigned char **bptr, int blen)
   return dev_still_open ? status : 0;
 }
 
-int l1_read_raw(int fd, unsigned char *bptr, int blen)
-{
-  int status;
-
-  if (l2_debug)
-    fprintf(stderr,"l1_read_raw(%d,%lx,%d) in\n",fd,(unsigned long)(uintptr_t)bptr,blen);
-  errno = 0;
-  status = SocketRead(fd,bptr,blen);
-  if (l2_debug)
-    fprintf(stderr,"l1_read_raw() out, status %d, errno %d\n",status,errno);
-  if (l2_debug > 1)
-    dmp("READ",bptr,status,1);
-  return status;
-}
-
-int l1_read_socket(int fd, unsigned char *bptr, int blen)
-{
-  int status;
-
-  if (l2_debug)
-    fprintf(stderr,"l1_read_socket(%d,%lx,%d) in\n",fd,(unsigned long)(uintptr_t)bptr,blen);
-  errno = 0;
-  status = SocketRead(fd,bptr,blen);
-  if (l2_debug)
-    fprintf(stderr,"l1_read_socket() out, status %d, errno %d\n",status,errno);
-  if (l2_debug > 1)
-    dmp("READ",bptr,status,1);
-  return status;
-}
-
-int l1_read_ppp(int fd, unsigned char **bptr, int32 blen)
-{
-  int (*rfcn)() = l2_l1_conn_mode == L2_CONN_SERIAL ? l1_read_raw : l1_read_socket;
-  int status;
-
-  if (l2_debug)
-    fprintf(stderr,"l1_read_ppp(%d,%lx,%d) in\n",fd,(unsigned long)(uintptr_t)bptr,blen);
-  status = PPPRead(&ppp,rfcn,(void *)(intptr_t)fd,bptr,blen);
-  if (l2_debug)
-    fprintf(stderr,"l1_read_ppp() out\n");
-  return status;
-}
-
 /* a frame from a socket: its 16-bit size (network order) first */
 int l1_read_l1net(int fd, unsigned char **pbptr, int blen)
 {
@@ -765,9 +513,6 @@ static int (*read_fcn(void))()
     return l1_read_l1net;
   case L2_CONN_USB:
     return l1_read_usb;
-  case L2_CONN_SERIAL:
-  case L2_CONN_SERIAL_NET:
-    return l1_read_ppp;
   }
   return NULL;
 }
@@ -779,9 +524,6 @@ static int (*write_fcn(void))()
     return l1_write_l1net;
   case L2_CONN_USB:
     return l1_write_usb;
-  case L2_CONN_SERIAL:
-  case L2_CONN_SERIAL_NET:
-    return l1_write_ppp;
   }
   return NULL;
 }
@@ -856,47 +598,6 @@ int l1_write_usb(int fd, unsigned char *bptr, int blen)
   return dev_still_open ? status : 0;
 }
 
-int l1_write_raw(int fd, unsigned char *bptr, int blen)
-{
-  int status;
-
-  if (l2_debug)
-    fprintf(stderr,"l1_write_raw(%d,%lx,%d) in\n",fd,(unsigned long)(uintptr_t)bptr,blen);
-  status = write(fd,bptr,blen);
-  if (l2_debug > 1)
-    dmp("WRITE",bptr,blen,1);
-  if (l2_debug)
-    fprintf(stderr,"l1_write_raw() out, status %d, errno %d\n",status,errno);
-  return status;
-}
-
-int l1_write_socket(int fd, unsigned char *bptr, int blen)
-{
-  int status;
-
-  if (l2_debug)
-    fprintf(stderr,"l1_write_socket(%d,%lx,%d) in\n",fd,(unsigned long)(uintptr_t)bptr,blen);
-  status = SocketWrite(fd,bptr,blen);
-  if (l2_debug > 1)
-    dmp("WRITE",bptr,blen,1);
-  if (l2_debug)
-    fprintf(stderr,"l1_write_socket() out, status %d, errno %d\n",status,errno);
-  return status;
-}
-
-int l1_write_ppp(int fd, unsigned char *bptr, int blen)
-{
-  int (*wfcn)() = l2_l1_conn_mode == L2_CONN_SERIAL ? l1_write_raw : l1_write_socket;
-  int status;
-
-  if (l2_debug)
-    fprintf(stderr,"l1_write_ppp(%d,%lx,%d) in\n",fd,(unsigned long)(uintptr_t)bptr,blen);
-  status = PPPWrite(&ppp,wfcn,(void *)(intptr_t)fd,bptr,blen);
-  if (l2_debug)
-    fprintf(stderr,"l1_write_ppp() out\n");
-  return status;
-}
-
 int l1_write_l1net(int fd, unsigned char *bptr, int blen)
 {
   return SocketWrite(fd,bptr,blen);
@@ -916,13 +617,6 @@ void l1_write_packet(int fd, IRPacket *p)
                       dest,LoggerDefaultMessage(status));
   if (l2_debug)
     fprintf(stderr,"l1_write_packet() out\n");
-}
-
-/* PPP's error callback */
-void l1_ppperr(void *arg, PPPError *err)
-{
-  /* (the original took the PPPError pointer as an error number) */
-  fprintf(stderr,"WARNING: PPP error %s\n",LoggerDefaultMessage(err->status));
 }
 
 /*

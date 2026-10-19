@@ -39,8 +39,6 @@ enum {
     L2_CONN_NONE = 0,           /* -noconn */
     L2_CONN_NET = 1,            /* -net: L1s connect to the L1 port (l1net.c) */
     L2_CONN_USB = 2,            /* -usb (the default): the sgil1 driver */
-    L2_CONN_SERIAL = 3,         /* -serial <device> */
-    L2_CONN_SERIAL_NET = 4,     /* -serial <host> [<port>]: a serial line over TCP */
 };
 #define L2_L1_PORTS 40          /* l2_l1_ports[] */
 
@@ -52,14 +50,11 @@ extern int l2_debug;
 extern int l2_discover;
 extern int l2_l1_conn_mode;
 extern int l2_l1_local_port;
-extern int l2_l1_serial_hostport;
 extern int l2_pc;
 extern int l2_hardware;
 extern int l2_flow_hwater;
 extern int l2_flow_lwater;
 extern int l2_copynum;
-extern char l2_l1_serial_device[512];
-extern char l2_l1_serial_hostname[32];
 extern L2L1Port l2_l1_ports[L2_L1_PORTS];
 extern int l2_l1_control;
 extern char *l2_l1_device;
