@@ -27,7 +27,6 @@ struct SMPGroup_s {
     char cbuf[128];
     int clen;
     char *cptr;
-    int shell;
     int lpbk_pending;
 };
 typedef struct SMPGroup_s SMPGroup;
@@ -51,7 +50,6 @@ enum {
     SMP_MODE_CONSOLE_ESC = 2,   /* ... escaped to the L2 for one command (CTRL-T) */
     SMP_MODE_L1 = 3,            /* keys to an L1's command processor */
     SMP_MODE_L1_ESC = 4,        /* ... escaped */
-    SMP_MODE_SHELL = 5,         /* "shell" */
 };
 
 /* the SMP (console) network ports, plus IR_PORT_BIAS (enet.c); the serial
@@ -93,7 +91,6 @@ void smp_output(SMP *smp, char *bptr, int blen);
 void smp_prompt(SMP *smp);
 IRAddress smp_chkcon_present(SMP *smp);
 void smp_chkcon_changes(int get_check);
-int smp_shell(SMP *smp, char *cmd);
 void smp_process_packet(SMP *smp, IRPacket *p, int source, void (*w)());
 void smp_process_event(IRPacket *p);
 void q(SMP *smp);
@@ -101,7 +98,6 @@ void smp_process_response(IRPacket *p);
 void smp_read(SMP *smp);
 void smp_write(SMP *smp, char *ibptr, int iblen);
 int l2_console_printf(const char *format, ...) __attribute__((format(printf, 1, 2)));   /* SGI code writes fprintf(NULL, ...) */
-void smp_echo(SMP *smp);
 void smp_console(SMP *smp, IRAddress conaddr, int reenter);
 void smp_tty_config(int fd, int baud);
 void smp_tty_reconfig(int fd);

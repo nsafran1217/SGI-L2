@@ -98,22 +98,15 @@ static int l2cmd_reset(CmdData *cptr, char **results, L2CMD *c);
 static int l2cmd_rackid(CmdData *cptr, char **results);
 static int l2cmd_pbay(CmdData *cptr, char **results, L2CMD *c);
 static int l2cmd_quit(CmdData *cptr, char **results, L2CMD *c);
-static void reboot(void);
-static int l2cmd_reboot(CmdData *cptr, char **results);
-static void haltl2(void);
-static int l2cmd_haltl2(CmdData *cptr, char **results, L2CMD *c);
 static int l2cmd_ping(CmdData *cptr, char **results);
 static int l2cmd_l2dsp(CmdData *cptr, char **results);
 static int format_l2find_entry(char *rptr, sn1SC_L2 *l2);
 static int l2cmd_l2find(CmdData *cptr, char **results);
-static int l2cmd_shell(CmdData *cptr, char **results, L2CMD *c);
 static int l2cmd_smp(CmdData *cptr, char **results, L2CMD *c);
 static int l2cmd_serial(CmdData *cptr, char **results);
 static int l2cmd_sysname(CmdData *cptr, char **results);
 static int l2cmd_multisys(CmdData *cptr, char **results);
 static int l2cmd_psmode(CmdData *cptr, char **results);
-static int l2cmd_dhcps(CmdData *cptr, char **results);
-static int l2cmd_ip(CmdData *cptr, char **results);
 static int l2cmd_log(CmdData *cptr, char **results);
 static int l2cmd_select(CmdData *cptr, char **results, L2CMD *c);
 static int l2cmd_tty(CmdData *cptr, char **results, L2CMD *c);
@@ -164,20 +157,12 @@ Cmd l2cmd_cmds[] = {
   { .toks = { "destination|dest" }, .func = l2cmd_destination, .desc = "shows default destination(s)" },
   { .toks = { CMD_TOK(CMD_RANGE), "destination|dest" }, .func = l2cmd_destination, .params = { 1 }, .desc = "sets default destination to selected racks and slots" },
   { .toks = { "destination|dest", "reset|rst" }, .func = l2cmd_destination, .params = { 2 }, .desc = "resets default default to all rack and slots" },
-  { .toks = { "dhcpserver|dhcps" }, .func = l2cmd_dhcps, .desc = "show current DHCP server setting" },
-  { .toks = { "dhcpserver|dhcps", "on|enable" }, .func = l2cmd_dhcps, .params = { 1 }, .desc = "enables startup of DHCP server (if no other DHCP server found)" },
-  { .toks = { "dhcpserver|dhcps", "off|disable" }, .func = l2cmd_dhcps, .params = { 2 }, .desc = "disables startup of DHCP server" },
   { .toks = { "env", "summary|s" }, .func = l2cmd_env, .desc = "shows environmental status summary" },
   { .toks = { CMD_TOK(CMD_RANGE), "env", "summary|s" }, .func = l2cmd_env, .params = { 1 }, .desc = "shows environmental status summary" },
   { .toks = { "help|hlp" }, .func = l2cmd_help, .desc = "get list of commands" },
   { .toks = { "help|hlp", CMD_TOK(CMD_STR) }, .func = l2cmd_help, .params = { 1 }, .desc = "get help on a single command." },
   { .toks = { CMD_TOK(CMD_RANGE), "hreboot_l1" }, .func = l2cmd_hreboot_l1, .desc = "use the L1REQ_REBOOT request to reboot the L1", .visibility = 1 },
   { .toks = { CMD_TOK(CMD_RACKSLOT), "hreboot_l1" }, .func = l2cmd_hreboot_l1, .desc = "use the L1REQ_REBOOT request to reboot the L1", .visibility = 1 },
-  { .toks = { "ip" }, .func = l2cmd_ip, .desc = "shows static IP address settings" },
-  { .toks = { "ip", "gw|gateway", CMD_TOK(CMD_STR) }, .func = l2cmd_ip, .params = { 3 }, .desc = "set the L2's static IP gateway address" },
-  { .toks = { "ip", CMD_TOK(CMD_STR), CMD_TOK(CMD_STR) }, .func = l2cmd_ip, .params = { 1 }, .desc = "set the L2's static IP config: <addr> <netmask>" },
-  { .toks = { "ip", CMD_TOK(CMD_STR), CMD_TOK(CMD_STR), CMD_TOK(CMD_STR) }, .func = l2cmd_ip, .params = { 2 }, .desc = "set the L2's static IP config: <addr> <netmask> <broadcast>" },
-  { .toks = { "ip", "clear|reset" }, .func = l2cmd_ip, .params = { 4 }, .desc = "clears static IP address settings" },
   { .toks = { "let", "atlantis", "rise" }, .func = l2cmd_help, .params = { 0, 1 }, .desc = "get complete list of commands", .visibility = 1 },
   { .toks = { "let", CMD_TOK(CMD_STR), "rise" }, .func = l2cmd_help, .params = { 1, 1 }, .desc = "get complete help on a single command.", .visibility = 1 },
   { .toks = { "l2dbg" }, .func = l2cmd_l2dbg, .params = { (unsigned int)-1 }, .desc = "show current L2 debug states" },
@@ -211,7 +196,6 @@ Cmd l2cmd_cmds[] = {
   { .toks = { "l2dbg", "brspto", CMD_TOK(CMD_EXP) }, .func = l2cmd_l2dbg, .params = { 24 }, .desc = "set broadcast response timeout limit" },
   { .toks = { "l2dbg", "trspto", CMD_TOK(CMD_EXP) }, .func = l2cmd_l2dbg, .params = { 25 }, .desc = "set target response timeout limit" },
   { .toks = { "l2dbg", "misc", CMD_TOK(CMD_EXP) }, .func = l2cmd_l2dbg, .params = { 26 }, .desc = "set misc. L2 debug flag", .visibility = 1 },
-  { .toks = { "l2dbg", "dump|d", CMD_TOK(CMD_STR), CMD_TOK(CMD_EXP), CMD_TOK(CMD_EXP) }, .func = l2cmd_l2dbg, .params = { 27 }, .desc = "l2dbg dump|d a|x <addr> <len>" },
   { .toks = { "l2dbg", "smp", "response", CMD_TOK(CMD_EXP) }, .func = l2cmd_l2dbg, .params = { 28 }, .desc = "debug SMP responses" },
   { .toks = { "l2dbg", "str", CMD_TOK(CMD_EXP) }, .func = l2cmd_l2dbg, .params = { 29 }, .desc = "debug SMP string processing" },
   { .toks = { "l1" }, .func = l2cmd_l1, .desc = "engages L1 command processor" },
@@ -264,11 +248,8 @@ Cmd l2cmd_cmds[] = {
   { .toks = { CMD_TOK(CMD_RANGE), "power|pwr", "down|d" }, .func = l2cmd_power, .params = { 1, 2 }, .desc = "powers down each selected brick" },
   { .toks = { CMD_TOK(CMD_RANGE), "power|pwr", "summary|s" }, .func = l2cmd_power, .params = { 1, 3 }, .desc = "power status summary" },
   { .toks = { "quit" }, .func = l2cmd_quit, .desc = "exit the L2" },
-  { .toks = { "halt_l2" }, .func = l2cmd_haltl2, .desc = "halt the L2" },
   { .toks = { "rackid" }, .func = l2cmd_rackid, .desc = "print the rack ID of the L2" },
   { .toks = { "rackid", CMD_TOK(CMD_DEC) }, .func = l2cmd_rackid, .params = { 1 }, .desc = "set the rack ID for the L2" },
-  { .toks = { "reboot_l2" }, .func = l2cmd_reboot, .desc = "reboot the L2 controller" },
-  { .toks = { "reboot_l2", "force" }, .func = l2cmd_reboot, .params = { 1 }, .desc = "reboot the L2 controller even if the firmware image is invalid" },
   { .toks = { "reset|rst" }, .func = l2cmd_reset, .desc = "reset each selected brick" },
   { .toks = { CMD_TOK(CMD_RANGE), "reset|rst" }, .func = l2cmd_reset, .params = { 1 }, .desc = "reset each selected brick" },
   { .toks = { "select|sel" }, .func = l2cmd_select, .params = { 0, 1 }, .desc = "shows system console information" },
@@ -305,8 +286,6 @@ Cmd l2cmd_cmds[] = {
   { .toks = { "sysname" }, .func = l2cmd_sysname, .desc = "shows the system name" },
   { .toks = { "sysname", "reset" }, .func = l2cmd_sysname, .params = { 2 }, .desc = "resets the system name" },
   { .toks = { "sysname", CMD_TOK(CMD_STR) }, .func = l2cmd_sysname, .params = { 1 }, .desc = "set the system name" },
-  { .toks = { "shell|!" }, .func = l2cmd_shell, .desc = "escape to L3/L2 OS" },
-  { .toks = { "shell|!", CMD_TOK(CMD_REST) }, .func = l2cmd_shell, .params = { 1 }, .desc = "send <command> to the L3/L2 OS" },
   { .toks = { "version|ver" }, .func = l2cmd_version, .desc = "show L2 firmware version (use \"l1 version\" for L1 firmware revisions)" },
   { .toks = { "version|ver", "v|verbose" }, .func = l2cmd_version, .params = { 1 }, .desc = "show L2 firmware version with L2 emulator and display firmware versions" },
   { .toks = { "version|ver", "s|summary" }, .func = l2cmd_version_summary, .desc = "display summary of L1 and L2 firmware versions currently running in the system" },
@@ -538,19 +517,18 @@ static void show_date(char *buff)
 }
 
 /* "date ...": params[0] 0 show, 1 set, 2 show the timezone, 3 set it, 4
- * set both, 5 raw, 6 sync */
+ * set both (1, 3 and 4 refused), 5 raw, 6 sync */
 static int l2cmd_rtc(CmdData *cptr, char **results, L2CMD *c)
 {
   char cmd[120];
   char buff[128];
   time_t now;
   char *tz;
-  char *p;
-  int rval;
 
   response(results,120);
-  /* (setting is refused unless -pc, whatever the message says) */
-  if ((cptr->params[0] == 1 || cptr->params[0] == 3 || cptr->params[0] == 4) && !l2_pc) {
+  /* (the host's clock and timezone are the host's business: setting them
+   * is refused, as the original did unless -pc) */
+  if (cptr->params[0] == 1 || cptr->params[0] == 3 || cptr->params[0] == 4) {
     sprintf(*results,"INFO: cannot set date/timezone when running the L2 emulator on a PC\n");
     return 0;
   }
@@ -562,27 +540,6 @@ static int l2cmd_rtc(CmdData *cptr, char **results, L2CMD *c)
     tz = getenv("TZ");
     /* (the original strcpy()ed it into the 120 bytes) */
     snprintf(*results,120,"%s\n",tz != NULL ? tz : "<not set>");
-    break;
-  case 3:
-  case 4:
-    /* "date tz <zone>", "date <date> <zone>" */
-    tz = cptr->str_stack[cptr->params[0] == 4 ? 1 : 0];
-    for (p = tz; *p != '\0'; p++)
-      *p = toupper((int)*p);
-    nvramSet(NVRAM_TIMEZONE,(uintptr_t)tz);
-    setenv("TZ",(char *)nvramGet(NVRAM_TIMEZONE),1);
-    if (cptr->params[0] == 3)
-      break;
-    /* fall through */
-  case 1:
-    /* (the original sprintf()ed into the 120 bytes) */
-    snprintf(cmd,sizeof(cmd),"(date %s; hwclock -u --systohc) >/dev/null 2>/dev/null",cptr->str_stack[0]);
-    rval = system(cmd);
-    if (rval != 0 && (rval != -1 || errno != ECHILD)) {
-      snprintf(*results,120,"ERROR: Invalid date \'%s\'\n",cptr->str_stack[0]);
-      return 0;
-    }
-    show_date(*results);
     break;
   case 5:
     now = time(NULL);
@@ -705,31 +662,6 @@ static void list_io(char **results)
   }
   /* (the timer error count, as the original) */
   sprintf(rptr,"Event I/O errors: %d\n",EventTimerErrors);
-}
-
-/* "l2dbg dump a|x <addr> <len>": l2's memory at addr, 16 bytes a line */
-static void dump_memory(CmdData *cptr, char **results)
-{
-  /* the address is a 32-bit command argument (the i386 address space) */
-  uintptr_t dump_addr = (uintptr_t)(unsigned int)cptr->exp_stack[0];
-  unsigned int dump_len = cptr->exp_stack[1];
-  char fmt = *cptr->str_stack[0];
-  unsigned char b;
-  char *rptr;
-  int byte;
-
-  rptr = response(results,((dump_len >> 3) + 1) * 80);
-  while (dump_len != 0) {
-    rptr += sprintf(rptr,"%08x: ",(unsigned int)dump_addr);
-    for (byte = 0; byte < 16 && dump_len != 0; byte++, dump_len--, dump_addr++) {
-      b = *(unsigned char *)dump_addr;
-      if (fmt == 'a')
-        rptr += sprintf(rptr,"%c ",isprint(b) ? b : '?');
-      else
-        rptr += sprintf(rptr,"%02x ",b);
-    }
-    rptr += sprintf(rptr,"\n");
-  }
 }
 
 /* "l2dbg": every setting */
@@ -875,9 +807,6 @@ static int l2cmd_l2dbg(CmdData *cptr, char **results)
     break;
   case 26:      /* misc */
     l2_misc_debug = arg;
-    break;
-  case 27:      /* dump */
-    dump_memory(cptr,results);
     break;
   case 28:      /* smp response */
     smp_debug = arg;
@@ -1651,52 +1580,11 @@ static int l2cmd_quit(CmdData *cptr, char **results, L2CMD *c)
 {
   if (l2_pc) {
     response(results,160);
-    sprintf(*results,"INFO: can\'t quit PC L2\n      use \'halt_l2\' to shutdown\n");
+    sprintf(*results,"INFO: can\'t quit PC L2\n");
     return 0;
   }
   smp_reset();
   exit(2);
-}
-
-static void reboot(void)
-{
-  system(l2_pc ? "init 6" : "/sbin/reboot");
-}
-
-/* "reboot_l2 [force]": the host, in 5 seconds (a PC L2 only) */
-static int l2cmd_reboot(CmdData *cptr, char **results)
-{
-  response(results,320);
-  if (!l2_pc) {
-    strcpy(*results,"INFO: \'reboot_l2\' command only supported on the hardware/PC L2\n");
-    return -1;
-  }
-  EventAddTimeOut(5,0,reboot,NULL,"l2cmd_reboot");
-  response(results,160);
-  strcpy(*results,"will reboot in 5 seconds...\n");
-  return 0;
-}
-
-static void haltl2(void)
-{
-  system("init 0");
-}
-
-/* "halt_l2": the host, in 5 seconds. (ORIGINAL BUG, kept: on other than a
- * PC L2 the "only supported on the PC L2" message is replaced, and the
- * halt goes ahead.) */
-static int l2cmd_haltl2(CmdData *cptr, char **results, L2CMD *c)
-{
-  if (!l2_pc) {
-    response(results,320);
-    strcpy(*results,"INFO: halt command only supported on the PC L2\n");
-  }
-  EventAddTimeOut(5,0,haltl2,NULL,"l2cmd_halt");
-  response(results,160);
-  strcpy(*results,"will halt in 5 seconds...\n");
-  /* (the original returned strcpy()'s result, a pointer: non-zero, which
-   * the command task reports as a failure) */
-  return 1;
 }
 
 /* "ping [min|max|l2|sender|l1|throttle <n>|reset]": the L2 and L1 pings */
@@ -1840,26 +1728,6 @@ static int l2cmd_l2find(CmdData *cptr, char **results)
   rptr = l2find_section(rptr,l2_list,l2_cnt,myssn,same_ssn,"[ L2\'s with matching System Serial Number ]\n",&banner);
   rptr = l2find_section(rptr,l2_list,l2_cnt,myssn,no_ssn,"[ L2\'s with System Serial Number NOT set ]\n",&banner);
   l2find_section(rptr,l2_list,l2_cnt,myssn,other_ssn,"[ L2\'s with different System Serial Numbers ]\n",&banner);
-  return 0;
-}
-
-/* "shell [<command>]" (smp_shell()) */
-static int l2cmd_shell(CmdData *cptr, char **results, L2CMD *c)
-{
-  if (c == NULL)
-    return -1;
-  if (!check_smp(c->data,results))
-    return 0;
-  if (c->data == NULL) {
-    response(results,160);
-    sprintf(*results,"ERROR: remote shell not supported.\n");
-    return -1;
-  }
-  if (smp_shell(c->data,cptr->params[0] == 0 ? NULL : cptr->str_stack[0]) != 0) {
-    response(results,160);
-    sprintf(*results,"ERROR: can\'t start a shell.\n");
-    return -1;
-  }
   return 0;
 }
 
@@ -2007,112 +1875,6 @@ static int l2cmd_psmode(CmdData *cptr, char **results)
       sprintf(rptr,"%s",next[mode]);
     else
       sprintf(rptr,"WARNING: unknown primary/secondary mode %d\n",mode);
-  }
-  return 0;
-}
-
-/* "dhcpserver [on|off]": whether a hardware L2 may start one */
-static int l2cmd_dhcps(CmdData *cptr, char **results)
-{
-  uint32 curval = nvramGet(NVRAM_DHCPS_DISABLED);
-
-  response(results,320);
-  if (cptr->params[0] == 1)
-    nvramSet(NVRAM_DHCPS_DISABLED,0);
-  else if (cptr->params[0] == 2)
-    nvramSet(NVRAM_DHCPS_DISABLED,1);
-  if (nvramGet(NVRAM_DHCPS_DISABLED) == 1)
-    sprintf(*results,"DHCP server startup DISABLED (this L2 will never start a DHCP server).\n");
-  else
-    sprintf(*results,"DHCP server startup enabled (if no other DHCP server is found).\n");
-  if (curval != nvramGet(NVRAM_DHCPS_DISABLED))
-    strcat(*results,"(this setting takes effect after the next L2 reboot)\n");
-  return 0;
-}
-
-/* an address argument; on failure an error into rptr. (The original took
- * inet_aton()'s 0 for success, and went on with an unset address.) */
-static int ip_arg(const char *s, uint32 *addr, const char *what, char **rptr)
-{
-  struct in_addr in;
-
-  if (inet_aton(s,&in) == 0) {
-    *rptr += sprintf(*rptr,"ERROR: \'%.100s\' is not a valid IP %s\n",s,what);
-    return -1;
-  }
-  *addr = in.s_addr;
-  return 0;
-}
-
-static const char *ip_str(uint32 addr)
-{
-  return inet_ntoa(*(struct in_addr *)&addr);
-}
-
-/* "ip ...": the static IP address of a PC or hardware L2 */
-static int l2cmd_ip(CmdData *cptr, char **results)
-{
-  uint32 ip_addr = 0;
-  uint32 ip_netmask = 0;
-  uint32 ip_broadcast = 0;
-  uint32 ip_gateway = 0;
-  char *rptr;
-
-  if (!l2_pc && !l2_hardware) {
-    response(results,160);
-    strcpy(*results,"INFO:  ip command only supported on the Hardware/PC L2\n");
-    return -1;
-  }
-  rptr = response(results,320);
-  switch (cptr->params[0]) {
-  case 0:
-    ip_addr = nvramGet(NVRAM_IP_ADDR);
-    ip_netmask = nvramGet(NVRAM_IP_NETMASK);
-    ip_broadcast = nvramGet(NVRAM_IP_BROADCAST);
-    ip_gateway = nvramGet(NVRAM_IP_GATEWAY);
-    if (ip_addr == 0 || ip_addr == 0xffffffff) {
-      sprintf(rptr,"static IP address not currently set\n");
-      break;
-    }
-    rptr += sprintf(rptr,"addr: %s   ",ip_str(ip_addr));
-    rptr += sprintf(rptr,"mask: %s   ",ip_str(ip_netmask));
-    rptr += sprintf(rptr,"bcast: %s   ",ip_str(ip_broadcast));
-    if (ip_gateway == 0)
-      sprintf(rptr,"gateway: <not set>\n");
-    else
-      sprintf(rptr,"gateway: %s\n",ip_str(ip_gateway));
-    break;
-  case 1:       /* <addr> <netmask> */
-  case 2:       /* <addr> <netmask> <broadcast> */
-    ip_arg(cptr->str_stack[0],&ip_addr,"address",&rptr);
-    ip_arg(cptr->str_stack[1],&ip_netmask,"netmask",&rptr);
-    if (cptr->params[0] == 2)
-      ip_arg(cptr->str_stack[2],&ip_broadcast,"broadcast address",&rptr);
-    else
-      ip_broadcast = (ip_addr & ip_netmask) | ~ip_netmask;
-    if (rptr != *results)       /* an error */
-      break;
-    nvramSet(NVRAM_IP_ADDR,ip_addr);
-    nvramSet(NVRAM_IP_NETMASK,ip_netmask);
-    nvramSet(NVRAM_IP_BROADCAST,ip_broadcast);
-    rptr += sprintf(rptr,"addr: %s   ",ip_str(ip_addr));
-    rptr += sprintf(rptr,"netmask: %s   ",ip_str(ip_netmask));
-    rptr += sprintf(rptr,"broadcast addr: %s\n",ip_str(ip_broadcast));
-    sprintf(rptr,"(L2 reboot required to use this static address)\n");
-    break;
-  case 3:       /* gateway */
-    if (ip_arg(cptr->str_stack[0],&ip_gateway,"address",&rptr) != 0)
-      break;
-    nvramSet(NVRAM_IP_GATEWAY,ip_gateway);
-    rptr += sprintf(rptr,"gateway addr: %s\n",ip_str(ip_gateway));
-    sprintf(rptr,"(L2 reboot required to use new gateway address)\n");
-    break;
-  case 4:       /* clear */
-    nvramSet(NVRAM_IP_ADDR,0);
-    nvramSet(NVRAM_IP_NETMASK,0);
-    nvramSet(NVRAM_IP_BROADCAST,0);
-    nvramSet(NVRAM_IP_GATEWAY,0);
-    break;
   }
   return 0;
 }

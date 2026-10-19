@@ -71,12 +71,7 @@ rack|r <rng> [ slot|s <rng> ] destination|dest
 destination|dest reset|rst 
 	resets default default to all rack and slots
 ?-<L2IP>-L2>hlp dhcpserver
-dhcpserver|dhcps 
-	show current DHCP server setting
-dhcpserver|dhcps on|enable 
-	enables startup of DHCP server (if no other DHCP server found)
-dhcpserver|dhcps off|disable 
-	disables startup of DHCP server
+ERROR: command dhcpserver not found.
 ?-<L2IP>-L2>hlp env
 env summary|s 
 	shows environmental status summary
@@ -88,16 +83,7 @@ help|hlp
 help|hlp <str> 
 	get help on a single command.
 ?-<L2IP>-L2>hlp ip
-ip 
-	shows static IP address settings
-ip gw|gateway <str> 
-	set the L2's static IP gateway address
-ip <str> <str> 
-	set the L2's static IP config: <addr> <netmask>
-ip <str> <str> <str> 
-	set the L2's static IP config: <addr> <netmask> <broadcast>
-ip clear|reset 
-	clears static IP address settings
+ERROR: command ip not found.
 ?-<L2IP>-L2>hlp l2dbg
 l2dbg 
 	show current L2 debug states
@@ -159,8 +145,6 @@ l2dbg brspto <exp>
 	set broadcast response timeout limit
 l2dbg trspto <exp> 
 	set target response timeout limit
-l2dbg dump|d <str> <exp> <exp> 
-	l2dbg dump|d a|x <addr> <len>
 l2dbg smp response <exp> 
 	debug SMP responses
 l2dbg str <exp> 
@@ -274,18 +258,14 @@ rack|r <rng> [ slot|s <rng> ] power|pwr summary|s
 quit 
 	exit the L2
 ?-<L2IP>-L2>hlp halt_l2
-halt_l2 
-	halt the L2
+ERROR: command halt_l2 not found.
 ?-<L2IP>-L2>hlp rackid
 rackid 
 	print the rack ID of the L2
 rackid <decimal exp> 
 	set the rack ID for the L2
 ?-<L2IP>-L2>hlp reboot_l2
-reboot_l2 
-	reboot the L2 controller
-reboot_l2 force 
-	reboot the L2 controller even if the firmware image is invalid
+ERROR: command reboot_l2 not found.
 ?-<L2IP>-L2>hlp reset
 reset|rst 
 	reset each selected brick
@@ -367,10 +347,7 @@ sysname reset
 sysname <str> 
 	set the system name
 ?-<L2IP>-L2>hlp shell
-shell|! 
-	escape to L3/L2 OS
-shell|! <command> 
-	send <command> to the L3/L2 OS
+ERROR: command shell not found.
 ?-<L2IP>-L2>hlp version
 version|ver 
 	show L2 firmware version (use "l1 version" for L1 firmware revisions)
@@ -387,15 +364,14 @@ rack|r <rng> [ slot|s <rng> ] version|ver c|check
 ?-<L2IP>-L2>help
 Commands are:
 router|io|compute|otherautopower|apwr     config|cfg         connect            
-date               demo               destination|dest   dhcpserver|dhcps   
-env                help|hlp           ip                 l2dbg              
-l1                 l2                 l2dsp|l2display    l2find             
-log                loopback           route              nvram              
-ping               pbay               power|pwr          quit               
-halt_l2            rackid             reboot_l2          reset|rst          
+date               demo               destination|dest   env                
+help|hlp           l2dbg              l1                 l2                 
+l2dsp|l2display    l2find             log                loopback           
+route              nvram              ping               pbay               
+power|pwr          quit               rackid             reset|rst          
 select|sel         smp                serial             multisys|msys      
-share              psmode|ps          sysname            shell|!            
-version|ver        <command>          
+share              psmode|ps          sysname            version|ver        
+<command>          
 enter 'hlp <cmd>' for more help on a single command.
 
 The general form of a command is: <target> <command>
@@ -437,7 +413,7 @@ rack all slot all
 ?-<L2IP>-L2>env
 ERROR: no L1s found to match that destination
 ?-<L2IP>-L2>ip
-INFO:  ip command only supported on the Hardware/PC L2
+ERROR: no L1s found to match that destination
 ?-<L2IP>-L2>l2
 L2 command processor engaged, <CTRL-D> for console mode.
 ?-<L2IP>-L2>l2dsp
@@ -471,7 +447,7 @@ current system console
 console input: not defined
 console output: not filtered
 ?-<L2IP>-L2>dhcpserver
-DHCP server startup enabled (if no other DHCP server is found).
+ERROR: no L1s found to match that destination
 ?-<L2IP>-L2>log
 log is empty.
 ?-<L2IP>-L2>autopower

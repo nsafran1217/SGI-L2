@@ -82,7 +82,6 @@ L2_SRCS := \
 	sys_ctrl/l3/l2/power.c \
 	sys_ctrl/l3/l2/irtr.c \
 	sys_ctrl/l3/l2/discover.c \
-	sys_ctrl/l3/l2/pty.c \
 	sys_ctrl/l3/l2/route.c \
 	sys_ctrl/common/main/EnetServer.c \
 	sys_ctrl/common/Router/RouterSv.c \

@@ -11,15 +11,14 @@ INFO: SMP listening on port: 8003
 help
 Commands are:
 router|io|compute|otherautopower|apwr     config|cfg         connect            
-date               demo               destination|dest   dhcpserver|dhcps   
-env                help|hlp           ip                 l2dbg              
-l1                 l2                 l2dsp|l2display    l2find             
-log                loopback           route              nvram              
-ping               pbay               power|pwr          quit               
-halt_l2            rackid             reboot_l2          reset|rst          
+date               demo               destination|dest   env                
+help|hlp           l2dbg              l1                 l2                 
+l2dsp|l2display    l2find             log                loopback           
+route              nvram              ping               pbay               
+power|pwr          quit               rackid             reset|rst          
 select|sel         smp                serial             multisys|msys      
-share              psmode|ps          sysname            shell|!            
-version|ver        <command>          
+share              psmode|ps          sysname            version|ver        
+<command>          
 enter 'hlp <cmd>' for more help on a single command.
 
 The general form of a command is: <target> <command>
@@ -57,15 +56,14 @@ L2 version: 1.62.0
 ?-<L2IP>-L2>helx p
 Commands are:
 router|io|compute|otherautopower|apwr     config|cfg         connect            
-date               demo               destination|dest   dhcpserver|dhcps   
-env                help|hlp           ip                 l2dbg              
-l1                 l2                 l2dsp|l2display    l2find             
-log                loopback           route              nvram              
-ping               pbay               power|pwr          quit               
-halt_l2            rackid             reboot_l2          reset|rst          
+date               demo               destination|dest   env                
+help|hlp           l2dbg              l1                 l2                 
+l2dsp|l2display    l2find             log                loopback           
+route              nvram              ping               pbay               
+power|pwr          quit               rackid             reset|rst          
 select|sel         smp                serial             multisys|msys      
-share              psmode|ps          sysname            shell|!            
-version|ver        <command>          
+share              psmode|ps          sysname            version|ver        
+<command>          
 enter 'hlp <cmd>' for more help on a single command.
 
 The general form of a command is: <target> <command>
@@ -107,7 +105,7 @@ rack all slot all
 ?-<L2IP>-L2>env
 ERROR: no L1s found to match that destination
 ?-<L2IP>-L2>ip
-INFO:  ip command only supported on the Hardware/PC L2
+ERROR: no L1s found to match that destination
 ?-<L2IP>-L2>l2
 L2 command processor engaged, <CTRL-D> for console mode.
 ?-<L2IP>-L2>l2dsp
@@ -177,12 +175,9 @@ smp modem baud 19200
 smp modem baud 38400 
 	sets modem port baud rate to 38400
 ?-<L2IP>-L2>hlp shell
-shell|! 
-	escape to L3/L2 OS
-shell|! <command> 
-	send <command> to the L3/L2 OS
+ERROR: command shell not found.
 ?-<L2IP>-L2>shell
-ERROR: can't start a shell.
+ERROR: no L1s found to match that destination
 ?-<L2IP>-L2>date
 <DATE>26 <TIME> EDT
 ?-<L2IP>-L2>

@@ -86,12 +86,7 @@ destination|dest reset|rst
 === hlp dhcpserver
 INFO: attempting connection to 127.0.0.1:8000
 INFO: connection to 127.0.0.1:8000 established.
-dhcpserver|dhcps 
-	show current DHCP server setting
-dhcpserver|dhcps on|enable 
-	enables startup of DHCP server (if no other DHCP server found)
-dhcpserver|dhcps off|disable 
-	disables startup of DHCP server
+ERROR: command dhcpserver not found.
 === hlp env
 INFO: attempting connection to 127.0.0.1:8000
 INFO: connection to 127.0.0.1:8000 established.
@@ -109,16 +104,7 @@ help|hlp <str>
 === hlp ip
 INFO: attempting connection to 127.0.0.1:8000
 INFO: connection to 127.0.0.1:8000 established.
-ip 
-	shows static IP address settings
-ip gw|gateway <str> 
-	set the L2's static IP gateway address
-ip <str> <str> 
-	set the L2's static IP config: <addr> <netmask>
-ip <str> <str> <str> 
-	set the L2's static IP config: <addr> <netmask> <broadcast>
-ip clear|reset 
-	clears static IP address settings
+ERROR: command ip not found.
 === hlp l2dbg
 INFO: attempting connection to 127.0.0.1:8000
 INFO: connection to 127.0.0.1:8000 established.
@@ -182,8 +168,6 @@ l2dbg brspto <exp>
 	set broadcast response timeout limit
 l2dbg trspto <exp> 
 	set target response timeout limit
-l2dbg dump|d <str> <exp> <exp> 
-	l2dbg dump|d a|x <addr> <len>
 l2dbg smp response <exp> 
 	debug SMP responses
 l2dbg str <exp> 
@@ -325,8 +309,7 @@ quit
 === hlp halt_l2
 INFO: attempting connection to 127.0.0.1:8000
 INFO: connection to 127.0.0.1:8000 established.
-halt_l2 
-	halt the L2
+ERROR: command halt_l2 not found.
 === hlp rackid
 INFO: attempting connection to 127.0.0.1:8000
 INFO: connection to 127.0.0.1:8000 established.
@@ -436,10 +419,7 @@ sysname <str>
 === hlp shell
 INFO: attempting connection to 127.0.0.1:8000
 INFO: connection to 127.0.0.1:8000 established.
-shell|! 
-	escape to L3/L2 OS
-shell|! <command> 
-	send <command> to the L3/L2 OS
+ERROR: command shell not found.
 === hlp version
 INFO: attempting connection to 127.0.0.1:8000
 INFO: connection to 127.0.0.1:8000 established.
@@ -460,15 +440,14 @@ INFO: attempting connection to 127.0.0.1:8000
 INFO: connection to 127.0.0.1:8000 established.
 Commands are:
 router|io|compute|otherautopower|apwr     config|cfg         connect            
-date               demo               destination|dest   dhcpserver|dhcps   
-env                help|hlp           ip                 l2dbg              
-l1                 l2                 l2dsp|l2display    l2find             
-log                loopback           route              nvram              
-ping               pbay               power|pwr          quit               
-halt_l2            rackid             reboot_l2          reset|rst          
+date               demo               destination|dest   env                
+help|hlp           l2dbg              l1                 l2                 
+l2dsp|l2display    l2find             log                loopback           
+route              nvram              ping               pbay               
+power|pwr          quit               rackid             reset|rst          
 select|sel         smp                serial             multisys|msys      
-share              psmode|ps          sysname            shell|!            
-version|ver        <command>          
+share              psmode|ps          sysname            version|ver        
+<command>          
 enter 'hlp <cmd>' for more help on a single command.
 
 The general form of a command is: <target> <command>
@@ -520,7 +499,7 @@ ERROR: no L1s found to match that destination
 === ip
 INFO: attempting connection to 127.0.0.1:8000
 INFO: connection to 127.0.0.1:8000 established.
-INFO:  ip command only supported on the Hardware/PC L2
+ERROR: no L1s found to match that destination
 === l2
 INFO: attempting connection to 127.0.0.1:8000
 INFO: connection to 127.0.0.1:8000 established.
@@ -575,7 +554,7 @@ ERROR: this command must be run from an SMP (terminal) session (i.e. via l2term 
 === dhcpserver
 INFO: attempting connection to 127.0.0.1:8000
 INFO: connection to 127.0.0.1:8000 established.
-DHCP server startup enabled (if no other DHCP server is found).
+ERROR: no L1s found to match that destination
 === log
 INFO: attempting connection to 127.0.0.1:8000
 INFO: connection to 127.0.0.1:8000 established.

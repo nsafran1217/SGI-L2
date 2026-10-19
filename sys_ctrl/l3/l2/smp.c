@@ -34,7 +34,6 @@
 #include "format.h"
 #include "irtr.h"
 #include "power.h"
-#include "pty.h"
 #include "route.h"
 #include "serial.h"
 #include "../main/nvram.h"
@@ -331,7 +330,7 @@ void smp_query(SMP *smp, int verbose, char **results)
 {
   static const char *const modes[] = {
     "L2                ", "console           ", "console (escaped) ",
-    "L1                ", "L1 (escaped)      ", "shell             ",
+    "L1                ", "L1 (escaped)      ",
   };
   IRAddress addr;
   int override;
@@ -638,10 +637,6 @@ void smp_input(SMP *smp, char *rbuf, int rlen)
     printf("** smp input %02x, mode %d, rfd %d, session %d\n",(int)c,g->mode,smp->rfd,g->id);
     fflush(stdout);
   }
-  if (g->mode == SMP_MODE_SHELL) {
-    write(g->shell,rbuf,rlen);
-    return;
-  }
   if (escape_key(smp,c))
     return;
   switch (g->mode) {
@@ -781,58 +776,6 @@ void smp_chkcon_changes(int get_check)
       smp_output(smp,buff,-1);
     }
   }
-}
-
-/* "shell [<command>]": /bin/sh on a pty, its output to the session */
-int smp_shell(SMP *smp, char *cmd)
-{
-  struct sigaction sa;
-  char *argv[4];
-  int master_fd;
-  int slave_fd;
-  pid_t pid;
-
-  master_fd = pty_master();
-  if (master_fd < 0)
-    return -1;
-  pid = fork();
-  smp->grp->shell = pid;
-  if (pid == 0) {
-    sigaction(SIGINT,NULL,&sa);
-    sa.sa_handler = SIG_DFL;
-    sigaction(SIGINT,&sa,NULL);
-    sigaction(SIGQUIT,NULL,&sa);
-    sa.sa_handler = SIG_DFL;
-    sigaction(SIGQUIT,&sa,NULL);
-    if (setsid() < 0)
-      fprintf(stderr,"INFO: can\'t set session ID\n");
-    slave_fd = pty_slave(master_fd);
-    if (slave_fd < 0) {
-      fprintf(stderr,"ERROR: can\'t open pty slave\n");
-      exit(0);
-    }
-    close(master_fd);
-    dup2(slave_fd,0);
-    dup2(slave_fd,1);
-    dup2(slave_fd,2);
-    close(slave_fd);
-    argv[0] = "sh";
-    if (cmd == NULL) {
-      argv[1] = "-i";
-      argv[2] = NULL;
-    }
-    else {
-      argv[1] = "-c";
-      argv[2] = cmd;
-      argv[3] = NULL;
-    }
-    execv("/bin/sh",argv);
-    exit(0x7f);
-  }
-  EventAddInput(master_fd,smp_echo,(EventData)smp,"smp_shell");
-  smp_set_mode(smp,SMP_MODE_SHELL);
-  smp->grp->shell = master_fd;
-  return 0;
 }
 
 /* a packet's text arguments to smp through w (smp_write: this session,
@@ -1192,26 +1135,6 @@ void smp_write(SMP *smp, char *ibptr, int iblen)
       }
     }
   } while (iblen != 0 || oblen != 0);
-}
-
-/* the shell's output; at its end, back to L2 mode */
-void smp_echo(SMP *smp)
-{
-  char buff[512];
-  int blen;
-
-  /* (terminated: smp_event() copies the text whole; the original read
-   * all 512 bytes and left it unterminated) */
-  blen = read(smp->grp->shell,buff,sizeof(buff) - 1);
-  if (blen < 1) {
-    EventRemoveInput(smp->grp->shell);
-    close(smp->grp->shell);
-    smp_set_mode(smp,SMP_MODE_L2);
-    smp_prompt(smp);
-    return;
-  }
-  buff[blen] = '\0';
-  smp_output(smp,buff,blen);
 }
 
 /* into console mode on conaddr (reenter: back from an escape) */
