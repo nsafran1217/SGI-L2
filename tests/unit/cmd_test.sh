@@ -14,7 +14,7 @@ git show main:sys_ctrl/common/sys/Cmd.c |
     sed -e 's|#include "../../l3/sys/syslogLib.h".*|#include "syslogLib.h"|' \
         -e 's/#include "Cmd.h"/#include "orig_cmd.h"/' -e '/syslimits.h/d' -e "$orig" > "$tmp/orig_cmd.c"
 # l2's table, every command recording what it was given
-sed -n 's/^Cmd l2cmd_cmds\[190\] = /Cmd test_cmds[190] = /p' sys_ctrl/l3/l2/l2cmd.c |
+git show main:sys_ctrl/l3/l2/l2cmd.c | sed -n 's/^Cmd l2cmd_cmds\[190\] = /Cmd test_cmds[190] = /p' |
     sed -e 's/\.func = l2cmd_[a-z0-9_]*/.func = record/g' > "$tmp/table.h"
 gcc -g -fsanitize=address -Icompat -I"$tmp" -Isys_ctrl/common/sys -Isys_ctrl/l3/sys \
     -o "$tmp/cmd_test" tests/unit/cmd_test.c sys_ctrl/common/sys/Cmd.c "$tmp/orig_cmd.c"

@@ -28,3 +28,14 @@ r 1 env s
 sel
 route
 r 1 s 2 route
+pbay cfg
+pbay status
+ver c
+pwr s
+pwr delay
+pwr mode
+r 1 dest
+dest
+dest reset
+env s
+r 1 s 2 env s

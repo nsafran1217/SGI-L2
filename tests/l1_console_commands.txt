@@ -8,3 +8,16 @@ loopback 8 1
 sel
 1c2 route
 r 1 s 2 route
+sel 1 2
+sel
+sel sub con
+sel sub a
+sel sub 0a
+sel sub console0
+sel filter on
+sel t
+sel filter off
+sel 1 2 0b
+sel p 0
+sel reset
+sel

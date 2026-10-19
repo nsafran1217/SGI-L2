@@ -186,7 +186,8 @@ CLEAN_SRCS := \
 	sys_ctrl/l3/l2/irtr.c \
 	sys_ctrl/l3/l2/cfg.c \
 	sys_ctrl/l3/l2/l1.c \
-	sys_ctrl/l3/l2/smp.c
+	sys_ctrl/l3/l2/smp.c \
+	sys_ctrl/l3/l2/l2cmd.c
 $(CLEAN_SRCS:%.c=$(B)/%.o): CFLAGS += -Wunused-variable -Wunused-but-set-variable \
 	-Wunused-label -Wpointer-sign
 
