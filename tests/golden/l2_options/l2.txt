@@ -122,18 +122,10 @@ INFO: L1 network port 9003 initialized
 INFO: SMP listening on port: 8001
 INFO: SMP listening on port: 8003
 ?-<L2IP>-L2>=== l2 -noconn -nodiscover --mtrace
-exit running
-nvram ('772206d6423ce18d8c85479de4dba7cb', ['checksum error (CH) - nvram reset.', ''])
-
-
-SGI L2 Controller
-Current L2 version: 1.62.0 
-
-WARNING: No connections will be made to L1's (-noconn)
-INFO: NVRAM file './.l2_NVRAM' doesn't exist.....initializing
-INFO: SMP listening on port: 8001
-INFO: SMP listening on port: 8003
-?-<L2IP>-L2>=== l2 -noconn -nodiscover -noconn -bogus
+exit 0
+nvram None
+usage: <l2> -net | -usb | -noconn  [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
+=== l2 -noconn -nodiscover -noconn -bogus
 exit 0
 nvram None
 usage: <l2> -net | -usb | -noconn  [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]

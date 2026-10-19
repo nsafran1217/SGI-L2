@@ -11,7 +11,6 @@
 
 #define _GNU_SOURCE     /* REG_EIP, REG_RIP */
 #include <execinfo.h>
-#include <mcheck.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -175,9 +174,7 @@ static int run(void)
 
 int main(int argc, char **argv, char **envp)
 {
-  char mtbuf[100];
   char *myhost;
-  char *pw;
   char *ssn;
   int i;
 
@@ -228,16 +225,6 @@ int main(int argc, char **argv, char **envp)
       power_check++;
     else if (strcmp(arg,"-smpenet") == 0)
       enet_only = 1;
-    else if (strcmp(arg,"--mtrace") == 0) {
-      pw = getenv("MALLOC_TRACE");
-      if (pw == NULL) {
-        pw = mtbuf;
-        snprintf(pw,sizeof(mtbuf),"%s/l2.mtrace",l3path_mtrace_dir());   /* original: /tmp */
-        setenv("MALLOC_TRACE",pw,0);
-      }
-      printf("memory tracing invoked--output file \'%s\'\n",pw);
-      mtrace();
-    }
     else if (strcmp(arg,"-syncssn") == 0) {
       /* <ssn>: set the system serial number, unless l2 is running */
       if (more == 0)

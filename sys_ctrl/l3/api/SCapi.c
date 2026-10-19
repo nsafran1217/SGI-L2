@@ -12,7 +12,6 @@
 
 #include <arpa/inet.h>
 #include <ctype.h>
-#include <mcheck.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -125,21 +124,17 @@ static char *option_value(char **args, int remaining)
 /*
  * Take the system controller options out of argv (*argc adjusted): which
  * L2 (--l2, --interface, --ssn, --sysname, --rack), --copy, --irtr,
- * --mtrace, --quiet, --timeout. Returns 0, or -1 after a message for a bad
+ * --quiet, --timeout. Returns 0, or -1 after a message for a bad
  * option (parsing stops at one missing its value).
  */
 int sn1SCParseCmdline(int *argc, char **argv)
 {
-  char mtbuf[100];
-  char *mtfile, *myfname, *opt, *val;
+  char *opt, *val;
   char **args;
   int remaining;                /* arguments from args[0] on */
   int new_argc, used, status;
 
   myname = argv[0];
-  myfname = strrchr(myname,'/');
-  if (myfname == NULL)
-    myfname = myname;           /* (else it keeps the '/', as in the original) */
   status = 0;
 
   args = argv + 1;
@@ -225,17 +220,6 @@ int sn1SCParseCmdline(int *argc, char **argv)
     else if (strcmp(opt,"--irtr") == 0) {
       printf("dumping IR pkts\n");
       ir_show = 1;
-      used = 1;
-    }
-    else if (strcmp(opt,"--mtrace") == 0) {
-      mtfile = getenv("MALLOC_TRACE");
-      if (mtfile == NULL) {
-        mtfile = mtbuf;
-        snprintf(mtfile,sizeof(mtbuf),"%s/%s.mtrace",l3path_mtrace_dir(),myfname);   /* original: /tmp */
-        setenv("MALLOC_TRACE",mtfile,0);
-      }
-      printf("memory tracing invoked--output file \'%s\'\n",mtfile);
-      mtrace();
       used = 1;
     }
     else if (strcmp(opt,"--quiet") == 0) {

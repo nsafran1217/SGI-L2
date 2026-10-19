@@ -148,6 +148,5 @@ exit 255
 === --mtrace --l2 127.0.0.1 version
 INFO: attempting connection to 127.0.0.1:8000
 INFO: connection to 127.0.0.1:8000 established.
-memory tracing invoked--output file '<work>/mtrace'
-L2 version: 1.62.0
+ERROR: no L1s found to match that destination
 exit 0

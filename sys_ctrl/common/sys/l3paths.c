@@ -49,11 +49,6 @@ const char *l3path_dev_dir(void)
   return env_or("SGI_L3_DEV_DIR", "/dev");
 }
 
-const char *l3path_mtrace_dir(void)
-{
-  return env_or("SGI_L3_MTRACE_DIR", "/tmp");
-}
-
 const char *l3path_dev(const char *name)
 {
   /* a few distinct names are in use at once (sgil1_cs plus the serial ports) */

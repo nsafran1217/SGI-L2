@@ -42,7 +42,6 @@
 #include "../main/nvram.h"
 #include "../../common/sys/Cmd.h"
 #include "../../common/sys/MemUsage.h"
-#include "../../common/sys/minfo.h"
 
 #define L2CMD_FORMS     ((int)(sizeof(l2cmd_cmds) / sizeof(l2cmd_cmds[0])))
 #define FORM_CATCH_ALL  (L2CMD_FORMS - 2)   /* the last two forms: "[<target>] <command>" */
@@ -182,12 +181,6 @@ Cmd l2cmd_cmds[] = {
   { .toks = { "l2dbg", "events", "io" }, .func = l2cmd_l2dbg, .params = { 10 }, .desc = "show I/O events" },
   { .toks = { "l2dbg", "events", "timers" }, .func = l2cmd_l2dbg, .params = { 11 }, .desc = "show timer event" },
   { .toks = { "l2dbg", "console", CMD_TOK(CMD_EXP) }, .func = l2cmd_l2dbg, .params = { 12 }, .desc = "show console tracking messages" },
-  { .toks = { "l2dbg", "mstat|ms" }, .func = l2cmd_l2dbg, .params = { 13 }, .desc = "show malloc history" },
-  { .toks = { "l2dbg", "mmap|mm" }, .func = l2cmd_l2dbg, .params = { 14 }, .desc = "show malloc map" },
-  { .toks = { "l2dbg", "mreset" }, .func = l2cmd_l2dbg, .params = { 15 }, .desc = "reset malloc profiling" },
-  { .toks = { "l2dbg", "menable" }, .func = l2cmd_l2dbg, .params = { 16 }, .desc = "enable malloc profiling" },
-  { .toks = { "l2dbg", "mdisable" }, .func = l2cmd_l2dbg, .params = { 17 }, .desc = "disable malloc profiling" },
-  { .toks = { "l2dbg", "mmalloc", CMD_TOK(CMD_EXP) }, .func = l2cmd_l2dbg, .params = { 18 }, .desc = "allocate a buffer" },
   { .toks = { "l2dbg", "qstat" }, .func = l2cmd_l2dbg, .params = { 19 }, .desc = "show Router client queue statistics" },
   { .toks = { "l2dbg", "qstat", "reset" }, .func = l2cmd_l2dbg, .params = { 20 }, .desc = "resets cumulative queue statistics for each Router client" },
   { .toks = { "l2dbg", "load", CMD_TOK(CMD_EXP) }, .func = l2cmd_l2dbg, .params = { 21 }, .desc = "enable/disable simulated L2 load" },
@@ -690,7 +683,6 @@ static int l2cmd_l2dbg(CmdData *cptr, char **results)
   static const char s[] = "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
   static int socket_sbufsize;
   static int socket_rbufsize;
-  static char *p;
   unsigned int arg = cptr->exp_stack[0];
   char *rptr;
   unsigned int n;
@@ -747,26 +739,6 @@ static int l2cmd_l2dbg(CmdData *cptr, char **results)
     break;
   case 12:      /* console */
     smp_console_debug = arg;
-    break;
-  case 13:      /* mstat */
-    MInfoStatPrint(results);
-    break;
-  case 14:      /* mmap */
-    MInfoMapPrint(results);
-    break;
-  case 15:      /* mreset */
-    MInfoReset();
-    break;
-  case 16:      /* menable */
-    MInfoEnable(results);
-    break;
-  case 17:      /* mdisable */
-    MInfoDisable();
-    break;
-  case 18:      /* mmalloc <size> */
-    free(p);
-    p = malloc(arg);
-    MInfoMapPrint(results);
     break;
   case 19:      /* qstat */
     *results = RouterDumpQStats(NULL,NULL);

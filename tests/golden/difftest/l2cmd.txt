@@ -142,18 +142,6 @@ l2dbg events timers
 	show timer event
 l2dbg console <exp> 
 	show console tracking messages
-l2dbg mstat|ms 
-	show malloc history
-l2dbg mmap|mm 
-	show malloc map
-l2dbg mreset 
-	reset malloc profiling
-l2dbg menable 
-	enable malloc profiling
-l2dbg mdisable 
-	disable malloc profiling
-l2dbg mmalloc <exp> 
-	allocate a buffer
 l2dbg qstat 
 	show Router client queue statistics
 l2dbg qstat reset 

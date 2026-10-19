@@ -82,7 +82,6 @@ L2_SRCS := \
 	sys_ctrl/common/main/EnetServer.c \
 	sys_ctrl/common/Router/RouterSv.c \
 	sys_ctrl/common/sys/Cmd.c \
-	sys_ctrl/common/sys/minfo.c
 
 L2TERM_SRCS := \
 	sys_ctrl/l3/utils/l2term.c \

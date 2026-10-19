@@ -59,7 +59,7 @@ def run(binary, args, work):
     os.mkfifo(fifo)
     fd = os.open(fifo, os.O_RDWR)       # l2 spins on stdin EOF
     log = open(os.path.join(work, "out"), "wb")
-    env = dict(os.environ, SGI_L3_SOCKET_DIR=work, MALLOC_TRACE=os.path.join(work, "mtrace"))
+    env = dict(os.environ, SGI_L3_SOCKET_DIR=work)
     proc = subprocess.Popen([binary] + args.split(), cwd=work, stdin=fd, stdout=log,
                             stderr=subprocess.STDOUT, env=env)
     os.close(fd)
