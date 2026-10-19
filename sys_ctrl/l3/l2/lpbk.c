@@ -17,7 +17,8 @@
 #include "lpbk.h"
 #include "smp.h"
 #include "irtr.h"
-#include "../main/nvram.h"
+#include "../main/settings.h"
+#include "../main/l2log.h"
 
 #define LPBK_SESSIONS   16
 
@@ -112,7 +113,7 @@ void lpbk_process_response(IRPacket *p)
 
   if (p->_argc != 2) {
     sprintf(buff,"loopback packet no return data, source %08x\n",p->_src);
-    nvramLogInsert(buff);
+    l2logInsert(buff);
     IRouterFreePacket(p);       /* (the original leaked it) */
     return;
   }

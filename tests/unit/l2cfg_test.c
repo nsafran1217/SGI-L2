@@ -17,6 +17,11 @@
 #include "../../sys_ctrl/common/main/L1Cfg.h"
 #include "../../sys_ctrl/common/IRouter/IRouter.h"
 #include "orig_protos.h"
+#include "../../sys_ctrl/l3/main/settings.h"
+
+/* the original's NVRAM settings: the new code's (the ids are NVRAM's) */
+uintptr_t nvramGet(int location) { return settingsGet(location); }
+void nvramSet(int location, uintptr_t value) { settingsSet(location, value); }
 
 static int failures, compared;
 static unsigned int seed = 11;

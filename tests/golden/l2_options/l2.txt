@@ -1,131 +1,443 @@
 === l2 -help
 exit 0
-nvram None
-usage: <l2> -net | -usb | -noconn  [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
+usage: <l2> -net | -usb | -noconn  [ -c <settings file> ] [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
 === l2 --copy
 exit 0
-nvram None
 <l2>: --copy option missing <copy#>
-usage: <l2> -net | -usb | -noconn  [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
+usage: <l2> -net | -usb | -noconn  [ -c <settings file> ] [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
 === l2 --copy -noconn
 exit 0
-nvram None
 <l2>: --copy option missing <copy#>
-usage: <l2> -net | -usb | -noconn  [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
+usage: <l2> -net | -usb | -noconn  [ -c <settings file> ] [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
 === l2 --copy 200
 exit 0
-nvram None
 <l2>: --copy: copy 200 invalid (must be 0 through 128)
-usage: <l2> -net | -usb | -noconn  [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
+usage: <l2> -net | -usb | -noconn  [ -c <settings file> ] [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
 === l2 --copy -5
 exit 0
-nvram None
 <l2>: --copy option missing <copy#>
-usage: <l2> -net | -usb | -noconn  [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
+usage: <l2> -net | -usb | -noconn  [ -c <settings file> ] [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
 === l2 -serial
 exit 0
-nvram None
-usage: <l2> -net | -usb | -noconn  [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
+usage: <l2> -net | -usb | -noconn  [ -c <settings file> ] [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
 === l2 -usbpath
 exit 0
-nvram None
-usage: <l2> -net | -usb | -noconn  [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
+usage: <l2> -net | -usb | -noconn  [ -c <settings file> ] [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
 === l2 -password
 exit 0
-nvram None
-usage: <l2> -net | -usb | -noconn  [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
+usage: <l2> -net | -usb | -noconn  [ -c <settings file> ] [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
 === l2 -password -noconn
 exit 0
-nvram None
-usage: <l2> -net | -usb | -noconn  [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
+usage: <l2> -net | -usb | -noconn  [ -c <settings file> ] [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
 === l2 -syncssn NEWSSN01
 exit 0
-nvram ('d7f6a106da83a549818004c3dd356826', ['checksum error (CH) - nvram reset.', ''])
-INFO: NVRAM file './.l2_NVRAM' doesn't exist.....initializing
+usage: <l2> -net | -usb | -noconn  [ -c <settings file> ] [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
 === l2 -noconn -nodiscover
 exit running
-nvram ('772206d6423ce18d8c85479de4dba7cb', ['checksum error (CH) - nvram reset.', ''])
 
 
 SGI L2 Controller
 Current L2 version: 1.62.0 
 
 WARNING: No connections will be made to L1's (-noconn)
-INFO: NVRAM file './.l2_NVRAM' doesn't exist.....initializing
+INFO: settings file './l2.conf' doesn't exist.....initializing
 INFO: SMP listening on port: 8001
 INFO: SMP listening on port: 8003
-?-<L2IP>-L2>=== l2 -noconn -nodiscover --copy 3
+?-<L2IP>-L2>--- l2.conf
+# l2's settings: console commands change them, or edit this file while
+# l2 is stopped. A removed line is its default.
+
+# this L2's rack number (rackid)
+rack = 0
+slot = 0
+
+# the system serial number (serial set)
+serial = 
+
+# the system name (sysname)
+sysname = 
+
+# 1: L2s talk only to those with the same serial number (multisys)
+multisys = 1
+
+# primary/secondary mode (psmode)
+psmode = 0
+
+# 1: power the system up when l2 starts (autopower)
+autopower = 0
+autopower_delay = 0
+slow_powerup = 0
+l2display_disabled = 0
+
+# L2 and L1 pings (ping); 0 for the defaults
+ping_min = 1
+ping_max = 3
+ping_sender = 2
+ping_l2 = 5
+ping_l1 = 5
+
+# response timeouts in seconds (l2dbg brspto/trspto); 0 for the defaults
+broadcast_timeout = 0
+target_timeout = 0
+--- l2.log
+=== l2 -noconn -nodiscover --copy 3
 exit running
-nvram None
 
 
 SGI L2 Controller
 Current L2 version: 1.62.0 
 
 WARNING: No connections will be made to L1's (-noconn)
-INFO: NVRAM file './.l2_NVRAM.3' doesn't exist.....initializing
+INFO: settings file './l2.conf.3' doesn't exist.....initializing
 INFO: SMP listening on port: 8031
 INFO: SMP listening on port: 8033
-?-<L2IP>-L2>=== l2 -noconn -nodiscover --copy 0
+?-<L2IP>-L2>--- l2.conf.3
+# l2's settings: console commands change them, or edit this file while
+# l2 is stopped. A removed line is its default.
+
+# this L2's rack number (rackid)
+rack = 0
+slot = 0
+
+# the system serial number (serial set)
+serial = 
+
+# the system name (sysname)
+sysname = 
+
+# 1: L2s talk only to those with the same serial number (multisys)
+multisys = 1
+
+# primary/secondary mode (psmode)
+psmode = 0
+
+# 1: power the system up when l2 starts (autopower)
+autopower = 0
+autopower_delay = 0
+slow_powerup = 0
+l2display_disabled = 0
+
+# L2 and L1 pings (ping); 0 for the defaults
+ping_min = 1
+ping_max = 3
+ping_sender = 2
+ping_l2 = 5
+ping_l1 = 5
+
+# response timeouts in seconds (l2dbg brspto/trspto); 0 for the defaults
+broadcast_timeout = 0
+target_timeout = 0
+--- l2.log.3
+=== l2 -noconn -nodiscover --copy 0
 exit running
-nvram ('772206d6423ce18d8c85479de4dba7cb', ['checksum error (CH) - nvram reset.', ''])
 
 
 SGI L2 Controller
 Current L2 version: 1.62.0 
 
 WARNING: No connections will be made to L1's (-noconn)
-INFO: NVRAM file './.l2_NVRAM' doesn't exist.....initializing
+INFO: settings file './l2.conf' doesn't exist.....initializing
 INFO: SMP listening on port: 8001
 INFO: SMP listening on port: 8003
-?-<L2IP>-L2>=== l2 -noconn -nodiscover -smpenet
+?-<L2IP>-L2>--- l2.conf
+# l2's settings: console commands change them, or edit this file while
+# l2 is stopped. A removed line is its default.
+
+# this L2's rack number (rackid)
+rack = 0
+slot = 0
+
+# the system serial number (serial set)
+serial = 
+
+# the system name (sysname)
+sysname = 
+
+# 1: L2s talk only to those with the same serial number (multisys)
+multisys = 1
+
+# primary/secondary mode (psmode)
+psmode = 0
+
+# 1: power the system up when l2 starts (autopower)
+autopower = 0
+autopower_delay = 0
+slow_powerup = 0
+l2display_disabled = 0
+
+# L2 and L1 pings (ping); 0 for the defaults
+ping_min = 1
+ping_max = 3
+ping_sender = 2
+ping_l2 = 5
+ping_l1 = 5
+
+# response timeouts in seconds (l2dbg brspto/trspto); 0 for the defaults
+broadcast_timeout = 0
+target_timeout = 0
+--- l2.log
+=== l2 -noconn -nodiscover -smpenet
 exit running
-nvram ('772206d6423ce18d8c85479de4dba7cb', ['checksum error (CH) - nvram reset.', ''])
+--- l2.conf
+# l2's settings: console commands change them, or edit this file while
+# l2 is stopped. A removed line is its default.
+
+# this L2's rack number (rackid)
+rack = 0
+slot = 0
+
+# the system serial number (serial set)
+serial = 
+
+# the system name (sysname)
+sysname = 
+
+# 1: L2s talk only to those with the same serial number (multisys)
+multisys = 1
+
+# primary/secondary mode (psmode)
+psmode = 0
+
+# 1: power the system up when l2 starts (autopower)
+autopower = 0
+autopower_delay = 0
+slow_powerup = 0
+l2display_disabled = 0
+
+# L2 and L1 pings (ping); 0 for the defaults
+ping_min = 1
+ping_max = 3
+ping_sender = 2
+ping_l2 = 5
+ping_l1 = 5
+
+# response timeouts in seconds (l2dbg brspto/trspto); 0 for the defaults
+broadcast_timeout = 0
+target_timeout = 0
 === l2 -noconn -nodiscover -debug -irtr -nopwrchk
 exit running
-nvram ('772206d6423ce18d8c85479de4dba7cb', ['checksum error (CH) - nvram reset.', ''])
 
 
 SGI L2 Controller
 Current L2 version: 1.62.0 
 
 WARNING: No connections will be made to L1's (-noconn)
-INFO: NVRAM file './.l2_NVRAM' doesn't exist.....initializing
+INFO: settings file './l2.conf' doesn't exist.....initializing
 l1_open() in
 l1_open() out
 INFO: SMP listening on port: 8001
 INFO: SMP listening on port: 8003
 L2               0 EVT(3,0,1) D: L1    0. 0, 0,  0  S: IP e 02 1010000
 L2               2 EVT(3,0,1) D: L1    0. 0, 0,  0  S: IP e 02 1010000
-?-<L2IP>-L2>=== l2 -nodiscover -l1sim
+?-<L2IP>-L2>--- l2.conf
+# l2's settings: console commands change them, or edit this file while
+# l2 is stopped. A removed line is its default.
+
+# this L2's rack number (rackid)
+rack = 0
+slot = 0
+
+# the system serial number (serial set)
+serial = 
+
+# the system name (sysname)
+sysname = 
+
+# 1: L2s talk only to those with the same serial number (multisys)
+multisys = 1
+
+# primary/secondary mode (psmode)
+psmode = 0
+
+# 1: power the system up when l2 starts (autopower)
+autopower = 0
+autopower_delay = 0
+slow_powerup = 0
+l2display_disabled = 0
+
+# L2 and L1 pings (ping); 0 for the defaults
+ping_min = 1
+ping_max = 3
+ping_sender = 2
+ping_l2 = 5
+ping_l1 = 5
+
+# response timeouts in seconds (l2dbg brspto/trspto); 0 for the defaults
+broadcast_timeout = 0
+target_timeout = 0
+--- l2.log
+=== l2 -nodiscover -l1sim
 exit 0
-nvram None
-usage: <l2> -net | -usb | -noconn  [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
+usage: <l2> -net | -usb | -noconn  [ -c <settings file> ] [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
 === l2 -nodiscover -l1sim 4 2
 exit 0
-nvram None
-usage: <l2> -net | -usb | -noconn  [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
+usage: <l2> -net | -usb | -noconn  [ -c <settings file> ] [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
 === l2 -nodiscover -l1sim_manual 6
 exit 0
-nvram None
-usage: <l2> -net | -usb | -noconn  [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
+usage: <l2> -net | -usb | -noconn  [ -c <settings file> ] [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
 === l2 -nodiscover -net
 exit running
-nvram ('772206d6423ce18d8c85479de4dba7cb', ['checksum error (CH) - nvram reset.', ''])
 
 
 SGI L2 Controller
 Current L2 version: 1.62.0 
 
-INFO: NVRAM file './.l2_NVRAM' doesn't exist.....initializing
+INFO: settings file './l2.conf' doesn't exist.....initializing
 INFO: L1 network port 9003 initialized
 INFO: SMP listening on port: 8001
 INFO: SMP listening on port: 8003
-?-<L2IP>-L2>=== l2 -noconn -nodiscover --mtrace
+?-<L2IP>-L2>--- l2.conf
+# l2's settings: console commands change them, or edit this file while
+# l2 is stopped. A removed line is its default.
+
+# this L2's rack number (rackid)
+rack = 0
+slot = 0
+
+# the system serial number (serial set)
+serial = 
+
+# the system name (sysname)
+sysname = 
+
+# 1: L2s talk only to those with the same serial number (multisys)
+multisys = 1
+
+# primary/secondary mode (psmode)
+psmode = 0
+
+# 1: power the system up when l2 starts (autopower)
+autopower = 0
+autopower_delay = 0
+slow_powerup = 0
+l2display_disabled = 0
+
+# L2 and L1 pings (ping); 0 for the defaults
+ping_min = 1
+ping_max = 3
+ping_sender = 2
+ping_l2 = 5
+ping_l1 = 5
+
+# response timeouts in seconds (l2dbg brspto/trspto); 0 for the defaults
+broadcast_timeout = 0
+target_timeout = 0
+--- l2.log
+=== l2 -noconn -nodiscover --mtrace
 exit 0
-nvram None
-usage: <l2> -net | -usb | -noconn  [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
+usage: <l2> -net | -usb | -noconn  [ -c <settings file> ] [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
 === l2 -noconn -nodiscover -noconn -bogus
 exit 0
-nvram None
-usage: <l2> -net | -usb | -noconn  [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
+usage: <l2> -net | -usb | -noconn  [ -c <settings file> ] [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
+=== l2 -noconn -nodiscover -c
+exit 0
+usage: <l2> -net | -usb | -noconn  [ -c <settings file> ] [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
+=== l2 -noconn -nodiscover -c my.conf
+exit running
+
+
+SGI L2 Controller
+Current L2 version: 1.62.0 
+
+WARNING: No connections will be made to L1's (-noconn)
+INFO: settings file 'my.conf' doesn't exist.....initializing
+INFO: SMP listening on port: 8001
+INFO: SMP listening on port: 8003
+?-<L2IP>-L2>--- l2.log
+--- my.conf
+# l2's settings: console commands change them, or edit this file while
+# l2 is stopped. A removed line is its default.
+
+# this L2's rack number (rackid)
+rack = 0
+slot = 0
+
+# the system serial number (serial set)
+serial = 
+
+# the system name (sysname)
+sysname = 
+
+# 1: L2s talk only to those with the same serial number (multisys)
+multisys = 1
+
+# primary/secondary mode (psmode)
+psmode = 0
+
+# 1: power the system up when l2 starts (autopower)
+autopower = 0
+autopower_delay = 0
+slow_powerup = 0
+l2display_disabled = 0
+
+# L2 and L1 pings (ping); 0 for the defaults
+ping_min = 1
+ping_max = 3
+ping_sender = 2
+ping_l2 = 5
+ping_l1 = 5
+
+# response timeouts in seconds (l2dbg brspto/trspto); 0 for the defaults
+broadcast_timeout = 0
+target_timeout = 0
+=== l2 -noconn -nodiscover -c my.conf --copy 2
+exit running
+
+
+SGI L2 Controller
+Current L2 version: 1.62.0 
+
+WARNING: No connections will be made to L1's (-noconn)
+INFO: settings file 'my.conf' doesn't exist.....initializing
+INFO: SMP listening on port: 8021
+INFO: SMP listening on port: 8023
+?-<L2IP>-L2>--- l2.log.2
+--- my.conf
+# l2's settings: console commands change them, or edit this file while
+# l2 is stopped. A removed line is its default.
+
+# this L2's rack number (rackid)
+rack = 0
+slot = 0
+
+# the system serial number (serial set)
+serial = 
+
+# the system name (sysname)
+sysname = 
+
+# 1: L2s talk only to those with the same serial number (multisys)
+multisys = 1
+
+# primary/secondary mode (psmode)
+psmode = 0
+
+# 1: power the system up when l2 starts (autopower)
+autopower = 0
+autopower_delay = 0
+slow_powerup = 0
+l2display_disabled = 0
+
+# L2 and L1 pings (ping); 0 for the defaults
+ping_min = 1
+ping_max = 3
+ping_sender = 2
+ping_l2 = 5
+ping_l1 = 5
+
+# response timeouts in seconds (l2dbg brspto/trspto); 0 for the defaults
+broadcast_timeout = 0
+target_timeout = 0
+=== l2 -noconn -nodiscover -c nodir/my.conf
+exit running
+
+
+SGI L2 Controller
+Current L2 version: 1.62.0 
+
+WARNING: No connections will be made to L1's (-noconn)
+INFO: settings file 'nodir/my.conf' doesn't exist.....initializing
+L3: settings.c line 77 ; can't write the settings file 'nodir/my.conf.tmp': No such file or directory
+INFO: SMP listening on port: 8001
+INFO: SMP listening on port: 8003
+WARNING: can't write the log 'nodir/l2.log'

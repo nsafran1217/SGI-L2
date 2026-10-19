@@ -18,12 +18,23 @@ static const char *env_or(const char *var, const char *dflt)
   return (v != NULL && *v != '\0') ? v : dflt;
 }
 
-const char *l3path_nvram(int port_bias)
+const char *l3path_settings(int port_bias)
 {
   static char path[1024];
-  const char *base = env_or("SGI_L2_NVRAM", "./.l2_NVRAM");
+  char base[1000];
+  const char *config = env_or("SGI_L2_CONFIG", NULL);
+  const char *state = env_or("STATE_DIRECTORY", NULL);   /* systemd's StateDirectory= */
+  size_t len;
 
-  /* the original: "%sl2_NVRAM" / "%sl2_NVRAM.%d" with prefix "./." and bias / 10 */
+  if (config != NULL)
+    snprintf(base, sizeof(base), "%s", config);
+  else if (state != NULL) {
+    len = strcspn(state, ":");                     /* (the first of several) */
+    snprintf(base, sizeof(base), "%.*s/l2.conf", (int)len, state);
+  }
+  else
+    snprintf(base, sizeof(base), "./l2.conf");
+  /* (the original's NVRAM file had .<bias / 10> appended the same way) */
   if (port_bias == 0)
     snprintf(path, sizeof(path), "%s", base);
   else

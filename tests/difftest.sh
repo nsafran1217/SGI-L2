@@ -43,7 +43,8 @@ stop_l2() {
 mask() {            # hide wall-clock times, and the timing entries l2 logs per connection
     sed -E '/SMP [0-9]+ waited [0-9.]+$/d;
             s/[A-Z][a-z]{2} [A-Z][a-z]{2} +[0-9]+ [0-9:]{8} [0-9]{4}/<DATE>/g;
-            s/[0-9]{2}:[0-9]{2}:[0-9]{2}/<TIME>/g'
+            s/[0-9]{2}:[0-9]{2}:[0-9]{2}/<TIME>/g;
+            s|[0-9]{2}/[0-9]{2}/[0-9]{2}|<DATE>|g'
 }
 
 run_all() {         # run_all <l2cmd binary> <outfile>

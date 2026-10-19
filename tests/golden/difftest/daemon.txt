@@ -4,7 +4,7 @@ SGI L2 Controller
 Current L2 version: 1.62.0 
 
 WARNING: No connections will be made to L1's (-noconn)
-INFO: NVRAM file './.l2_NVRAM' doesn't exist.....initializing
+INFO: settings file './l2.conf' doesn't exist.....initializing
 INFO: SMP listening on port: 8001
 INFO: SMP listening on port: 8003
 ?-<L2IP>-L2>INFO: Validating connection from 'localhost' (127.0.0.1)

@@ -1,7 +1,8 @@
 # Sourced by the unit tests after they make $tmp: headers the faithful
 # reconstruction (RECON_REF) includes but this tree has deleted are taken
 # from it into $tmp/recon, whose directories go on CPATH (after every -I),
-# so its sources still compile here.
+# so its sources still compile here; so do this tree's, for the headers
+# those include from their own directory.
 recon_ref=${RECON_REF:-origin/main}
 for h in $(git ls-tree -r --name-only "$recon_ref" sys_ctrl | grep '\.h$'); do
     [ -e "$h" ] && continue
@@ -11,5 +12,6 @@ done
 for d in $(git ls-tree -d -r --name-only "$recon_ref" sys_ctrl); do
     mkdir -p "$tmp/recon/$d"
     CPATH=${CPATH:+$CPATH:}$tmp/recon/$d
+    [ -d "$d" ] && CPATH=$CPATH:$PWD/$d
 done
 export CPATH

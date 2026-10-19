@@ -28,7 +28,7 @@
 #include "../IRouter/IRouter.h"
 #include "../Router/Socket.h"
 #include "../sys/brick_types.h"
-#include "../../l3/main/nvram.h"
+#include "../../l3/main/settings.h"
 #include "../../l3/sys/syslogLib.h"
 
 /* the ports, plus IR_PORT_BIAS */
@@ -134,17 +134,17 @@ int L2CfgInitLocal(uint32 ip_addr, RouterClient *client)
   }
   L2CfgMode = 1;
   L2CfgInitNode(&L2CfgLocal.net,1,ip_addr,ip_low24(ip_addr) | IR_IP_L2,client);
-  L2CfgLocal.rack = nvramGet(NVRAM_RACK);
-  L2CfgLocal.net.msmode = nvramGet(NVRAM_MASTER_SLAVE);
+  L2CfgLocal.rack = settingsGet(SET_RACK);
+  L2CfgLocal.net.msmode = settingsGet(SET_MASTER_SLAVE);
   if (L2CfgLocal.net.msmode != 0 && L2CfgLocal.net.msmode < 3) {
     L2CfgLocal.net.msip = 0;
     L2CfgLocal.net.msnode = NULL;
   }
   /* (the system name is up to 31 characters, the field 20: the original
    * overflowed it) */
-  set_field(L2CfgLocal.ssn,sizeof(L2CfgLocal.ssn),(char *)nvramGet(NVRAM_SERIAL));
-  set_field(L2CfgLocal.sysname,sizeof(L2CfgLocal.sysname),(char *)nvramGet(NVRAM_SYSNAME));
-  L2CfgLocal.l2dsp_disabled = nvramGet(NVRAM_L2DSP_DISABLED);
+  set_field(L2CfgLocal.ssn,sizeof(L2CfgLocal.ssn),(char *)settingsGet(SET_SERIAL));
+  set_field(L2CfgLocal.sysname,sizeof(L2CfgLocal.sysname),(char *)settingsGet(SET_SYSNAME));
+  L2CfgLocal.l2dsp_disabled = settingsGet(SET_L2DSP_DISABLED);
   L2CfgLocal.syscon = calloc(MAX_PARTITIONS,sizeof(L2CfgSysCon));
   return 0;
 }
@@ -527,22 +527,22 @@ int L2CfgDeleteL2Client(L2CfgNode **list, L2CfgNode *client)
 /* NVRAM settings changed */
 void L2CfgMEventRack(L2Cfg *head)
 {
-  head->rack = nvramGet(NVRAM_RACK);
+  head->rack = settingsGet(SET_RACK);
 }
 
 void L2CfgMEventSystemSN(L2Cfg *head)
 {
-  set_field(head->ssn,sizeof(head->ssn),(char *)nvramGet(NVRAM_SERIAL));
+  set_field(head->ssn,sizeof(head->ssn),(char *)settingsGet(SET_SERIAL));
 }
 
 void L2CfgMEventSystemName(L2Cfg *head)
 {
-  set_field(head->sysname,sizeof(head->sysname),(char *)nvramGet(NVRAM_SYSNAME));
+  set_field(head->sysname,sizeof(head->sysname),(char *)settingsGet(SET_SYSNAME));
 }
 
 void L2CfgMEventDisplayDisable(L2Cfg *head)
 {
-  head->l2dsp_disabled = nvramGet(NVRAM_L2DSP_DISABLED);
+  head->l2dsp_disabled = settingsGet(SET_L2DSP_DISABLED);
 }
 
 /* "001c05", with "---" or "--" for a missing rack or slot and a note */

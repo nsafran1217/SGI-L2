@@ -51,11 +51,11 @@ LIB_SRCS := \
 	sys_ctrl/common/sys/Logger.c \
 	sys_ctrl/common/sys/MemUsage.c \
 	sys_ctrl/common/sys/brick_types.c \
-	sys_ctrl/common/sys/ipmi.c \
 	sys_ctrl/l3/IRouter/IRouterL3.c \
 	sys_ctrl/l3/api/SCapi.c \
 	sys_ctrl/l3/api/SCapiL2.c \
-	sys_ctrl/l3/main/nvram.c \
+	sys_ctrl/l3/main/settings.c \
+	sys_ctrl/l3/main/l2log.c \
 	sys_ctrl/l3/sys/syslogLib.c
 
 L2_SRCS := \
@@ -153,7 +153,9 @@ $(B)/sys_ctrl/l3/gui/%.o: sys_ctrl/l3/gui/%.cc $(UI_GEN) Makefile
 	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) -I$(B)/gen/sys_ctrl/l3/gui -MMD -MP -c $< -o $@
 
+# (anew each time: ar keeps the members of deleted sources)
 $(B)/libsgi.a: $(LIB_OBJS)
+	rm -f $@
 	$(AR) rcs $@ $^
 
 $(B)/bin/l2: $(L2_SRCS:%.c=$(B)/%.o) $(B)/libsgi.a
@@ -195,12 +197,14 @@ test:
 # big-endian one.
 CHECK_BIN  = $(abspath $(B))/$(if $(QEMU),qemu-bin,bin)
 RECON_REF ?= origin/main
+# (l2cfg_test links a 64-bit libsgi.a: this build's, if it is a plain native one)
+UNIT_LIBSGI = $(if $(ARCH)$(EXTRA_CFLAGS),,LIBSGI=$(abspath $(B))/libsgi.a)
 SESSION_TESTS = tests/difftest.sh tests/l2term_test.py tests/smp_test.py \
 	tests/l1net_test.py tests/l1_test.py tests/l1usb_test.py tests/options_test.sh \
 	tests/l2_options_test.py $(if $(filter l2gui,$(TOOLS)),tests/l2gui_test.py)
 check: all
 	$(if $(QEMU),,@if git rev-parse -q --verify $(RECON_REF) >/dev/null; then \
-	    for t in tests/unit/*_test.sh; do RECON_REF=$(RECON_REF) $$t || exit 1; done; \
+	    for t in tests/unit/*_test.sh; do RECON_REF=$(RECON_REF) $(UNIT_LIBSGI) $$t || exit 1; done; \
 	else echo "SKIP  unit tests: no $(RECON_REF) (the faithful reconstruction) in git"; fi)
 	@fail=0; for t in $(SESSION_TESTS); do NEW_BIN=$(CHECK_BIN) $$t || fail=1; done; exit $$fail
 
@@ -210,9 +214,8 @@ golden: all
 	@for t in $(SESSION_TESTS); do GOLDEN=update NEW_BIN=$(CHECK_BIN) $$t || exit 1; done
 	git status --short tests/golden
 
-# (nvram_test compares with the originals directly)
 interop: all
-	@fail=0; for t in $(SESSION_TESTS) tests/nvram_test.py; do \
+	@fail=0; for t in $(SESSION_TESTS); do \
 	    INTEROP=1 NEW_BIN=$(CHECK_BIN) $$t || fail=1; done; exit $$fail
 
 S390X := $(abspath ../tools/s390x/root/usr)

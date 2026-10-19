@@ -22,7 +22,8 @@
 #include "l2.h"
 #include "discover.h"
 #include "cfg.h"
-#include "../main/nvram.h"
+#include "../main/settings.h"
+#include "../main/l2log.h"
 #include "../sys/syslogLib.h"
 
 #define DISCOVER_PORT   10000   /* plus IR_PORT_BIAS */
@@ -112,7 +113,7 @@ static void warn_once(const char *fmt, uint32 addr)
   if (strstr(haystack,ip) != NULL)
     return;
   sprintf(msg,fmt,ip);
-  nvramLogInsert(msg);
+  l2logInsert(msg);
   /* (the original appended without bound) */
   if (strlen(haystack) + strlen(ip) + 2 <= sizeof(haystack)) {
     strcat(haystack,ip);
@@ -184,7 +185,7 @@ void discover_response(void *cd, int sd)
       }
     }
     else if (strcmp(key,"ssn") == 0) {
-      if (strcmp(value,(char *)nvramGet(NVRAM_SERIAL)) != 0) {
+      if (strcmp(value,(char *)settingsGet(SET_SERIAL)) != 0) {
         if (debug & 8)
           fprintf(stderr,"discover: ssn doesn\'t match match, not responding\n");
         free(request);
@@ -193,7 +194,7 @@ void discover_response(void *cd, int sd)
       ssn_matched = 1;
     }
     else if (strcmp(key,"name") == 0) {
-      if (strcmp(value,(char *)nvramGet(NVRAM_SYSNAME)) != 0) {
+      if (strcmp(value,(char *)settingsGet(SET_SYSNAME)) != 0) {
         if (debug & 0x10)
           fprintf(stderr,"discover: name doesn\'t match match, not responding\n");
         free(request);
@@ -214,7 +215,7 @@ void discover_response(void *cd, int sd)
   }
   free(request);
 
-  if (from_l2 && nvramGet(NVRAM_MULTISYS) != 0 && !ssn_matched) {
+  if (from_l2 && settingsGet(SET_MULTISYS) != 0 && !ssn_matched) {
     if (debug & 0x80)
       fprintf(stderr,"discover: multi system mode, but no SSN passed from client, not responding\n");
     return;
@@ -238,12 +239,12 @@ void discover_response(void *cd, int sd)
   optr = (char *)outpkt;
   strcpy(optr,version_attr);
   optr += strlen(optr);
-  s = (char *)nvramGet(NVRAM_SERIAL);
+  s = (char *)settingsGet(SET_SERIAL);
   if (s != NULL && s != (char *)-1 && *s != '\0') {
     sprintf(optr,"ssn:%s,",s);
     optr += strlen(optr);
   }
-  s = (char *)nvramGet(NVRAM_SYSNAME);
+  s = (char *)settingsGet(SET_SYSNAME);
   if (s != NULL && s != (char *)-1 && *s != '\0') {
     sprintf(optr,"name:%s,",s);
     optr += strlen(optr);

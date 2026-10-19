@@ -69,7 +69,7 @@ WebSocket (for a later web version of `l2term` and `l2gui`), events.
 |---|---|
 | 0 | done |
 | 1 | done: no authentication, no host control from the console, no L1 simulator, serial L1 links, direct client L1 connections, modem console or malloc profiling (see DEVIATIONS.md) |
-| 2 | |
+| 2 | done: `l2.conf` (settings.c) and `l2.log` (l2log.c) replace the NVRAM image; `-c <file>` |
 | 3 | |
 | 4 | |
 | 5 | |

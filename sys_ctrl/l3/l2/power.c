@@ -16,7 +16,8 @@
 #include "l2.h"
 #include "power.h"
 #include "irtr.h"
-#include "../main/nvram.h"
+#include "../main/settings.h"
+#include "../main/l2log.h"
 
 #define STEP            5       /* seconds per countdown step */
 #define MIN_DELAY       30      /* ... and at least this many in all */
@@ -32,15 +33,15 @@ static char buff[128];
 static void info(const char *msg)
 {
   fputs(msg,stderr);
-  nvramLogInsert((char *)msg);
+  l2logInsert((char *)msg);
 }
 
 void power_init(void)
 {
-  if (nvramGet(NVRAM_AUTO_POWERUP) == 0 || power_query() != 0)
+  if (settingsGet(SET_AUTO_POWERUP) == 0 || power_query() != 0)
     return;
   info("\nINFO: auto power up appears enabled\n");
-  powerup = nvramGet(NVRAM_AUTOPOWER_DELAY);
+  powerup = settingsGet(SET_AUTOPOWER_DELAY);
   if (powerup <= MIN_DELAY)
     powerup = MIN_DELAY;
   powerup /= STEP;
@@ -60,7 +61,7 @@ void power_timer(void)
     info("INFO: auto power up aborted!\n");
     return;
   }
-  if (nvramGet(NVRAM_AUTO_POWERUP) == 0) {
+  if (settingsGet(SET_AUTO_POWERUP) == 0) {
     info("INFO: auto power up disabled!\n");
     return;
   }

@@ -540,7 +540,6 @@ ERROR: no L1s found to match that destination
 === log
 INFO: attempting connection to 127.0.0.1:8000
 INFO: connection to 127.0.0.1:8000 established.
-10/19/26 <TIME> checksum error (CH) - nvram reset.
 === autopower
 INFO: attempting connection to 127.0.0.1:8000
 INFO: connection to 127.0.0.1:8000 established.

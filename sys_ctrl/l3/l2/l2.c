@@ -28,7 +28,8 @@
 #include "irtr.h"
 #include "broadcast.h"
 #include "target.h"
-#include "../main/nvram.h"
+#include "../main/settings.h"
+#include "../main/l2log.h"
 #include "../sys/syslogLib.h"
 #include "../../common/sys/syslog.h"
 #include "../../common/sys/l3paths.h"   /* configurable paths (new) */
@@ -100,11 +101,11 @@ void oops_handler(int sig, siginfo_t *info, void *raw_uc)
 }
 
 /* syslogLib's output: errors (levels 0-2) and fatal ones (9) go to the
- * NVRAM log */
+ * log (l2log.c) */
 static void syslog_msg(int level, char *msg)
 {
   if ((level >= 0 && level < 3) || level == 9)
-    nvramLogInsert(msg);
+    l2logInsert(msg);
 }
 
 static void ignore_signal(int sig)
@@ -128,11 +129,12 @@ static int run(void)
   fprintf(stderr,"Current L2 version: %d.%d.%d \n\n",L2_REV_MAJOR,L2_REV_MINOR,L2_REV_PATCH);
   if (l2_l1_conn_mode == L2_CONN_NONE)
     fprintf(stderr,"WARNING: No connections will be made to L1\'s (-noconn)\n");
-  nvramInit(NVRAM_READWRITE);
-  if (nvramGet(NVRAM_BROADCAST_TIMEOUT) != 0)
-    broadcast_response_timeout = nvramGet(NVRAM_BROADCAST_TIMEOUT);
-  if (nvramGet(NVRAM_TARGET_TIMEOUT) != 0)
-    target_response_timeout = nvramGet(NVRAM_TARGET_TIMEOUT);
+  settingsInit(SETTINGS_READWRITE);
+  l2logInit();
+  if (settingsGet(SET_BROADCAST_TIMEOUT) != 0)
+    broadcast_response_timeout = settingsGet(SET_BROADCAST_TIMEOUT);
+  if (settingsGet(SET_TARGET_TIMEOUT) != 0)
+    target_response_timeout = settingsGet(SET_TARGET_TIMEOUT);
   IRouterInit(l2_ip);
   IRouterInitID(&l2_id,0,0);           /* (task 0) */
   IRouterInitID(&l2_console_id,IR_L2_CONSOLE,0);
@@ -175,7 +177,6 @@ static int run(void)
 int main(int argc, char **argv, char **envp)
 {
   char *myhost;
-  char *ssn;
   int i;
 
   syslogLibInit(syslog_msg);
@@ -188,7 +189,13 @@ int main(int argc, char **argv, char **envp)
     const char *arg = argv[i];
     int more = argc - 1 - i;    /* arguments after this one */
 
-    if (strcmp(arg,"-net") == 0)
+    if (strcmp(arg,"-c") == 0) {
+      /* <file>: the settings file (l2.log goes next to it) */
+      if (more == 0)
+        syntax();
+      settingsSetPath(argv[++i]);
+    }
+    else if (strcmp(arg,"-net") == 0)
       l2_l1_conn_mode = L2_CONN_NET;
     else if (strcmp(arg,"-usb") == 0)
       l2_l1_conn_mode = L2_CONN_USB;
@@ -225,16 +232,6 @@ int main(int argc, char **argv, char **envp)
       power_check++;
     else if (strcmp(arg,"-smpenet") == 0)
       enet_only = 1;
-    else if (strcmp(arg,"-syncssn") == 0) {
-      /* <ssn>: set the system serial number, unless l2 is running */
-      if (more == 0)
-        syntax();               /* (the original crashed) */
-      nvramInit(NVRAM_READWRITE);
-      ssn = (char *)nvramGet(NVRAM_SERIAL);
-      if (strcmp(ssn,argv[i + 1]) != 0 && EnetServerCheck(IR_PORT_BIAS + L2_APP_QUIET_PORT) == 0)
-        nvramSet(NVRAM_SERIAL,(uintptr_t)argv[i + 1]);
-      exit(0);
-    }
     else
       syntax();
   }
@@ -265,7 +262,7 @@ static void l2_flow_control(void *data, RouterClient *client, int overflow)
 static void syntax(void)
 {
   fprintf(stdout,
-          "usage: %s -net | -usb | -noconn  [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]\n"
+          "usage: %s -net | -usb | -noconn  [ -c <settings file> ] [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]\n"
           ,l2_myname);
   exit(0);
 }

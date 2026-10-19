@@ -18,7 +18,9 @@
 #include <unistd.h>
 #include "l2.h"
 #include "discover.h"
-#include "../main/nvram.h"
+#include "../main/nvram.h"     /* (the original's; from RECON_REF) */
+#include "../main/settings.h"
+#include "../main/l2log.h"
 #include "orig_discover.h"
 
 L2Cfg L2CfgLocal;
@@ -51,14 +53,18 @@ static void note(const char *fmt, ...)
 uintptr_t nvramGet(int32 location)
 {
   switch (location) {
-  case NVRAM_SERIAL: return (uintptr_t)serial;
-  case NVRAM_SYSNAME: return (uintptr_t)sysname;
-  case NVRAM_MULTISYS: return multisys;
+  case SET_SERIAL: return (uintptr_t)serial;
+  case SET_SYSNAME: return (uintptr_t)sysname;
+  case SET_MULTISYS: return multisys;
   }
   return 0;
 }
 
 void nvramLogInsert(char *message) { note("log %s",message); }
+
+/* the new code's settings and log: the same (the ids are NVRAM's) */
+uintptr_t settingsGet(int id) { return nvramGet(id); }
+void l2logInsert(char *message) { nvramLogInsert(message); }
 char *SocketAddrStr(uint32_t addr) { return inet_ntoa(*(struct in_addr *)&addr); }
 L2CfgNode *L2CfgMFindNode(L2Cfg *head, uint32 ip_addr, IRAddress ir_addr, RouterClient *client)
 {

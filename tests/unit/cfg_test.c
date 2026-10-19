@@ -14,7 +14,8 @@
 #include "l2.h"
 #include "cfg.h"
 #include "../api/SCapiL2.h"
-#include "../main/nvram.h"
+#include "../main/nvram.h"     /* (the original's; from RECON_REF) */
+#include "../main/settings.h"
 #include "orig_cfg.h"
 
 /* --- the world --- */
@@ -167,7 +168,7 @@ static uintptr_t nv[2][32];     /* each side's */
 
 uintptr_t nvramGet(int32 location)
 {
-  if (location == NVRAM_SERIAL)
+  if (location == SET_SERIAL)
     return (uintptr_t)serial;
   return nv[side][location & 31];
 }
@@ -177,6 +178,10 @@ void nvramSet(int32 location, uintptr_t value)
   note("nvramSet %d %lu\n",location,(unsigned long)value);
   nv[side][location & 31] = value;
 }
+
+/* the new code's settings: the same (the ids are NVRAM's) */
+uintptr_t settingsGet(int id) { return nvramGet(id); }
+void settingsSet(int id, uintptr_t value) { nvramSet(id,value); }
 
 static char query_text[3][0x20000];
 

@@ -26,7 +26,7 @@ Other builds:
 Until phase 3 is done, `l2 -usb` still needs SGI's `sgil1` kernel driver
 (the port for current kernels is in SGI-L2-Docker). Without L1s:
 
-    l2 -noconn                        # an L2 with no bricks
+    l2 -noconn                        # an L2 with no bricks; settings in ./l2.conf
     l2term --l2 localhost             # its console; CTRL-] q quits
     l2cmd --l2 localhost version
 
@@ -60,7 +60,7 @@ it is not in git.
 
 | Variable | What | Default |
 |---|---|---|
-| `SGI_L2_NVRAM` | `l2`'s NVRAM file (`.N` appended with `--copy N`) | `./.l2_NVRAM`: the directory `l2` is started in |
+| `SGI_L2_CONFIG` | `l2`'s settings file (`.N` appended with `--copy N`; `l2 -c <file>` overrides); its log, `l2.log`, is in the same directory | `$STATE_DIRECTORY/l2.conf` under systemd, else `./l2.conf` |
 | `SGI_L3_SOCKET_DIR` | local `UNIX_xxxx` sockets | `/usr/tmp`, or `/tmp` if `/usr/tmp` does not exist |
 | `SGI_L3_DEV_DIR` | `sgil1_cs`, `sgil1_N`, `ttyS1` | `/dev` |
 

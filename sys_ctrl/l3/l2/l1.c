@@ -28,7 +28,8 @@
 #include "l1net.h"
 #include "sgil1.h"
 #include "smp.h"
-#include "../main/nvram.h"
+#include "../main/settings.h"
+#include "../main/l2log.h"
 #include "../../common/Router/SocketIO.h"
 #include "../../common/sys/Logger.h"
 #include "../../common/sys/l3paths.h"   /* configurable paths (new) */
@@ -91,9 +92,6 @@ int l1_open_usb(void)
 
   if (l2_debug)
     fprintf(stderr,"l1_open_usb() in\n");
-  l1usb_debug = nvramGet(NVRAM_L1USB_DEBUG);
-  if (l1usb_debug)
-    fprintf(stderr,"INFO: initializing USB debug setting to %d from NVRAM\n",l1usb_debug);
   l2_l1_device = (char *)l3path_dev("sgil1_cs");   /* original: "/dev/sgil1_cs" */
   l2_l1_control = open(l2_l1_device,O_RDONLY);
   if (l2_l1_control < 0) {

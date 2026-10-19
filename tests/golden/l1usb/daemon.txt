@@ -3,7 +3,7 @@
 SGI L2 Controller
 Current L2 version: 1.62.0 
 
-INFO: NVRAM file './.l2_NVRAM' doesn't exist.....initializing
+INFO: settings file './l2.conf' doesn't exist.....initializing
 INFO: opened USB control /dev/sgil1_cs
 INFO: opened USB device at b1;p1;d2 (/dev/sgil1_0)
 INFO: SMP listening on port: 8001

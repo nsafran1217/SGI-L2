@@ -39,7 +39,8 @@
 #include "smp.h"
 #include "target.h"
 #include "../api/SCapiL2.h"
-#include "../main/nvram.h"
+#include "../main/settings.h"
+#include "../main/l2log.h"
 #include "../../common/sys/Cmd.h"
 #include "../../common/sys/MemUsage.h"
 
@@ -406,10 +407,10 @@ static int l2cmd_autopower(CmdData *cptr, char **results)
   response(results,80);
   switch (cptr->params[0]) {
   case 1:
-    nvramSet(NVRAM_AUTO_POWERUP,1);
+    settingsSet(SET_AUTO_POWERUP,1);
     break;
   case 2:
-    nvramSet(NVRAM_AUTO_POWERUP,0);
+    settingsSet(SET_AUTO_POWERUP,0);
     break;
   case 3:
     power_abort = 1;
@@ -420,14 +421,14 @@ static int l2cmd_autopower(CmdData *cptr, char **results)
       strcpy(*results,"ERROR: minimum auto powerup delay is 30 seconds\n");
       return 0;
     }
-    nvramSet(NVRAM_AUTOPOWER_DELAY,cptr->exp_stack[0]);
+    settingsSet(SET_AUTOPOWER_DELAY,cptr->exp_stack[0]);
     break;
   }
-  delay = nvramGet(NVRAM_AUTOPOWER_DELAY);
+  delay = settingsGet(SET_AUTOPOWER_DELAY);
   if (delay <= 30)
     delay = 30;
   sprintf(*results,"auto powerup %s\nauto powerup delay %d seconds\n",
-          nvramGet(NVRAM_AUTO_POWERUP) ? "enabled" : "disabled",delay);
+          settingsGet(SET_AUTO_POWERUP) ? "enabled" : "disabled",delay);
   return 0;
 }
 
@@ -537,7 +538,7 @@ static int l2cmd_rtc(CmdData *cptr, char **results, L2CMD *c)
     break;
   case 6:       /* sync: the date command to every L1 and L2 */
     sprintf(buff,"date sync %lx",(unsigned long)(uintptr_t)c);
-    nvramLogInsert(buff);
+    l2logInsert(buff);
     if (c == NULL)
       return -1;
     now = time(NULL);
@@ -665,7 +666,7 @@ static void show_debug(char **results, int sbufsize, int rbufsize)
   rptr += sprintf(rptr,"console tracking debugging %d\n",smp_console_debug);
   rptr += sprintf(rptr,"broadcast debugging %d\n",broadcast_debug);
   rptr += sprintf(rptr,"discovery debugging %X\n",discover_debug);
-  rptr += sprintf(rptr,"USB debugging %d\n",(int)nvramGet(NVRAM_L1USB_DEBUG));
+  rptr += sprintf(rptr,"USB debugging %d\n",l1usb_debug);
   rptr += sprintf(rptr,"L2 load debugging %d\n",load_debug);
   rptr += sprintf(rptr,"L2 net conn flow ctrl     hwater %d  lwater %d\n",l2_flow_hwater,l2_flow_lwater);
   rptr += sprintf(rptr,"L1 input throttle %s (%d msec)\n",l1_throttle_timerid != 0 ? "enabled" : "disabled",
@@ -717,8 +718,7 @@ static int l2cmd_l2dbg(CmdData *cptr, char **results)
     break;
   case 7:       /* usb */
     l1usb_debug = arg;
-    nvramSet(NVRAM_L1USB_DEBUG,l1usb_debug);
-    sprintf(response(results,80),"storing USB debug setting %d in NVRAM\n",l1usb_debug);
+    sprintf(response(results,80),"USB debug setting %d\n",l1usb_debug);
     break;
   case 8:       /* estat [reset] */
     rptr = response(results,100);
@@ -767,11 +767,11 @@ static int l2cmd_l2dbg(CmdData *cptr, char **results)
     break;
   case 24:      /* brspto */
     broadcast_response_timeout = arg;
-    nvramSet(NVRAM_BROADCAST_TIMEOUT,broadcast_response_timeout);
+    settingsSet(SET_BROADCAST_TIMEOUT,broadcast_response_timeout);
     break;
   case 25:      /* trspto */
     target_response_timeout = arg;
-    nvramSet(NVRAM_TARGET_TIMEOUT,target_response_timeout);
+    settingsSet(SET_TARGET_TIMEOUT,target_response_timeout);
     break;
   case 26:      /* misc */
     l2_misc_debug = arg;
@@ -1043,12 +1043,13 @@ static int l2cmd_hreboot_l1(CmdData *cptr, char **results, L2CMD *c)
   return 0;
 }
 
-/* "nvram reset" */
+/* "nvram reset": the settings file back to the defaults */
 static int l2cmd_nvram(CmdData *cptr, char **results)
 {
-  response(results,160);
-  nvramReset();
-  strcpy(*results,"nvram contents cleared, reboot required (some NVRAM values are cached)");
+  response(results,160 + strlen(settingsPath()));
+  settingsReset();
+  sprintf(*results,"settings in %s reset to the defaults, restart l2 to apply all of them (some are cached)",
+          settingsPath());
   return 0;
 }
 
@@ -1256,7 +1257,7 @@ int l2cmd_power(CmdData *cptr, char **results, L2CMD *c)
     memcpy(&orig_dest,c->dest,sizeof(DEST));
     l2cmd_process(c,"ver check",results,NULL);
     memcpy(c->dest,&orig_dest,sizeof(DEST));
-    slow = nvramGet(NVRAM_SLOW_PWRUP) != 0;
+    slow = settingsGet(SET_SLOW_PWRUP) != 0;
     if ((slow ? power_up_slow(c,results,delay) : power_up_fast(c,cptr,results,delay)) != 0)
       return -1;
     /* then I/O, and the rest, slot by slot */
@@ -1291,12 +1292,12 @@ int l2cmd_power(CmdData *cptr, char **results, L2CMD *c)
     delay = cptr->exp_stack[0];
     break;
   case 6:
-    slow = nvramGet(NVRAM_SLOW_PWRUP) != 0;
+    slow = settingsGet(SET_SLOW_PWRUP) != 0;
     sprintf(*results,"power up mode is %s (power up RTRs in %s)\n",slow ? "slow" : "fast",
             slow ? "series" : "parallel");
     break;
   case 7:
-    nvramSet(NVRAM_SLOW_PWRUP,*cptr->toks[2] == 's');
+    settingsSet(SET_SLOW_PWRUP,*cptr->toks[2] == 's');
     break;
   }
   return 0;
@@ -1333,7 +1334,7 @@ static int l2cmd_rackid(CmdData *cptr, char **results)
   if (cptr->params[0] == 0)
     sprintf(*results,"rack ID is %d\n",L2CfgLocal.rack);
   else if (cptr->params[0] == 1) {
-    nvramSet(NVRAM_RACK,cptr->exp_stack[0]);
+    settingsSet(SET_RACK,cptr->exp_stack[0]);
     L2CfgMEventRack(&L2CfgLocal);
     sprintf(*results,"rack ID set to %d\n",L2CfgLocal.rack);
   }
@@ -1558,23 +1559,23 @@ static int l2cmd_ping(CmdData *cptr, char **results)
   switch (cptr->params[0]) {
   case 1:
     cfg_ping_response_minimum = arg;
-    nvramSet(NVRAM_PING_MIN,cfg_ping_response_minimum);
+    settingsSet(SET_PING_MIN,cfg_ping_response_minimum);
     break;
   case 2:
     cfg_ping_response_maximum = arg;
-    nvramSet(NVRAM_PING_MAX,cfg_ping_response_maximum);
+    settingsSet(SET_PING_MAX,cfg_ping_response_maximum);
     break;
   case 3:
     cfg_ping_l2_frequency = arg;
-    nvramSet(NVRAM_PING_L2FREQ,cfg_ping_l2_frequency);
+    settingsSet(SET_PING_L2FREQ,cfg_ping_l2_frequency);
     break;
   case 4:
     cfg_ping_sender_valid = arg == 0 ? 2 : 1;   /* (NVRAM's 0 is unset) */
-    nvramSet(NVRAM_PING_SENDER,cfg_ping_sender_valid);
+    settingsSet(SET_PING_SENDER,cfg_ping_sender_valid);
     break;
   case 5:
     cfg_ping_l1_frequency = arg;
-    nvramSet(NVRAM_PING_L1FREQ,cfg_ping_l1_frequency);
+    settingsSet(SET_PING_L1FREQ,cfg_ping_l1_frequency);
     break;
   case 6:
     cfg_throttle_frequency = arg;
@@ -1603,12 +1604,12 @@ static int l2cmd_l2dsp(CmdData *cptr, char **results)
     break;
   case 2:
   case 3:
-    nvramSet(NVRAM_L2DSP_DISABLED,cptr->params[0] == 3);
+    settingsSet(SET_L2DSP_DISABLED,cptr->params[0] == 3);
     L2CfgMEventDisplayDisable(&L2CfgLocal);
     /* fall through */
   case 4:
     response(results,160);
-    sprintf(*results,"L2 display input %s\n",nvramGet(NVRAM_L2DSP_DISABLED) ? "disabled" : "enabled");
+    sprintf(*results,"L2 display input %s\n",settingsGet(SET_L2DSP_DISABLED) ? "disabled" : "enabled");
     break;
   }
   return 0;
@@ -1685,7 +1686,7 @@ static int l2cmd_l2find(CmdData *cptr, char **results)
    * three sections' titles and long serial numbers) */
   rptr = response(results,l2_cnt * 120 + 400);
   rptr += sprintf(rptr,"%d L2\'s discovered:\n\n",l2_cnt);
-  myssn = (const char *)nvramGet(NVRAM_SERIAL);
+  myssn = (const char *)settingsGet(SET_SERIAL);
   if (discover_debug)
     fprintf(stderr,"l2find:  myssn = %s\n",myssn);
   rptr = l2find_section(rptr,l2_list,l2_cnt,myssn,same_ssn,"[ L2\'s with matching System Serial Number ]\n",&banner);
@@ -1752,12 +1753,12 @@ static int l2cmd_serial(CmdData *cptr, char **results)
       strcat(*results,"System serial number must be [LMNPRTUWYZ]0000000 through [LMNPRTUWYZ]3999999\n");
       return -1;
     }
-    nvramSet(NVRAM_SERIAL,(uintptr_t)ssn);
+    settingsSet(SET_SERIAL,(uintptr_t)ssn);
     L2CfgMEventSystemSN(&L2CfgLocal);
   }
   else if (cptr->params[0] != 0)
     return 0;
-  ssn = (char *)nvramGet(NVRAM_SERIAL);
+  ssn = (char *)settingsGet(SET_SERIAL);
   sprintf(*results,"L2 system serial number: %s.\n",ssn != NULL && *ssn != '\0' ? ssn : "not set");
   return 0;
 }
@@ -1769,10 +1770,10 @@ static int l2cmd_sysname(CmdData *cptr, char **results)
 
   response(results,160);
   if (cptr->params[0] == 1 || cptr->params[0] == 2) {
-    nvramSet(NVRAM_SYSNAME,(uintptr_t)(cptr->params[0] == 1 ? cptr->str_stack[0] : ""));
+    settingsSet(SET_SYSNAME,(uintptr_t)(cptr->params[0] == 1 ? cptr->str_stack[0] : ""));
     L2CfgMEventSystemName(&L2CfgLocal);
   }
-  name = (char *)nvramGet(NVRAM_SYSNAME);
+  name = (char *)settingsGet(SET_SYSNAME);
   sprintf(*results,"L2 system name: %s.\n",name != NULL && *name != '\0' ? name : "not set");
   return 0;
 }
@@ -1782,10 +1783,10 @@ static int l2cmd_multisys(CmdData *cptr, char **results)
 {
   response(results,160);
   if (cptr->params[0] == 1)
-    nvramSet(NVRAM_MULTISYS,1);
+    settingsSet(SET_MULTISYS,1);
   else if (cptr->params[0] == 2)
-    nvramSet(NVRAM_MULTISYS,0);
-  if (nvramGet(NVRAM_MULTISYS) == 1)
+    settingsSet(SET_MULTISYS,0);
+  if (settingsGet(SET_MULTISYS) == 1)
     sprintf(*results,"L2 multiple system network support enabled.\nL2\'s will only connect to L2\'s with same system SN\n");
   else
     sprintf(*results,"L2 multiple system network support disabled.\nL2\'s will connect to ALL other L2\'s on the subnet\n");
@@ -1810,13 +1811,13 @@ static int l2cmd_psmode(CmdData *cptr, char **results)
   if (cptr->params[0] == 1) {
     switch (*cptr->toks[1]) {
     case 'n':
-      nvramSet(NVRAM_MASTER_SLAVE,0);
+      settingsSet(SET_MASTER_SLAVE,0);
       break;
     case 's':
-      nvramSet(NVRAM_MASTER_SLAVE,1);
+      settingsSet(SET_MASTER_SLAVE,1);
       break;
     case 'p':
-      nvramSet(NVRAM_MASTER_SLAVE,2);
+      settingsSet(SET_MASTER_SLAVE,2);
       break;
     }
   }
@@ -1827,7 +1828,7 @@ static int l2cmd_psmode(CmdData *cptr, char **results)
     rptr += sprintf(rptr,"%s",now[mode]);
   else
     rptr += sprintf(rptr,"WARNING: unknown primary/secondary mode %d.\n",mode);
-  mode = nvramGet(NVRAM_MASTER_SLAVE);
+  mode = settingsGet(SET_MASTER_SLAVE);
   if (mode != L2CfgLocal.net.msmode) {
     if (mode <= 2)
       sprintf(rptr,"%s",next[mode]);
@@ -1842,7 +1843,7 @@ static int l2cmd_log(CmdData *cptr, char **results)
 {
   switch (cptr->params[0]) {
   case 0:
-    *results = nvramLogFetch();
+    *results = l2logFetch();
     if (*results == NULL) {
       response(results,160);
       strcpy(*results,"memory allocation error.\n");
@@ -1853,12 +1854,12 @@ static int l2cmd_log(CmdData *cptr, char **results)
     }
     break;
   case 1:
-    nvramLogReset();
+    l2logReset();
     response(results,160);
     strcpy(*results,"log reset.\n");
     break;
   case 2:
-    nvramLogInsert(cptr->str_stack[0]);
+    l2logInsert(cptr->str_stack[0]);
     response(results,160);
     strcpy(*results,"log entry made.\n");
     break;

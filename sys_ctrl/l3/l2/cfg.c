@@ -31,7 +31,8 @@
 #include "l1.h"
 #include "smp.h"
 #include "../api/SCapiL2.h"
-#include "../main/nvram.h"
+#include "../main/settings.h"
+#include "../main/l2log.h"
 #include "../sys/syslogLib.h"
 #include "../../common/sys/Logger.h"
 
@@ -79,30 +80,30 @@ uint32 del_addr;
 void cfg_ping_reset(void)
 {
   cfg_ping_response_minimum = 1;
-  nvramSet(NVRAM_PING_MIN,1);
+  settingsSet(SET_PING_MIN,1);
   cfg_ping_response_maximum = 3;
-  nvramSet(NVRAM_PING_MAX,3);
+  settingsSet(SET_PING_MAX,3);
   cfg_ping_l2_frequency = 5;
-  nvramSet(NVRAM_PING_L2FREQ,5);
+  settingsSet(SET_PING_L2FREQ,5);
   cfg_ping_l1_frequency = 5;
-  nvramSet(NVRAM_PING_L1FREQ,5);
+  settingsSet(SET_PING_L1FREQ,5);
   cfg_throttle_frequency = 2;
   cfg_ping_sender_valid = 2;
-  nvramSet(NVRAM_PING_SENDER,2);
+  settingsSet(SET_PING_SENDER,2);
 }
 
 /* the ping settings from NVRAM; the defaults if any is unset */
 void cfg_ping_init(void)
 {
-  if (nvramGet(NVRAM_PING_MIN) == 0 || nvramGet(NVRAM_PING_MAX) == 0 ||
-      nvramGet(NVRAM_PING_SENDER) == 0 || nvramGet(NVRAM_PING_L2FREQ) == 0 ||
-      nvramGet(NVRAM_PING_L1FREQ) == 0)
+  if (settingsGet(SET_PING_MIN) == 0 || settingsGet(SET_PING_MAX) == 0 ||
+      settingsGet(SET_PING_SENDER) == 0 || settingsGet(SET_PING_L2FREQ) == 0 ||
+      settingsGet(SET_PING_L1FREQ) == 0)
     cfg_ping_reset();
-  cfg_ping_response_minimum = nvramGet(NVRAM_PING_MIN);
-  cfg_ping_response_maximum = nvramGet(NVRAM_PING_MAX);
-  cfg_ping_l2_frequency = nvramGet(NVRAM_PING_L2FREQ);
-  cfg_ping_l1_frequency = nvramGet(NVRAM_PING_L1FREQ);
-  cfg_ping_sender_valid = nvramGet(NVRAM_PING_SENDER);
+  cfg_ping_response_minimum = settingsGet(SET_PING_MIN);
+  cfg_ping_response_maximum = settingsGet(SET_PING_MAX);
+  cfg_ping_l2_frequency = settingsGet(SET_PING_L2FREQ);
+  cfg_ping_l1_frequency = settingsGet(SET_PING_L1FREQ);
+  cfg_ping_sender_valid = settingsGet(SET_PING_SENDER);
   cfg_throttle_frequency = 2;
 }
 
@@ -110,8 +111,8 @@ void cfg_ping_init(void)
  * multi-system mode, and its role */
 static void discovery_request(char *client_data, int with_secondary)
 {
-  if (nvramGet(NVRAM_MULTISYS) == 1)
-    sprintf(client_data,"%s,ssn:%s",cfg_client_id,(char *)nvramGet(NVRAM_SERIAL));
+  if (settingsGet(SET_MULTISYS) == 1)
+    sprintf(client_data,"%s,ssn:%s",cfg_client_id,(char *)settingsGet(SET_SERIAL));
   else
     strcpy(client_data,cfg_client_id);
   if (L2CfgLocal.net.msmode == 2)
@@ -176,7 +177,7 @@ void cfg_ping_l1(int device)
       return;
     memset(argv,0,sizeof(argv));
     argv[0]._val = CFG_QUERY_L1;
-    ssn = (char *)nvramGet(NVRAM_SERIAL);
+    ssn = (char *)settingsGet(SET_SERIAL);
     if (*ssn != '\0') {
       argv[1]._clas = IR_ARG_BYTES | IR_ARG_FREE;
       argv[1]._val = IR_PTR_VAL(strdup(ssn));

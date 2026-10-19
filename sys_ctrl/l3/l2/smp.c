@@ -36,7 +36,8 @@
 #include "power.h"
 #include "route.h"
 #include "serial.h"
-#include "../main/nvram.h"
+#include "../main/settings.h"
+#include "../main/l2log.h"
 
 #define KEY_CTRL(c)        ((c) & 0x1f)
 #define LINE_MAX_LEN    128     /* SMPGroup.cbuf */
@@ -159,7 +160,7 @@ void smp_cleanup(void)
       continue;
     }
     sprintf(x,"INFO: SMP session %d from %s appears hung, closing.\n",curr->grpid,SocketAddrStr(curr->host));
-    nvramLogFinsert("%s",x);
+    l2logFinsert("%s",x);
     fprintf(stderr,"%s",x);
     close_session(curr,prev);
     smp_count--;
@@ -908,7 +909,7 @@ void smp_process_response(IRPacket *p)
     IRFmtPkt("SMP late response",p,x);
     if (smp_debug)
       fprintf(stderr,"%s\n",x);
-    nvramLogInsert(x);
+    l2logInsert(x);
     IRouterFreePacket(p);
   }
   else if (rpend == 0)
@@ -1039,7 +1040,7 @@ void smp_write(SMP *smp, char *ibptr, int iblen)
     errno = 0;
     if (select(smp->wfd + 1,NULL,&wrset,NULL,&wtime) < 0) {
       sprintf(x,"SMP %d (%d) select error %d",smp->grpid,smp_count,errno);
-      nvramLogFinsert("%s",x);
+      l2logFinsert("%s",x);
       smp->hung = 1;
       return;
     }
@@ -1052,11 +1053,11 @@ void smp_write(SMP *smp, char *ibptr, int iblen)
     }
     if (dtime.tv_sec > 0 || dtime.tv_usec > 0) {
       sprintf(x,"SMP %d waited %d.%06d",smp->grpid,(int)dtime.tv_sec,(int)dtime.tv_usec);
-      nvramLogFinsert("%s",x);
+      l2logFinsert("%s",x);
     }
     if (!FD_ISSET(smp->wfd,&wrset)) {
       sprintf(x,"SMP %d (%d) select timeout",smp->grpid,smp_count);
-      nvramLogFinsert("%s",x);
+      l2logFinsert("%s",x);
       smp->hung = 1;
       return;
     }
@@ -1064,13 +1065,13 @@ void smp_write(SMP *smp, char *ibptr, int iblen)
     status = write(smp->wfd,obuff,oblen);
     if (status < 0 && errno == EAGAIN) {
       sprintf(x,"SMP %d (%d) write would block",smp->grpid,smp_count);
-      nvramLogFinsert("%s",x);
+      l2logFinsert("%s",x);
       smp->hung = 1;
       return;
     }
     if (status < 0) {
       sprintf(x,"SMP %d (%d) write error %d",smp->grpid,smp_count,errno);
-      nvramLogFinsert("%s",x);
+      l2logFinsert("%s",x);
       smp->hung = 1;
       return;
     }
@@ -1080,7 +1081,7 @@ void smp_write(SMP *smp, char *ibptr, int iblen)
     }
     else {
       sprintf(x,"SMP %d (%d) partial write %d/%d",smp->grpid,smp_count,status,oblen);
-      nvramLogFinsert("%s",x);
+      l2logFinsert("%s",x);
       if (status != 0) {
         /* (the original kept the written length as what was left) */
         memmove(obuff,obuff + status,oblen - status);

@@ -14,7 +14,6 @@
 #include "../sys_ctrl/common/sys/Cmd.h"
 #include "../sys_ctrl/common/sys/FRU.h"
 #include "../sys_ctrl/common/sys/Logger.h"
-#include "../sys_ctrl/common/sys/ipmi.h"
 #include "../sys_ctrl/common/sys/sysctl_types.h"
 #include "../sys_ctrl/common/sys/sysutils.h"
 #include "../sys_ctrl/l3/api/SCapi.h"
@@ -28,7 +27,6 @@
 #include "../sys_ctrl/l3/l2/smp.h"
 #include "../sys_ctrl/l3/l2demo/l2demo.h"
 #include "../sys_ctrl/l3/main/SysCfg.h"
-#include "../sys_ctrl/l3/main/nvram.h"
 
 _Static_assert(sizeof(IRArgument) == 8, "IRArgument");
 _Static_assert(offsetof(IRArgument, _clas) == 0, "IRArgument._clas");
@@ -364,7 +362,6 @@ _Static_assert(sizeof(LoggerMessageRange) == 12, "LoggerMessageRange");
 _Static_assert(offsetof(LoggerMessageRange, name) == 0, "LoggerMessageRange.name");
 _Static_assert(offsetof(LoggerMessageRange, count) == 4, "LoggerMessageRange.count");
 _Static_assert(offsetof(LoggerMessageRange, message) == 8, "LoggerMessageRange.message");
-_Static_assert(sizeof(ipmiCommonHeader) == 8, "ipmiCommonHeader");
 /* struct _sem_t (common/sys/sysutils.h) embeds pthread_mutex_t/pthread_cond_t, whose
  * sizes differ between glibc 2.1.3 and today. It is in-memory only (no wire or
  * NVRAM format), so its original layout is not required. */
@@ -472,39 +469,3 @@ _Static_assert(offsetof(struct _demo_db_t, current_msgno) == 0, "struct _demo_db
 _Static_assert(offsetof(struct _demo_db_t, current_msgidx) == 4, "struct _demo_db_t.current_msgidx");
 _Static_assert(offsetof(struct _demo_db_t, nmsgs) == 8, "struct _demo_db_t.nmsgs");
 _Static_assert(offsetof(struct _demo_db_t, msg) == 12, "struct _demo_db_t.msg");
-_Static_assert(sizeof(nvramInternalUseArea) == 2092, "nvramInternalUseArea");
-_Static_assert(offsetof(nvramInternalUseArea, unused1) == 1, "nvramInternalUseArea.unused1");
-_Static_assert(offsetof(nvramInternalUseArea, slot) == 3, "nvramInternalUseArea.slot");
-_Static_assert(offsetof(nvramInternalUseArea, rack) == 4, "nvramInternalUseArea.rack");
-_Static_assert(offsetof(nvramInternalUseArea, unused2) == 6, "nvramInternalUseArea.unused2");
-_Static_assert(offsetof(nvramInternalUseArea, system_serial_number) == 8, "nvramInternalUseArea.system_serial_number");
-_Static_assert(offsetof(nvramInternalUseArea, system_name) == 24, "nvramInternalUseArea.system_name");
-_Static_assert(offsetof(nvramInternalUseArea, ip_addr) == 56, "nvramInternalUseArea.ip_addr");
-_Static_assert(offsetof(nvramInternalUseArea, ip_netmask) == 60, "nvramInternalUseArea.ip_netmask");
-_Static_assert(offsetof(nvramInternalUseArea, ip_broadcast) == 64, "nvramInternalUseArea.ip_broadcast");
-_Static_assert(offsetof(nvramInternalUseArea, l1usb_debug) == 68, "nvramInternalUseArea.l1usb_debug");
-_Static_assert(offsetof(nvramInternalUseArea, ping_min) == 72, "nvramInternalUseArea.ping_min");
-_Static_assert(offsetof(nvramInternalUseArea, ping_max) == 76, "nvramInternalUseArea.ping_max");
-_Static_assert(offsetof(nvramInternalUseArea, ping_sender) == 80, "nvramInternalUseArea.ping_sender");
-_Static_assert(offsetof(nvramInternalUseArea, ping_l2freq) == 84, "nvramInternalUseArea.ping_l2freq");
-_Static_assert(offsetof(nvramInternalUseArea, ping_l1freq) == 88, "nvramInternalUseArea.ping_l1freq");
-_Static_assert(offsetof(nvramInternalUseArea, timezone) == 92, "nvramInternalUseArea.timezone");
-_Static_assert(offsetof(nvramInternalUseArea, modem_baud) == 172, "nvramInternalUseArea.modem_baud");
-_Static_assert(offsetof(nvramInternalUseArea, unused3) == 173, "nvramInternalUseArea.unused3");
-_Static_assert(offsetof(nvramInternalUseArea, password) == 176, "nvramInternalUseArea.password");
-_Static_assert(offsetof(nvramInternalUseArea, autopower_delay) == 192, "nvramInternalUseArea.autopower_delay");
-_Static_assert(offsetof(nvramInternalUseArea, broadcast_timeout) == 196, "nvramInternalUseArea.broadcast_timeout");
-_Static_assert(offsetof(nvramInternalUseArea, target_timeout) == 197, "nvramInternalUseArea.target_timeout");
-_Static_assert(offsetof(nvramInternalUseArea, open1) == 198, "nvramInternalUseArea.open1");
-_Static_assert(offsetof(nvramInternalUseArea, open2) == 199, "nvramInternalUseArea.open2");
-_Static_assert(offsetof(nvramInternalUseArea, ip_gateway) == 200, "nvramInternalUseArea.ip_gateway");
-_Static_assert(offsetof(nvramInternalUseArea, extra) == 204, "nvramInternalUseArea.extra");
-_Static_assert(offsetof(nvramInternalUseArea, log_start) == 2072, "nvramInternalUseArea.log_start");
-_Static_assert(offsetof(nvramInternalUseArea, log_end) == 2076, "nvramInternalUseArea.log_end");
-_Static_assert(offsetof(nvramInternalUseArea, log_head) == 2080, "nvramInternalUseArea.log_head");
-_Static_assert(offsetof(nvramInternalUseArea, log_tail) == 2084, "nvramInternalUseArea.log_tail");
-_Static_assert(offsetof(nvramInternalUseArea, pad) == 2088, "nvramInternalUseArea.pad");
-_Static_assert(offsetof(nvramInternalUseArea, checksum) == 2091, "nvramInternalUseArea.checksum");
-_Static_assert(sizeof(nvramProductInfoArea) == 4, "nvramProductInfoArea");
-_Static_assert(sizeof(struct _nvramInstance) == 4, "struct _nvramInstance");
-_Static_assert(offsetof(struct _nvramInstance, unused) == 0, "struct _nvramInstance.unused");

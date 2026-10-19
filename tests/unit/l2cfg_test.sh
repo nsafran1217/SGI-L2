@@ -2,12 +2,13 @@
 # Equivalence test of the system configuration code (common/main/L2Cfg.c)
 # against the main branch's (original) reconstruction, under ASan: random
 # configuration texts and L1 configurations into both, then every printer,
-# query and lookup compared. Links the rest from build64/libsgi.a (built by
-# make check before the unit tests). Needs the faithful reconstruction (origin/main, or RECON_REF) in git.
+# query and lookup compared. Links the rest from a 64-bit libsgi.a: LIBSGI,
+# else build64/libsgi.a, brought up to date here. Needs the faithful
+# reconstruction (origin/main, or RECON_REF) in git.
 set -eu
 cd "$(dirname "$0")/../.."
 lib=${LIBSGI:-build64/libsgi.a}
-[ -f "$lib" ] || make -s ARCH=-m64 B=build64 "$lib"
+[ -n "${LIBSGI:-}" ] || make -s ARCH=-m64 B=build64 "$lib"
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 . tests/unit/recon.sh
