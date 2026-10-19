@@ -513,8 +513,12 @@ static void echo_key(SMP *smp, char c)
 {
   char tmp[8];   /* original: 5, overflowed by "\\-128" (a negative char) */
 
-  if (isprint((int)c))
-    smp_output(smp,&c,1);
+  if (isprint((int)c)) {
+    /* (a string: smp_event() copies the text whole) */
+    tmp[0] = c;
+    tmp[1] = '\0';
+    smp_output(smp,tmp,1);
+  }
   else if (c > 0 && c < 27) {
     sprintf(tmp,"^%c",(int)(char)(c | 0x40));
     smp_output(smp,tmp,-1);
@@ -1232,7 +1236,9 @@ void smp_echo(SMP *smp)
   char buff[512];
   int blen;
 
-  blen = read(smp->grp->shell,buff,sizeof(buff));
+  /* (terminated: smp_event() copies the text whole; the original read
+   * all 512 bytes and left it unterminated) */
+  blen = read(smp->grp->shell,buff,sizeof(buff) - 1);
   if (blen < 1) {
     EventRemoveInput(smp->grp->shell);
     close(smp->grp->shell);
@@ -1240,6 +1246,7 @@ void smp_echo(SMP *smp)
     smp_prompt(smp);
     return;
   }
+  buff[blen] = '\0';
   smp_output(smp,buff,blen);
 }
 

@@ -3,18 +3,21 @@
  *
  * Reconstructed from the STABS debug info and Ghidra decompilation of l2passwd.
  * Original: /data/cf/sysco/scs123.patch/sys_ctrl/l3/utils/l2passwd.c
+ *
+ * l2passwd: the L3 host's root password follows the L2's (run as root at
+ * boot).
  */
 
-#include <stdlib.h>
-#include "../l2/l2.h"   /* needed by the reconstruction */
-#include "l2passwd.h"   /* needed by the reconstruction */
-#include <stdio.h>
+#include <errno.h>
 #include <pwd.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include "l2passwd.h"
 #include "../main/nvram.h"
 #include "../../common/sys/l3paths.h"   /* configurable paths (new) */
-#include "decomp.h"     /* Ghidra types/macros; remove once the file is cleaned up */
 
 /* Set the L3's root password from the L2 NVRAM password (none: no password,
  * and rhosts access is enabled). Every file it touches is under SGI_L3_ROOT
@@ -45,8 +48,19 @@ int main(int argc, char **argv)
   /* original: "rm -f /etc/passwd.bak; /bin/cp /etc/passwd /etc/passwd.bak" */
   snprintf(cmd, sizeof(cmd), "rm -f '%s'; /bin/cp '%s' '%s'", backup, passwd, backup);
   system(cmd);
+  /* (the original opened, and so emptied, the password file even when it
+   * had no copy to read it back from) */
   pwin = fopen(backup,"r");
+  if (pwin == NULL) {
+    fprintf(stderr,"l2passwd: can\'t read %s, %s; %s left as it was\n",backup,strerror(errno),passwd);
+    return 1;
+  }
   pwout = fopen(passwd,"w+");
+  if (pwout == NULL) {
+    fprintf(stderr,"l2passwd: can\'t write %s, %s\n",passwd,strerror(errno));
+    fclose(pwin);
+    return 1;
+  }
   while ((pwent = fgetpwent(pwin)) != NULL) {
     if (strcmp(pwent->pw_name,"root") == 0) {
       pwent->pw_passwd = cpw;

@@ -4,7 +4,7 @@
 #   make test       layout checks: every SGI struct must match the original binaries
 #   make check      every differential test (l2cmd, l2term, NVRAM, L1, l2gui sessions)
 #                   against this build: outputs must match the original binaries'
-#   make check-all  the same for the 32-bit, 64-bit, ASan and s390x builds
+#   make check-all  the same for the 32-bit, 64-bit and ASan builds (check-s390x: big-endian)
 #   make clean
 #
 # l2gui also needs FLTK, built from ../refs/fltk by ../retools/setup_fltk.sh
@@ -18,8 +18,7 @@ ARCH    ?= -m32
 CFLAGS  ?= -g -O0
 # -fsigned-char: the code was written for i386, where char is signed (not so on
 # s390x, ARM, PowerPC)
-CFLAGS  += $(ARCH) -std=gnu99 -fcommon -fno-strict-aliasing -fno-builtin-fprintf -include compat/printf_check.h -fsigned-char -Icompat -Wall -Wextra -Wno-unused-parameter -Wno-format-zero-length \
-           -Wno-unused-variable -Wno-unused-but-set-variable -Wno-unused-label -Wno-pointer-sign
+CFLAGS  += $(ARCH) -std=gnu99 -fcommon -fno-strict-aliasing -fno-builtin-fprintf -include compat/printf_check.h -fsigned-char -Icompat -Wall -Wextra -Wno-unused-parameter -Wno-format-zero-length
 # Debian's libc6-dev-i386 puts the 32-bit glibc headers under the x86_64 multiarch dir
 ifeq ($(ARCH),-m32)
 ISYSTEM := $(if $(wildcard /usr/include/i386-linux-gnu/bits),,-isystem /usr/include/x86_64-linux-gnu)
@@ -134,62 +133,6 @@ CXXFLAGS += $(ARCH) -fno-strict-aliasing -fsigned-char -Icompat -Wall -Wextra -W
             -Wno-unused-variable -Wno-unused-but-set-variable -Wno-unused-function \
             $(ISYSTEM) $(FLTK_CXXFLAGS) $(WERROR) $(EXTRA_CFLAGS)
 
-# Files done in the rewrite (CLEANUP.md phase 2) build with the warnings the
-# decompiler residue elsewhere still needs switched off.
-CLEAN_SRCS := \
-	sys_ctrl/common/Router/Buff.c \
-	sys_ctrl/common/Router/Event.c \
-	sys_ctrl/common/Router/SocketIO.c \
-	sys_ctrl/common/Router/Socket.c \
-	sys_ctrl/common/Router/Router.c \
-	sys_ctrl/common/Router/RouterCl.c \
-	sys_ctrl/common/Router/RouterSv.c \
-	sys_ctrl/common/IRouter/IRouter.c \
-	sys_ctrl/common/IRouter/IRouter2Router.c \
-	sys_ctrl/common/sys/Logger.c \
-	sys_ctrl/common/sys/BuffWrite.c \
-	sys_ctrl/common/sys/MemUsage.c \
-	sys_ctrl/common/sys/ipmi.c \
-	sys_ctrl/common/sys/l3paths.c \
-	sys_ctrl/common/sys/Cmd.c \
-	sys_ctrl/common/sys/PPP.c \
-	sys_ctrl/common/sys/brick_types.c \
-	sys_ctrl/common/sys/minfo.c \
-	sys_ctrl/l3/main/nvram.c \
-	sys_ctrl/l3/main/SysCfg.c \
-	sys_ctrl/l3/api/SCapiConn.c \
-	sys_ctrl/l3/api/SCapiL2.c \
-	sys_ctrl/l3/api/SCapi.c \
-	sys_ctrl/l3/api/L1Direct.c \
-	sys_ctrl/l3/IRouter/IRouterOS.c \
-	sys_ctrl/l3/sys/syslogLib.c \
-	sys_ctrl/l3/IRouter/IRouterL3.c \
-	sys_ctrl/common/main/EnetServer.c \
-	sys_ctrl/common/main/L2Cfg.c \
-	sys_ctrl/l3/l2/dmp.c \
-	sys_ctrl/l3/l2/pty.c \
-	sys_ctrl/l3/l2/serial.c \
-	sys_ctrl/l3/l2/enet.c \
-	sys_ctrl/l3/l2/format.c \
-	sys_ctrl/l3/l2/lpbk.c \
-	sys_ctrl/l3/l2/l1net.c \
-	sys_ctrl/l3/l2/l1sim.c \
-	sys_ctrl/l3/l2/target.c \
-	sys_ctrl/l3/l2/power.c \
-	sys_ctrl/l3/l2/dest.c \
-	sys_ctrl/l3/l2/reqrspq.c \
-	sys_ctrl/l3/l2/broadcast.c \
-	sys_ctrl/l3/l2/l2.c \
-	sys_ctrl/l3/l2/route.c \
-	sys_ctrl/l3/l2/cmd.c \
-	sys_ctrl/l3/l2/discover.c \
-	sys_ctrl/l3/l2/irtr.c \
-	sys_ctrl/l3/l2/cfg.c \
-	sys_ctrl/l3/l2/l1.c \
-	sys_ctrl/l3/l2/smp.c \
-	sys_ctrl/l3/l2/l2cmd.c
-$(CLEAN_SRCS:%.c=$(B)/%.o): CFLAGS += -Wunused-variable -Wunused-but-set-variable \
-	-Wunused-label -Wpointer-sign
 
 LIB_OBJS := $(LIB_SRCS:%.c=$(B)/%.o)
 TOOLS    := l2 l2term l2cmd l2passwd
@@ -199,7 +142,7 @@ else ifeq ($(QEMU),)
 $(info l2gui skipped: no $(FLTK_CONFIG) (run ../retools/setup_fltk.sh $(FLTK_BITS)))
 endif
 
-.PHONY: all test check check-all difftest clean
+.PHONY: all test check check-all check-s390x difftest clean
 all: $(TOOLS:%=$(B)/bin/%)
 
 $(B)/%.o: %.c Makefile
@@ -257,7 +200,7 @@ test:
 
 # make check: every differential test against this build (B=; cross builds run
 # through their qemu wrappers). make check-all: the 32-bit, 64-bit and ASan
-# builds, and s390x when ../retools/setup_s390x.sh has been run.
+# builds; make check-s390x the big-endian one.
 CHECK_BIN = $(abspath $(B))/$(if $(QEMU),qemu-bin,bin)
 check: all
 	$(if $(QEMU),,for t in tests/unit/*_test.sh; do $$t || exit 1; done)
@@ -281,10 +224,13 @@ check-all:
 	$(MAKE) check ARCH=-m64 B=build64
 	ASAN_OPTIONS=detect_leaks=0 $(MAKE) check ARCH=-m64 B=build64asan \
 	    EXTRA_CFLAGS=-fsanitize=address EXTRA_LDFLAGS=-fsanitize=address
-	$(if $(wildcard $(S390X)/bin/qemu-s390x),PATH=$(S390X)/bin:$$PATH \
-	    LD_LIBRARY_PATH=$(S390X)/lib/x86_64-linux-gnu $(MAKE) check \
+
+# big-endian (slow; byte order was settled before the rewrite): after
+# ../retools/setup_s390x.sh
+check-s390x:
+	PATH=$(S390X)/bin:$$PATH LD_LIBRARY_PATH=$(S390X)/lib/x86_64-linux-gnu $(MAKE) check \
 	    CC=s390x-linux-gnu-gcc-14 AR=s390x-linux-gnu-ar ARCH= B=builds390x \
-	    QEMU="$(S390X)/bin/qemu-s390x -L $(S390X)/s390x-linux-gnu")
+	    QEMU="$(S390X)/bin/qemu-s390x -L $(S390X)/s390x-linux-gnu"
 
 clean:
 	rm -rf $(B)

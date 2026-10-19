@@ -129,6 +129,8 @@ def session(l2bin, preload, commands, work, name):
     log = open(logname, "wb")
     fd = os.open(fifo, os.O_RDWR)        # l2 spins on stdin EOF
     env = dict(os.environ, LD_PRELOAD=" ".join(preload), FAKE_SGIL1_DIR=devdir)
+    # (an ASan build: its runtime is not first with the shim preloaded)
+    env["ASAN_OPTIONS"] = ":".join(filter(None, [env.get("ASAN_OPTIONS"), "verify_asan_link_order=0"]))
     proc = subprocess.Popen([l2bin, "-usb", "-nodiscover"], cwd=d, stdin=fd, stdout=log,
                             stderr=log, env=env)
     os.close(fd)

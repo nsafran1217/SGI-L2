@@ -81,8 +81,8 @@ Per file:
 - drop `#include "decomp.h"` and the "needed by the reconstruction" includes
   that are no longer needed.
 
-When phase 2 is done: drop s390x from `make check-all` (endianness is
-settled; it is the slowest build).
+When phase 2 was done, s390x left `make check-all` (endianness is settled;
+it is the slowest build): `make check-s390x`.
 
 ### 3. Structure (after the code reads cleanly)
 - L1 transport interface under `l3/l2/l1.c` (sgil1 driver, L1 network link,
@@ -98,5 +98,5 @@ settled; it is the slowest build).
 |---|---|
 | 0 | done: warning-free with `-Wall -Wextra` (less `-Wunused-parameter`), `-Werror` (`WERROR=` to drop it); `tools/objcmp.sh` proves mechanical commits; `make check` / `check-all` |
 | 1 | done: Ghidra type names (`ulong` by hand, the rest with `tools/retoken.py`), decompiler notes, decimal syslog lines, small char constants, `CONCAT11` → `IR_SEQNUM()`, `code` pointers typed; `compat/decomp.h` is down to three standard includes. Left for phase 2 (needs types/meaning per site): `'\0'` compared with non-character values, `'\x80'`+ constants |
-| 2 | in progress. Done: all of common/ (Router, IRouter, sys, main), l3/main, l3/api, l3/IRouter, l3/sys, l3/l2 (the l2 daemon); printf format checking restored (`-fno-builtin-fprintf` + `compat/printf_check.h`). Unit tests against main in `tests/unit/` (one per rewritten module the differential tests miss); new differential tests: `options_test.sh` (system controller options), `l2_options_test.py` (l2's command line), `l1direct_test.py` (direct serial L1), `smp_test.py` (the L2's consoles), `l1usb_test.py` (USB L1s through a fake sgil1 driver, `tests/sgil1_shim.c`), the daemons' output in `difftest.sh`. Left: l3/utils, l3/gui |
+| 2 | done: every file of common/, l3/main, l3/api, l3/IRouter, l3/sys, l3/l2 and l3/utils rewritten (l3/gui was written by hand); `compat/decomp.h` deleted; the tree builds with the unused-variable and pointer-sign warnings on and `-Werror`; s390x moved out of `check-all` (`make check-s390x`). printf format checking restored (`-fno-builtin-fprintf` + `compat/printf_check.h`). Unit tests against main in `tests/unit/` (one per rewritten module the differential tests miss); new differential tests: `options_test.sh` (system controller options), `l2_options_test.py` (l2's command line), `l1direct_test.py` (direct serial L1), `smp_test.py` (the L2's consoles), `l1usb_test.py` (USB L1s through a fake sgil1 driver, `tests/sgil1_shim.c`), the daemons' output in `difftest.sh`. SGI bugs: ORIGINAL_BUGS.md |
 | 3 | |
