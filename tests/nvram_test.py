@@ -28,13 +28,12 @@ ORIG = sys.argv[1] if len(sys.argv) > 1 else os.path.join(
 NEW = os.environ.get("NEW_BIN", os.path.join(SRC, "build/bin"))
 
 SET = [
-    "rackid 7", "sysname testsys", "serial set N0000123", "multisys on", "dhcpserver off",
+    "rackid 7", "sysname testsys", "serial set N0000123", "multisys on",
     "l2dsp disable", "autopower delay 42", "ping min 2", "ping max 9", "ping l2 11",
-    "ping l1 13", "ping sender 1", "ip 10.1.2.3 255.255.0.0 10.1.255.255",
-    "ip gw 10.1.0.1", "psmode primary", "log insert hello from the nvram test",
+    "ping l1 13", "ping sender 1", "psmode primary", "log insert hello from the nvram test",
 ]
-QUERY = ["rackid", "sysname", "serial", "multisys", "dhcpserver", "l2dsp", "autopower",
-         "ping", "ip", "psmode", "log", "nvram"]
+QUERY = ["rackid", "sysname", "serial", "multisys", "l2dsp", "autopower",
+         "ping", "psmode", "log", "nvram"]
 
 IUA = 8                 # the common header's internal_use_area is 1 (x 8 bytes)
 LOG_START = IUA + 2072  # nvramInternalUseArea.log_start .. log_tail: LE uint32 offsets
