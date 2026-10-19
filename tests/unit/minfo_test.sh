@@ -2,13 +2,13 @@
 # Equivalence test of the malloc profiler's bookkeeping and reports
 # (common/sys/minfo.c) against the main branch's (original) reconstruction,
 # under 32-bit ASan. The malloc hooks are gone from glibc, so the test drives the
-# block list directly. Needs the main branch in git.
+# block list directly. Needs the faithful reconstruction (origin/main, or RECON_REF) in git.
 set -eu
 cd "$(dirname "$0")/../.."
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
-git show main:compat/decomp.h > "$tmp/decomp.h"
-git show main:sys_ctrl/common/sys/minfo.c |
+git show "${RECON_REF:-origin/main}":compat/decomp.h > "$tmp/decomp.h"
+git show "${RECON_REF:-origin/main}":sys_ctrl/common/sys/minfo.c |
     sed -e 's|#include "\.\./\.\./l3/l2/smp.h".*||' \
         -e 's|#include "minfo.h".*|#include "../sys_ctrl/common/sys/minfo.h"|' \
         -e 's|#include "\.\./\.\./l3/main/nvram.h".*|void nvramLogFinsert(char *fmt, ...);|' > "$tmp/orig_minfo.c"

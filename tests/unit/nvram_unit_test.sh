@@ -2,13 +2,13 @@
 # Equivalence test of the NVRAM image code (l3/main/nvram.c) against the
 # main branch's (original) reconstruction, under ASan: random settings,
 # log messages (enough to wrap the ring) and resets, comparing the files
-# and the log text. Needs the main branch in git.
+# and the log text. Needs the faithful reconstruction (origin/main, or RECON_REF) in git.
 set -eu
 cd "$(dirname "$0")/../.."
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
-git show main:compat/decomp.h > "$tmp/decomp.h"
-git show main:sys_ctrl/l3/main/nvram.c |
+git show "${RECON_REF:-origin/main}":compat/decomp.h > "$tmp/decomp.h"
+git show "${RECON_REF:-origin/main}":sys_ctrl/l3/main/nvram.c |
     sed -e 's/\bnvram\([A-Z][A-Za-z]*\)\b/Orignvram\1/g' \
         -e 's/\bOrignvram\(InternalUseArea\|ProductInfoArea\|Log\|Instance\)\b/nvram\1/g' \
         -e 's/^nvramInstance nvram;/nvramInstance orig_nvram_;/' -e 's/#include <syslimits.h>//' \
