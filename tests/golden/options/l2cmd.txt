@@ -61,13 +61,14 @@ INFO: connection to 127.0.0.1:8000 established.
 L2 version: 1.62.0
 exit 0
 === --pw
-./l2cmd: --pw option missing <password>
-./l2cmd: error while parsing library command arguments
-exit 255
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+ERROR: no L1s found to match that destination
+exit 0
 === --pw secret --l2 127.0.0.1 version
 INFO: attempting connection to 127.0.0.1:8000
 INFO: connection to 127.0.0.1:8000 established.
-L2 version: 1.62.0
+ERROR: no L1s found to match that destination
 exit 0
 === --copy
 ./l2cmd: --copy option missing <copy#>
@@ -142,7 +143,6 @@ System Controller command options
     --interface|--if <iface>  net interface (ie. eth0) of L2 network to connect to
     --ssn <serial>[:<rack>]  serial number (ie. L01234567) of system to connect to
     --sysname <name>[:<rack>]    system name of system to connect to
-    --pw <password>      L2 password
     --irtr               (debug) show IRouter packets sent/received
     --serial <host>:<port>        ethernet (i.e. Annex) hostname and port
     --dev <device name>           local serial port device name

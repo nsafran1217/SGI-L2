@@ -40,7 +40,6 @@ struct SMP_s {
     void (*rfcn)();
     int grpid;
     SMPGroup *grp;
-    int password;
     struct SMP_s *next;
 };
 typedef struct SMP_s SMP;

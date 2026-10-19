@@ -9,7 +9,7 @@ changing and how far along it is.
 
 ## Build
 
-    make            # build/bin/{l2,l2term,l2cmd,l2passwd,l2gui}
+    make            # build/bin/{l2,l2term,l2cmd,l2gui}
 
 Needs gcc and make. `l2gui` also needs FLTK 1.3 or 1.4
 (`FLTK_CONFIG=<path to fltk-config>`); without it, `make` skips `l2gui`.
@@ -63,7 +63,6 @@ it is not in git.
 | `SGI_L2_NVRAM` | `l2`'s NVRAM file (`.N` appended with `--copy N`) | `./.l2_NVRAM`: the directory `l2` is started in |
 | `SGI_L3_SOCKET_DIR` | local `UNIX_xxxx` sockets | `/usr/tmp`, or `/tmp` if `/usr/tmp` does not exist |
 | `SGI_L3_DEV_DIR` | `sgil1_cs`, `sgil1_N`, `snsc/`, `ttyS1`, `com2` | `/dev` |
-| `SGI_L3_ROOT` | prefix for the files `l2passwd` rewrites | empty: the real `/etc/passwd`, `/etc/.rhosts`, `/rhosts.allow` |
 | `SGI_L3_MTRACE_DIR` | `--mtrace` output | `/tmp` |
 
 ## Documents

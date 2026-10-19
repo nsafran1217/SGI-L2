@@ -88,7 +88,6 @@ SMP *smp_init(IRIdent *id, int rfd, int wfd, void (*rfcn)(), uint32 host, int po
 {
   int task = IR_ADDR_TASK(id->addr);
   SMP *smp;
-  char *pw;
   int baud;
 
   smp_input_debug = 0;
@@ -104,12 +103,6 @@ SMP *smp_init(IRIdent *id, int rfd, int wfd, void (*rfcn)(), uint32 host, int po
   smp->grp = new_group(smp);
   smp->grp->mode = SMP_MODE_L2;
   smp->grp->l2cmd = l2cmd_init(smp->id,smp_timeout,smp_etimeout,smp_command_done,smp);
-  /* sessions other than the serial ones log in, if the L2 has a password */
-  if (task != IR_L2_CONSOLE && task != IR_L2_MODEM) {
-    pw = (char *)nvramGet(NVRAM_PASSWORD);
-    if (pw != NULL && *pw != '\0')
-      smp->password = 1;
-  }
   smp->next = smp_list;
   smp_count++;
   smp_list = smp;
@@ -537,23 +530,20 @@ static void rub_out(SMP *smp)
   if (g->cptr <= g->cbuf)
     return;
   g->cptr--;
-  if (!smp->password) {
-    if (isprint((int)*g->cptr))
-      smp_output(smp,"\b \b",-1);
-    else if (*g->cptr < 1 || *g->cptr > 26)
-      smp_output(smp,"\b\b\b\b    \b\b\b\b",-1);
-    else
-      smp_output(smp,"\b\b  \b\b",-1);
-  }
+  if (isprint((int)*g->cptr))
+    smp_output(smp,"\b \b",-1);
+  else if (*g->cptr < 1 || *g->cptr > 26)
+    smp_output(smp,"\b\b\b\b    \b\b\b\b",-1);
+  else
+    smp_output(smp,"\b\b  \b\b",-1);
   *g->cptr = '\0';
 }
 
-/* the line is complete: run it (or check it as the password) */
+/* the line is complete: run it */
 static void run_line(SMP *smp)
 {
   SMPGroup *g = smp->grp;
   char *rptr;
-  char *pw;
 
   if (g->lpbk_pending || route_pending) {
     if (g->lpbk_pending)
@@ -564,24 +554,10 @@ static void run_line(SMP *smp)
     route_pending = 0;
   }
   smp_output(smp,"\n",-1);
-  if (g->cbuf[0] != '\0' || smp->password) {
+  if (g->cbuf[0] != '\0') {
     rptr = NULL;
     g->l2cmd->data = smp;
-    if (!smp->password)
-      l2cmd_process(g->l2cmd,g->cbuf,&rptr,NULL);
-    else {
-      pw = (char *)nvramGet(NVRAM_PASSWORD);
-      if (pw == NULL || *pw == '\0' || strcmp(pw,g->cbuf) == 0)
-        smp->password = 0;
-      else {
-        smp_output(smp,"incorrect password\n",-1);
-        /* network sessions get three tries */
-        if (smp->password++ > 2 && smp != serial_console && smp != serial_modem) {
-          smp_output(smp,"disconnecting after 3 failed password attempts\n",-1);
-          smp_free(smp);
-        }
-      }
-    }
+    l2cmd_process(g->l2cmd,g->cbuf,&rptr,NULL);
     if (!smp_is_valid(smp))
       return;
     g = smp->grp;
@@ -666,7 +642,7 @@ void smp_input(SMP *smp, char *rbuf, int rlen)
     write(g->shell,rbuf,rlen);
     return;
   }
-  if (!smp->password && escape_key(smp,c))
+  if (escape_key(smp,c))
     return;
   switch (g->mode) {
   case SMP_MODE_L2:
@@ -679,13 +655,6 @@ void smp_input(SMP *smp, char *rbuf, int rlen)
       run_line(smp);
       return;
     case KEY_CTRL('C'):
-      if (smp->password) {
-        g->cptr = g->cbuf;
-        *g->cptr = '\0';
-        smp_output(smp,"\n",-1);
-        smp_prompt(smp);
-        return;
-      }
       while (g->cptr != g->cbuf)
         smp_input(smp,"\b",1);
       return;
@@ -702,8 +671,7 @@ void smp_input(SMP *smp, char *rbuf, int rlen)
     }
     *g->cptr++ = c;
     *g->cptr = '\0';
-    if (!smp->password)
-      echo_key(smp,c);
+    echo_key(smp,c);
     break;
   case SMP_MODE_CONSOLE:
     if (smp_chkcon_present(smp) != 0)
@@ -727,17 +695,13 @@ void smp_output(SMP *smp, char *bptr, int blen)
 }
 
 /* "<sysname or ssn or ?>-<rack, or the IP address>-L2>" (with the
- * partition: "L2:p<n>>"), or the password prompt */
+ * partition: "L2:p<n>>") */
 void smp_prompt(SMP *smp)
 {
   char prompt[128];
   const char *s;
   char *p;
 
-  if (smp->password) {
-    smp_output(smp,"Password: ",-1);
-    return;
-  }
   if (L2CfgLocal.sysname[0] != '\0')
     s = L2CfgLocal.sysname;
   else if (L2CfgLocal.ssn[0] != '\0')

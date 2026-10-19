@@ -7,8 +7,7 @@
  * The system controller API for tools with several L2 connections at once
  * (l2term, l2gui): SCapi.c's calls with an sn1SCConn each. A connection
  * is an IRouter client of an L2's command port, found by discovery when no
- * host is given, with a password asked for on the terminal if the L2 wants
- * one and none was given.
+ * host is given.
  */
 
 #include <arpa/inet.h>
@@ -33,12 +32,10 @@
 /* our IRouter address: an L3 (rack and slot all ones) */
 #define L3_ADDR IR_ADDR_MAKE(IR_ADDR_L3, 0x3ff, 0x3f, 0, 0)
 
-static char *get_password(IRClient *client);
 
 static int sn1SCCount;
 static char l2_cname[128];      /* our client name */
 static int l2_port;
-sn1SCConn *conn_in_progress;    /* the connection being made, for get_password() */
 
 /* once per process */
 int sn1SCConnInit(char *cname)
@@ -62,10 +59,9 @@ static void set_field(char *field, size_t size, const char *value)
 
 /*
  * Connect conn to host, or to the L2 discovery finds on iface (matching
- * sysname and ssn, if given). id is our IRouter task. With no passwd, one
- * is asked for if the L2 wants it.
+ * sysname and ssn, if given). id is our IRouter task.
  */
-int sn1SCConnInitConn(sn1SCConn *conn, int id, char *host, char *iface, char *sysname, char *ssn, char *passwd)
+int sn1SCConnInitConn(sn1SCConn *conn, int id, char *host, char *iface, char *sysname, char *ssn)
 {
   if (sn1SCCount == 0) {
     syslog(3,"SCapiConn.c",98,0,"sn1SCConnInitConn: system controller library not initialized!\n");
@@ -80,15 +76,7 @@ int sn1SCConnInitConn(sn1SCConn *conn, int id, char *host, char *iface, char *sy
   else {
     set_field(conn->host,sizeof(conn->host),host);      /* (the original strcpy()ed) */
   }
-  if (passwd == NULL || *passwd == '\0') {
-    conn->passwd_prompt = 1;
-  }
-  else {
-    set_field(conn->passwd,sizeof(conn->passwd),passwd);
-    conn->passwd_prompt = 0;
-  }
   conn->task_id = id;
-  conn->passwd_retrys = 0;
   return sn1SCConnReconnect(conn);
 }
 
@@ -96,16 +84,14 @@ int sn1SCConnReconnect(sn1SCConn *conn)
 {
   int rval;
 
-  conn_in_progress = conn;
-  rval = IRouterConnect(l2_cname,conn,l2_port,&conn->client,conn->task_id,get_password);
+  /* (no password: an L2 that asks for one gets an empty one) */
+  rval = IRouterConnect(l2_cname,conn,l2_port,&conn->client,conn->task_id,NULL);
   if (rval != 0) {
     syslog(3,"SCapiConn.c",173,0,"IRouterConnect to %s failed: %s",conn->host,LoggerDefaultMessage(rval));
     return rval;
   }
-  conn->passwd_retrys = 0;
   /* the client points back at its connection (host is its first field) */
   conn->client->cpp_hook = conn->host;
-  conn_in_progress = NULL;
   return 0;
 }
 
@@ -378,32 +364,4 @@ int sn1SCConnCmdParallel(sn1SCConn *conn, IRAddress *toaddr, int ntargets, int o
         errlist[t] = errval;
   }
   return errval == TIMEOUT_ERR ? 0 : errval;
-}
-
-/*
- * IRouterConnect()'s password callback: the given password, or one read
- * from the terminal (again, after "incorrect password", on a retry).
- */
-static char *get_password(IRClient *client)
-{
-  sn1SCConn *conn = (sn1SCConn *)client->cpp_hook;
-  char *pw;
-
-  if (conn_in_progress != NULL && conn == NULL) {
-    conn = conn_in_progress;
-    client->cpp_hook = conn_in_progress->host;
-    conn_in_progress = NULL;
-  }
-  if (!conn->passwd_prompt)
-    return conn->passwd;
-  if (conn->passwd_retrys++ != 0) {
-    conn->passwd[0] = '\0';
-    printf("incorrect password\n");
-  }
-  if (conn->passwd[0] != '\0')
-    return conn->passwd;
-  pw = getpass("L2 Password:");
-  if (pw != NULL)
-    set_field(conn->passwd,sizeof(conn->passwd),pw);
-  return pw;
 }

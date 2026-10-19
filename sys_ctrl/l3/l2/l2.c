@@ -157,7 +157,7 @@ static int run(int rack)
   l2_flow_setup(l2_flow_hwater,l2_flow_lwater);
   L2CfgInitLocal(l2_ip,NULL);
   l1_open();
-  EnetServerInit(&l2_id,cfg_password,cfg_connect,cfg_disconnect,cfg_establish,IRouterSendPacket);
+  EnetServerInit(&l2_id,cfg_connect,cfg_disconnect,cfg_establish,IRouterSendPacket);
   EnetServerStart(IR_PORT_BIAS + L2_PEER_PORT,2,"L2");
   EnetServerStart(IR_PORT_BIAS + L2_APP_PORT,2,"L2");
   EnetServerStart(IR_PORT_BIAS + L2_APP_QUIET_PORT,2,"L2");
@@ -205,13 +205,7 @@ int main(int argc, char **argv, char **envp)
     const char *arg = argv[i];
     int more = argc - 1 - i;    /* arguments after this one */
 
-    if (strcmp(arg,"-password") == 0) {
-      /* exit status: whether the L2 has a password */
-      nvramInit(NVRAM_READWRITE);
-      pw = (char *)nvramGet(NVRAM_PASSWORD);
-      return pw != NULL && *pw != '\0';
-    }
-    else if (strcmp(arg,"-net") == 0)
+    if (strcmp(arg,"-net") == 0)
       l2_l1_conn_mode = L2_CONN_NET;
     else if (strcmp(arg,"-pc") == 0) {
       l2_pc = 1;

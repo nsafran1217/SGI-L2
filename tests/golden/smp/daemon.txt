@@ -15,11 +15,11 @@ date               demo               destination|dest   dhcpserver|dhcps
 env                help|hlp           ip                 l2dbg              
 l1                 l2                 l2dsp|l2display    l2find             
 log                loopback           route              nvram              
-ping               password|pw        pbay               power|pwr          
-quit               halt_l2            rackid             reboot_l2          
-reset|rst          select|sel         smp                serial             
-multisys|msys      share              psmode|ps          sysname            
-shell|!            version|ver        <command>          
+ping               pbay               power|pwr          quit               
+halt_l2            rackid             reboot_l2          reset|rst          
+select|sel         smp                serial             multisys|msys      
+share              psmode|ps          sysname            shell|!            
+version|ver        <command>          
 enter 'hlp <cmd>' for more help on a single command.
 
 The general form of a command is: <target> <command>
@@ -61,11 +61,11 @@ date               demo               destination|dest   dhcpserver|dhcps
 env                help|hlp           ip                 l2dbg              
 l1                 l2                 l2dsp|l2display    l2find             
 log                loopback           route              nvram              
-ping               password|pw        pbay               power|pwr          
-quit               halt_l2            rackid             reboot_l2          
-reset|rst          select|sel         smp                serial             
-multisys|msys      share              psmode|ps          sysname            
-shell|!            version|ver        <command>          
+ping               pbay               power|pwr          quit               
+halt_l2            rackid             reboot_l2          reset|rst          
+select|sel         smp                serial             multisys|msys      
+share              psmode|ps          sysname            shell|!            
+version|ver        <command>          
 enter 'hlp <cmd>' for more help on a single command.
 
 The general form of a command is: <target> <command>

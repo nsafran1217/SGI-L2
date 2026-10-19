@@ -16,7 +16,7 @@
 extern RouterServer *enet_server;
 extern uint32 enet_ip;
 extern IRIdent *enet_id;
-void EnetServerInit(IRIdent *id, int (*password_cb)(), void (*connect_cb)(), void (*disconnect_cb)(), void (*establish_cb)(), int (*packet_cb)());
+void EnetServerInit(IRIdent *id, void (*connect_cb)(), void (*disconnect_cb)(), void (*establish_cb)(), int (*packet_cb)());
 void EnetServerStart(int port, int my_process_id, char *appname);
 int EnetServerCheck(int port);
 int enet_client_add(unsigned int ip, unsigned int port, RouterClient *client);

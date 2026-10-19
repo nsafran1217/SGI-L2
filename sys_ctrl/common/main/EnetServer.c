@@ -41,7 +41,6 @@
 RouterServer *enet_server;
 uint32 enet_ip;                 /* this host's address */
 IRIdent *enet_id;
-static int (*enet_password_cb)();       /* (client, password or 0): 0 if it may connect */
 static void (*enet_connect_cb)();
 static void (*enet_disconnect_cb)();
 static void (*enet_establish_cb)();
@@ -59,10 +58,9 @@ static int peer_port(int port)
   return port == IR_PORT_BIAS + L2_PEER_PORT;
 }
 
-void EnetServerInit(IRIdent *id, int (*password_cb)(), void (*connect_cb)(), void (*disconnect_cb)(), void (*establish_cb)(), int (*packet_cb)())
+void EnetServerInit(IRIdent *id, void (*connect_cb)(), void (*disconnect_cb)(), void (*establish_cb)(), int (*packet_cb)())
 {
   enet_id = id;
-  enet_password_cb = password_cb;
   enet_connect_cb = connect_cb;
   enet_disconnect_cb = disconnect_cb;
   enet_establish_cb = establish_cb;
@@ -145,24 +143,15 @@ int enet_validate(RouterClient *client, uint32 addr, char *host)
                    enet_client_disconnected);
   if (peer_port(client->port))
     RouterClientSetBufferSize(client,L2_PEER_BUFSIZE,L2_PEER_BUFSIZE);
-  if (enet_password_cb != NULL && enet_password_cb(client,0) != 0)
-    return VERDICT_PASSWORD;
-  return VERDICT_ACCEPT;
+  return VERDICT_ACCEPT;      /* (l2 asks no client for a password) */
 }
 
-/* a client's password (opcode CONNECT_PASSWORD; three tries), or the
- * connection is up */
+/* the connection is up (or a client sent a password, which is ignored:
+ * none is asked for) */
 int enet_client_connected(RouterClient *client, int opcode, int id, int retrys, int argcountin, RouterArgument *arglistin)
 {
-  if (opcode == CONNECT_PASSWORD) {
-    if (enet_password_cb == NULL)
-      return VERDICT_ACCEPT;
-    if (arglistin->clas != 1)
-      return VERDICT_PASSWORD;
-    if (enet_password_cb(client,arglistin->val) == 0)
-      return VERDICT_ACCEPT;
-    return retrys < 2 ? VERDICT_PASSWORD : VERDICT_DENY;
-  }
+  if (opcode == CONNECT_PASSWORD)
+    return VERDICT_ACCEPT;
   if (!quiet_port(client->port))
     syslog(6,"../../common/main/EnetServer.c",291,0,"Connection - %s (%s) @ %s running \'%s\'.",
            client->id.username,client->id.fullname,client->id.hostname,client->id.procname);

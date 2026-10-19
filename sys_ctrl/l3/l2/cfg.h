@@ -47,7 +47,6 @@ void cfg_setup_l2ping(int delay);
 void cfg_configcheck(int start_timer);
 void cfg_check_console_events(void);
 void cfg_check_smp_events(void);
-int cfg_password(RouterClient *client, char *pwguess);
 void cfg_connect(RouterClient *client);
 void cfg_disconnect(RouterClient *client);
 void cfg_establish(RouterClient *client);

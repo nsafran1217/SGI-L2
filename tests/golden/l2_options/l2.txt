@@ -32,12 +32,12 @@ nvram None
 usage: <l2> -enet | -usb | -serial [ <device> | <ipaddr> <port>]  [ -noconn -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
 === l2 -password
 exit 0
-nvram ('b8e5c586bdf5363c6b4de240ed3b7706', ['checksum error (CH) - nvram reset.', ''])
-INFO: NVRAM file './.l2_NVRAM' doesn't exist.....initializing
+nvram None
+usage: <l2> -enet | -usb | -serial [ <device> | <ipaddr> <port>]  [ -noconn -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
 === l2 -password -noconn
 exit 0
-nvram ('b8e5c586bdf5363c6b4de240ed3b7706', ['checksum error (CH) - nvram reset.', ''])
-INFO: NVRAM file './.l2_NVRAM' doesn't exist.....initializing
+nvram None
+usage: <l2> -enet | -usb | -serial [ <device> | <ipaddr> <port>]  [ -noconn -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
 === l2 -syncssn NEWSSN01
 exit 0
 nvram ('d7f6a106da83a549818004c3dd356826', ['checksum error (CH) - nvram reset.', ''])

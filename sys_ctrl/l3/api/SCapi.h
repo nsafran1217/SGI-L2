@@ -62,7 +62,6 @@ int sn1SCSendRsp(int errcode, IRPacket *reqpkt, int argc, IRArgument *argv);
 int sn1SCCmd(IRAddress *toaddr, int opcode, int argc, IRArgument *argv, IRPacket **rpkt, int wait);
 int sn1SCCmdParallel(IRAddress *toaddr, int ntargets, int opcode, int argc, IRArgument *argv, int share_args, IRPacket **rpkt, int *errlist, int *nerrs, int wait);
 int sn1SCTextCmd(IRAddress *toaddr, char *cmd, char **rsp);
-char *sn1SCGetPassword(IRClient *client);
 int sn1SCSetResponseTimeout(int new_to);
 
 #endif /* SYS_CTRL_L3_API_SCAPI_H */

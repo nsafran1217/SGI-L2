@@ -55,9 +55,6 @@ static int os_direct;           /* talk through the system controller device */
 static int use_quiet_port;
 static int response_timeout = 30;
 static char l2_host[64];
-static char l2_passwd[64];
-static char l2_passwd_retrys;
-static char l2_passwd_prompt = 1;
 static char l2_iface[64];
 static char l2_ssn[64];
 static char l2_sysname[64];
@@ -93,7 +90,6 @@ char *sn1SCUsage(void)
     "    --interface|--if <iface>  net interface (ie. eth0) of L2 network to connect to\n"
     "    --ssn <serial>[:<rack>]  serial number (ie. L01234567) of system to connect to\n"
     "    --sysname <name>[:<rack>]    system name of system to connect to\n"
-    "    --pw <password>      L2 password\n"
     "    --irtr               (debug) show IRouter packets sent/received";
   static char *fullmsg;
   char *l1dmsg;
@@ -173,7 +169,7 @@ static char *option_value(char **args, int remaining)
 
 /*
  * Take the system controller options out of argv (*argc adjusted): which
- * L2 (--l2, --interface, --ssn, --sysname, --rack), --pw, --sc/--scdev,
+ * L2 (--l2, --interface, --ssn, --sysname, --rack), --sc/--scdev,
  * --copy, --irtr, --mtrace, --quiet, --timeout, and L1Direct's. *serial
  * (in and out) is whether to talk to an L1 on a serial line. Returns 0, or
  * -1 after a message for a bad option (parsing stops at one missing its
@@ -270,16 +266,6 @@ int sn1SCParseCmdline(int *argc, char **argv, int *serial)
       }
       used = 2;
       l2_rack = atoi(val);
-    }
-    else if (strcmp(opt,"--pw") == 0) {
-      if (val == NULL) {
-        fprintf(stderr,"%s: --pw option missing <password>\n",myname);
-        status = -1;
-        break;
-      }
-      l2_passwd_prompt = 0;
-      set_field(l2_passwd,sizeof(l2_passwd),val);
-      used = 2;
     }
     else if (strcmp(opt,"--sc") == 0) {
       sn1SCUseSCDevice(NULL);
@@ -458,7 +444,6 @@ int sn1SCInitPortAddr(char *cname, char *host, int task, int port, IRAddress add
   }
   strncpy(l2_cname,cname,sizeof(l2_cname) - 1);
   l2_task = task;
-  l2_passwd_retrys = 0;
   rval = sn1SCReconnect();
   if (rval != 0)
     sn1SCCount = 0;
@@ -484,12 +469,12 @@ int sn1SCReconnect(void)
 {
   int rval;
 
-  rval = IRouterConnect(l2_cname,l2_host,l2_port,&ir_client,l2_task,sn1SCGetPassword);
+  /* (no password: an L2 that asks for one gets an empty one) */
+  rval = IRouterConnect(l2_cname,l2_host,l2_port,&ir_client,l2_task,NULL);
   if (rval != 0) {
     syslog(3,"SCapi.c",636,0,"IRouterConnect to %s failed: %s",l2_host,LoggerDefaultMessage(rval));
     return rval;
   }
-  l2_passwd_retrys = 0;
   return 0;
 }
 
@@ -980,26 +965,6 @@ static int multi_system_check(sn1SC_L2 *list, int cnt)
     exit(-1);
   }
   return 0;
-}
-
-/* IRouterConnect()'s password callback: --pw's, or one read from the
- * terminal (again, after "incorrect password", on a retry) */
-char *sn1SCGetPassword(IRClient *client)
-{
-  char *pw;
-
-  if (!l2_passwd_prompt)
-    return l2_passwd;
-  if (l2_passwd_retrys++ > 0) {
-    l2_passwd[0] = '\0';
-    printf("incorrect password\n");
-  }
-  if (l2_passwd[0] != '\0')
-    return l2_passwd;
-  pw = getpass("L2 Password:");
-  if (pw != NULL)
-    set_field(l2_passwd,sizeof(l2_passwd),pw);
-  return pw;
 }
 
 int sn1SCSetResponseTimeout(int new_to)

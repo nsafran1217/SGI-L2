@@ -239,14 +239,7 @@ ping throttle <exp>
 ping reset 
 	resets L2 to L2/L1 ping configuration to defaults
 ?-<L2IP>-L2>hlp password
-password|pw 
-	display L2 password status
-password|pw set <str> 
-	set/change the password required to access this L2
-password|pw clear 
-	clear the L2 password (only allowed from L2 Console/Modem serial ports)
-password|pw clear <str> 
-	clear the L2 password (<str> is current L2 password)
+ERROR: command password not found.
 ?-<L2IP>-L2>hlp pbay
 pbay cfg|config 
 	report the bricks connected to each PowerBay
@@ -398,11 +391,11 @@ date               demo               destination|dest   dhcpserver|dhcps
 env                help|hlp           ip                 l2dbg              
 l1                 l2                 l2dsp|l2display    l2find             
 log                loopback           route              nvram              
-ping               password|pw        pbay               power|pwr          
-quit               halt_l2            rackid             reboot_l2          
-reset|rst          select|sel         smp                serial             
-multisys|msys      share              psmode|ps          sysname            
-shell|!            version|ver        <command>          
+ping               pbay               power|pwr          quit               
+halt_l2            rackid             reboot_l2          reset|rst          
+select|sel         smp                serial             multisys|msys      
+share              psmode|ps          sysname            shell|!            
+version|ver        <command>          
 enter 'hlp <cmd>' for more help on a single command.
 
 The general form of a command is: <target> <command>

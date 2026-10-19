@@ -14,7 +14,7 @@
  *  - every few seconds the configuration is compared with the last one
  *    sent, and a change goes to every client as an event
  *    (cfg_configcheck()), at most every cfg_throttle_frequency seconds.
- * Also the network server's callbacks: password check, connect, disconnect.
+ * Also the network server's callbacks: connect, disconnect.
  */
 
 #include <arpa/inet.h>
@@ -673,22 +673,6 @@ void cfg_check_smp_events(void)
     L2CfgLocal.net.events = emsk;
     cfg_configcheck(1);
   }
-}
-
-/* the network server's password check: L3 tools need the L2's password,
- * if it has one; 0 to let the client in */
-int cfg_password(RouterClient *client, char *pwguess)
-{
-  char *pw;
-
-  if (client->port != IR_PORT_BIAS + L3_CMD_PORT && client->port != IR_PORT_BIAS + L3_QUIET_PORT)
-    return 0;
-  pw = (char *)nvramGet(NVRAM_PASSWORD);
-  if (pw == NULL || *pw == '\0')
-    return 0;
-  if (pwguess == NULL || *pwguess == '\0')
-    return -1;
-  return strcmp(pw,pwguess) == 0 ? 0 : -1;
 }
 
 void cfg_connect(RouterClient *client)

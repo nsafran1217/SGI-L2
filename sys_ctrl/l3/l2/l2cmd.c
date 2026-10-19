@@ -96,7 +96,6 @@ static int l2cmd_hreboot_l1(CmdData *cptr, char **results, L2CMD *c);
 static int l2cmd_nvram(CmdData *cptr, char **results);
 static int l2cmd_reset(CmdData *cptr, char **results, L2CMD *c);
 static int l2cmd_rackid(CmdData *cptr, char **results);
-static int l2cmd_password(CmdData *cptr, char **results, L2CMD *c);
 static int l2cmd_pbay(CmdData *cptr, char **results, L2CMD *c);
 static int l2cmd_quit(CmdData *cptr, char **results, L2CMD *c);
 static void reboot(void);
@@ -248,10 +247,6 @@ Cmd l2cmd_cmds[] = {
   { .toks = { "ping", "l1", CMD_TOK(CMD_EXP) }, .func = l2cmd_ping, .params = { 5 }, .desc = "sets L2 to L1 ping frequency in seconds" },
   { .toks = { "ping", "throttle", CMD_TOK(CMD_EXP) }, .func = l2cmd_ping, .params = { 6 }, .desc = "set L2 configuration throttle frequency" },
   { .toks = { "ping", "reset" }, .func = l2cmd_ping, .params = { 7 }, .desc = "resets L2 to L2/L1 ping configuration to defaults" },
-  { .toks = { "password|pw" }, .func = l2cmd_password, .desc = "display L2 password status" },
-  { .toks = { "password|pw", "set", CMD_TOK(CMD_STR) }, .func = l2cmd_password, .params = { 1 }, .desc = "set/change the password required to access this L2" },
-  { .toks = { "password|pw", "clear" }, .func = l2cmd_password, .params = { 2 }, .desc = "clear the L2 password (only allowed from L2 Console/Modem serial ports)" },
-  { .toks = { "password|pw", "clear", CMD_TOK(CMD_STR) }, .func = l2cmd_password, .params = { 3 }, .desc = "clear the L2 password (<str> is current L2 password)" },
   { .toks = { "pbay", "cfg|config" }, .func = l2cmd_pbay, .desc = "report the bricks connected to each PowerBay" },
   { .toks = { "pbay", CMD_TOK(CMD_REST) }, .func = l2cmd_pbay, .desc = "send pbay <command> to one L1 connected to each PowerBay" },
   { .toks = { CMD_TOK(CMD_RANGE), "pbay", "cfg|config" }, .func = l2cmd_pbay, .params = { 1 }, .desc = "report the bricks connected to each PowerBay" },
@@ -1444,39 +1439,6 @@ static int l2cmd_rackid(CmdData *cptr, char **results)
     nvramSet(NVRAM_RACK,cptr->exp_stack[0]);
     L2CfgMEventRack(&L2CfgLocal);
     sprintf(*results,"rack ID set to %d\n",L2CfgLocal.rack);
-  }
-  return 0;
-}
-
-/* "password [set <pw>|clear [<pw>]]". (The help says clearing without
- * the password works only on the serial consoles; it works anywhere.) */
-static int l2cmd_password(CmdData *cptr, char **results, L2CMD *c)
-{
-  char *pw;
-
-  response(results,320);
-  switch (cptr->params[0]) {
-  case 0:
-    pw = (char *)nvramGet(NVRAM_PASSWORD);
-    if (pw == NULL || *pw == '\0')
-      sprintf(*results,"No L2 password set\n");
-    else
-      sprintf(*results,"L2 password set (password is required to access this L2)\n");
-    break;
-  case 1:
-    nvramSet(NVRAM_PASSWORD,(uintptr_t)cptr->str_stack[0]);
-    sprintf(*results,"L2 password changed\n");
-    break;
-  case 2:
-  case 3:
-    pw = (char *)nvramGet(NVRAM_PASSWORD);
-    if (cptr->params[0] == 3 && strcmp(pw,cptr->str_stack[0]) != 0) {
-      sprintf(*results,"ERROR: password specified is not the current L2 password.\n");
-      return -1;
-    }
-    nvramSet(NVRAM_PASSWORD,(uintptr_t)"");   /* clear the password */
-    sprintf(*results,"L2 password cleared\n");
-    break;
   }
   return 0;
 }

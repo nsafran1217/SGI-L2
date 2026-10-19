@@ -22,3 +22,4 @@ fixed, are in ORIGINAL_BUGS.md.)
 
 | Where | Difference | Why |
 |---|---|---|
+| `l2`, all clients | No authentication. `l2` never asks a client for a password (a password sent anyway is ignored); its consoles have no login; the `password` command, `l2 -password` and `l2passwd` are gone. The clients have no `--pw` and never prompt: an L2 that asks for a password gets an empty one. | For hobbyist installations on a private network. The Router protocol keeps its password messages, so the wire stays compatible. |

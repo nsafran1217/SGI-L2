@@ -164,14 +164,11 @@ static int same_worlds(void)
 /* --- stubs: NVRAM, configuration --- */
 static char serial[20] = "SSN1";
 static uintptr_t nv[2][32];     /* each side's */
-static char password[20];
 
 uintptr_t nvramGet(int32 location)
 {
   if (location == NVRAM_SERIAL)
     return (uintptr_t)serial;
-  if (location == NVRAM_PASSWORD)
-    return (uintptr_t)password;
   return nv[side][location & 31];
 }
 
@@ -424,7 +421,6 @@ int main(void)
       build_world(&w[1],s0);
       for (i = 0; i < 32; i++)
         nv[0][i] = nv[1][i] = rnd(3) ? rnd(6) : 0;
-      strcpy(password,rnd(2) ? "" : "pw");
     }
     for (i = 0; i < 3; i++)
       if (trial % 20 == 0 || rnd(6) == 0) {
@@ -521,17 +517,8 @@ int main(void)
       BOTH(Origcfg_ping_l1(dev),cfg_ping_l1(dev));
       break;
     }
-    case 9: {
-      RouterClient c;
-      int r[2];
-      memset(&c,0,sizeof(c));
-      c.port = rnd(2) ? 8000 + rnd(4) : 9001;
-      const char *guess = rnd(3) == 0 ? NULL : rnd(2) ? "pw" : "x";
-      BOTH(r[0] = Origcfg_password(&c,(char *)guess),r[1] = cfg_password(&c,(char *)guess));
-      if (r[0] != r[1])
-        note("password %d %d\n",r[0],r[1]);
+    case 9:                     /* (was cfg_password(): l2 has no password now) */
       break;
-    }
     case 10:
       switch (rnd(4)) {
       case 0: BOTH(Origcfg_check_console_events(),cfg_check_console_events()); break;

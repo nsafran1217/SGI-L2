@@ -34,10 +34,6 @@ WERROR  ?= -Werror
 CFLAGS  += $(WERROR)
 LDFLAGS += $(ARCH) $(EXTRA_LDFLAGS)
 CFLAGS  += $(EXTRA_CFLAGS)   # e.g. EXTRA_CFLAGS=-fsanitize=address EXTRA_LDFLAGS=-fsanitize=address
-# l2passwd needs crypt(). Without the 32-bit libcrypt dev package (libcrypt-dev:i386)
-# there is no libcrypt.so to find, so link the runtime library directly.
-CRYPT   := $(if $(and $(filter -m32,$(ARCH)),$(wildcard /usr/lib/i386-linux-gnu/libcrypt.so.1)),\
-             $(if $(wildcard /usr/lib/i386-linux-gnu/libcrypt.so),-lcrypt,/usr/lib/i386-linux-gnu/libcrypt.so.1),-lcrypt)
 B       := build
 
 LIB_SRCS := \
@@ -101,9 +97,6 @@ L2TERM_SRCS := \
 L2CMD_SRCS := \
 	sys_ctrl/l3/utils/l2cmd.c
 
-L2PASSWD_SRCS := \
-	sys_ctrl/l3/utils/l2passwd.c
-
 L2GUI_SRCS := \
 	sys_ctrl/l3/gui/mainwin.cc \
 	sys_ctrl/l3/gui/logowin.cc \
@@ -140,7 +133,7 @@ CXXFLAGS += $(ARCH) -fno-strict-aliasing -fsigned-char -Icompat -Wall -Wextra -W
 
 
 LIB_OBJS := $(LIB_SRCS:%.c=$(B)/%.o)
-TOOLS    := l2 l2term l2cmd l2passwd
+TOOLS    := l2 l2term l2cmd
 ifneq ($(WITH_L2GUI),)
 TOOLS    += l2gui
 else ifeq ($(QEMU),)
@@ -180,10 +173,6 @@ $(B)/bin/l2term: $(L2TERM_SRCS:%.c=$(B)/%.o) $(B)/libsgi.a
 $(B)/bin/l2cmd: $(L2CMD_SRCS:%.c=$(B)/%.o) $(B)/libsgi.a
 	@mkdir -p $(dir $@)
 	$(CC) $(LDFLAGS) $^ $(LDLIBS) -o $@
-
-$(B)/bin/l2passwd: $(L2PASSWD_SRCS:%.c=$(B)/%.o) $(B)/libsgi.a
-	@mkdir -p $(dir $@)
-	$(CC) $(LDFLAGS) $^ $(LDLIBS) $(CRYPT) -o $@
 
 $(B)/bin/l2gui: $(L2GUI_SRCS:%.cc=$(B)/%.o) $(L2GUI_CSRCS:%.c=$(B)/%.o) $(B)/libsgi.a
 	@mkdir -p $(dir $@)

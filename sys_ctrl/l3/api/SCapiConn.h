@@ -13,10 +13,6 @@
 #include "../../common/main/L2Cfg.h"
 struct _sn1SCConn {
     char host[64];
-    char passwd[64];
-    unsigned char passwd_retrys;
-    unsigned char passwd_prompt;
-    unsigned char __stabs_pad1[2];
     IRClient *client;
     IRIdent ir_id;
     int task_id;
@@ -31,9 +27,8 @@ typedef struct _sn1SCConn sn1SCConn;
 
 /* prototypes (not recorded in STABS; reconstructed from definitions) */
 /* SCapiConn.c */
-extern sn1SCConn *conn_in_progress;
 int sn1SCConnInit(char *cname);
-int sn1SCConnInitConn(sn1SCConn *conn, int id, char *host, char *iface, char *sysname, char *ssn, char *passwd);
+int sn1SCConnInitConn(sn1SCConn *conn, int id, char *host, char *iface, char *sysname, char *ssn);
 int sn1SCConnReconnect(sn1SCConn *conn);
 int sn1SCConnFindL2(char *host, char *iface, char *sysname, char *ssn);
 void sn1SCConnDisconnect(sn1SCConn *conn);
