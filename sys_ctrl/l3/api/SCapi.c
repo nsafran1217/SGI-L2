@@ -5,10 +5,8 @@
  * Original: /data/cf/sysco/scs123.patch/sys_ctrl/l3/api/SCapi.c
  *
  * The system controller API of the L3 tools: one connection per process,
- * to an L2 over the network (IRouterL3.c), to the system controller device
- * of an SN system (/dev/snsc/..., IRouterOS.c: --sc, --scdev) or straight
- * to an L1 on a serial line (L1Direct.c). sn1SCParseCmdline() takes the
- * common options; requests, responses and events then go the chosen way.
+ * to an L2 over the network (IRouterL3.c). sn1SCParseCmdline() takes the
+ * common options.
  * SCapiConn.c is the same for several network connections.
  */
 
@@ -21,9 +19,7 @@
 #include <unistd.h>
 #include "SCapi.h"
 #include "SCapiL2.h"
-#include "L1Direct.h"
 #include "../IRouter/IRouterL3.h"
-#include "../IRouter/IRouterOS.h"
 #include "../../common/IRouter/IRouter.h"
 #include "../../common/Router/Router.h"
 #include "../../common/Router/RouterMsg.h"
@@ -44,14 +40,11 @@
 #define L2_TASK_ADDR(t) IR_ADDR_MAKE(IR_ADDR_L2, 0x3ff, 0x3f, 0, (t) & 0x1f)
 
 static int get_l2_rack(char *name);
-static int is_os(void);
 static int multi_system_check(sn1SC_L2 *list, int cnt);
 
 static int sn1SCCount;
 static IRClient *ir_client;
 static int copynum;
-static int serial_direct;       /* talk to an L1 on a serial line */
-static int os_direct;           /* talk through the system controller device */
 static int use_quiet_port;
 static int response_timeout = 30;
 static char l2_host[64];
@@ -59,13 +52,12 @@ static char l2_iface[64];
 static char l2_ssn[64];
 static char l2_sysname[64];
 static char l2_cname[128];
-static char l2_scdev[64];
 static int l2_rack;
 static int l2_port;
 static int l2_task;
 static char *myname;
 int ir_show;                    /* --irtr */
-/* the IRouter in use: the L3 one over the network, or IRouterOS.c */
+/* the IRouter in use: the L3 one, over the network */
 int (*IRouterConnect)() = IRouterConnectL3;
 void (*IRouterDisconnect)() = IRouterDisconnectL3;
 int (*IRouterRequest)() = IRouterRequestL3;
@@ -80,28 +72,17 @@ static void set_field(char *field, size_t size, const char *value)
   snprintf(field,size,"%s",value);
 }
 
-/* the option help of sn1SCParseCmdline() (and L1Direct's) */
+/* the option help of sn1SCParseCmdline() */
 char *sn1SCUsage(void)
 {
   static char *msg =
     "    --l2 <host>          hostname or IP address of L2 to connect to\n"
-    "    --sc                 connect via dflt. system controller (lowest rack/slot)\n"
-    "    --scdev <device>     connect via specified system controller device\n"
     "    --interface|--if <iface>  net interface (ie. eth0) of L2 network to connect to\n"
     "    --ssn <serial>[:<rack>]  serial number (ie. L01234567) of system to connect to\n"
     "    --sysname <name>[:<rack>]    system name of system to connect to\n"
     "    --irtr               (debug) show IRouter packets sent/received";
-  static char *fullmsg;
-  char *l1dmsg;
 
-  if (fullmsg == NULL) {
-    l1dmsg = L1DirectUsage();
-    fullmsg = malloc(strlen(msg) + strlen(l1dmsg) + 3);
-    strcpy(fullmsg,msg);
-    strcat(fullmsg,"\n");
-    strcat(fullmsg,l1dmsg);
-  }
-  return fullmsg;
+  return msg;
 }
 
 /* "<name>[:<rack>]": cut off the rack into l2_rack; 1 if there was one,
@@ -132,32 +113,6 @@ char *SCFmtPkt(int seqnum, int clas, int argc, int err, IRAddress *to, IRAddress
   return bptr;
 }
 
-/* run "ls" on the system controller devices; the first one into scdev
- * (size bytes, with ls' newline); 0 if there are none */
-static int find_scdev(char *scdev, int size)
-{
-  /* original: "/bin/ls -1 /dev/snsc/" "*c*" (SGI_L3_DEV_DIR overrides /dev) */
-  char lscmd[600];
-  FILE *fp;
-  int found;
-
-  snprintf(lscmd,sizeof(lscmd),"/bin/ls -1 %s/snsc/*c* 2>/dev/null",l3path_dev_dir());
-  fp = popen(lscmd,"r");
-  if (fp == NULL)
-    return 0;
-  found = fgets(scdev,size,fp) != NULL;
-  pclose(fp);
-  return found;
-}
-
-/* are we on an SN system (with a system controller device)? */
-static int is_os(void)
-{
-  char scdev[64];
-
-  return find_scdev(scdev,sizeof(scdev));
-}
-
 /* the value of the option at args[0], or NULL if it has none (the last
  * argument, or the next one is an option) */
 static char *option_value(char **args, int remaining)
@@ -169,13 +124,11 @@ static char *option_value(char **args, int remaining)
 
 /*
  * Take the system controller options out of argv (*argc adjusted): which
- * L2 (--l2, --interface, --ssn, --sysname, --rack), --sc/--scdev,
- * --copy, --irtr, --mtrace, --quiet, --timeout, and L1Direct's. *serial
- * (in and out) is whether to talk to an L1 on a serial line. Returns 0, or
- * -1 after a message for a bad option (parsing stops at one missing its
- * value), or L1Direct's nonzero result.
+ * L2 (--l2, --interface, --ssn, --sysname, --rack), --copy, --irtr,
+ * --mtrace, --quiet, --timeout. Returns 0, or -1 after a message for a bad
+ * option (parsing stops at one missing its value).
  */
-int sn1SCParseCmdline(int *argc, char **argv, int *serial)
+int sn1SCParseCmdline(int *argc, char **argv)
 {
   char mtbuf[100];
   char *mtfile, *myfname, *opt, *val;
@@ -187,13 +140,7 @@ int sn1SCParseCmdline(int *argc, char **argv, int *serial)
   myfname = strrchr(myname,'/');
   if (myfname == NULL)
     myfname = myname;           /* (else it keeps the '/', as in the original) */
-  if (serial != NULL)
-    serial_direct = *serial;
-  if (L1DirectParseCmdline(argc,argv,&serial_direct) != 0)
-    return 1;
   status = 0;
-  if (serial_direct)
-    os_direct = 0;
 
   args = argv + 1;
   remaining = *argc - 1;
@@ -210,8 +157,6 @@ int sn1SCParseCmdline(int *argc, char **argv, int *serial)
       }
       set_field(l2_host,sizeof(l2_host),val);
       used = 2;
-      os_direct = 0;
-      serial_direct = 0;
     }
     else if (strcmp(opt,"--interface") == 0 || strcmp(opt,"--if") == 0) {
       if (val == NULL) {
@@ -224,8 +169,6 @@ int sn1SCParseCmdline(int *argc, char **argv, int *serial)
       else
         set_field(l2_iface,sizeof(l2_iface),val);
       used = 2;
-      os_direct = 0;
-      serial_direct = 0;
     }
     else if (strcmp(opt,"--ssn") == 0) {
       if (val == NULL) {
@@ -239,8 +182,6 @@ int sn1SCParseCmdline(int *argc, char **argv, int *serial)
         status = -1;            /* (and carries on) */
       }
       used = 2;
-      os_direct = 0;
-      serial_direct = 0;
     }
     else if (strcmp(opt,"--sysname") == 0) {
       if (val == NULL) {
@@ -254,8 +195,6 @@ int sn1SCParseCmdline(int *argc, char **argv, int *serial)
         status = -1;
       }
       used = 2;
-      os_direct = 0;
-      serial_direct = 0;
     }
     else if (strcmp(opt,"--r") == 0 || strcmp(opt,"--rack") == 0) {
       if (val == NULL) {
@@ -266,19 +205,6 @@ int sn1SCParseCmdline(int *argc, char **argv, int *serial)
       }
       used = 2;
       l2_rack = atoi(val);
-    }
-    else if (strcmp(opt,"--sc") == 0) {
-      sn1SCUseSCDevice(NULL);
-      used = 1;
-    }
-    else if (strcmp(opt,"--scdev") == 0) {
-      if (val == NULL) {
-        fprintf(stderr,"%s: --scdev option missing <device>\n",myname);
-        status = -1;
-        break;
-      }
-      sn1SCUseSCDevice(val);
-      used = 2;
     }
     else if (strcmp(opt,"--copy") == 0) {
       if (val == NULL) {
@@ -336,11 +262,7 @@ int sn1SCParseCmdline(int *argc, char **argv, int *serial)
     memmove(args,args + used,(remaining + 1) * sizeof(char *));
     new_argc -= used;
   }
-  if (is_os() && !os_direct)
-    sn1SCUseSCDevice(NULL);
   *argc = new_argc;
-  if (serial != NULL)
-    *serial = serial_direct;
   return status;
 }
 
@@ -374,29 +296,6 @@ char *sn1SCGetSSN(void)
   return l2_ssn[0] == '\0' ? NULL : l2_ssn;
 }
 
-/* talk through the system controller device dev (the first one if NULL) */
-void sn1SCUseSCDevice(char *dev)
-{
-  size_t len;
-
-  os_direct = 1;
-  serial_direct = 0;
-  if (dev != NULL && *dev != '\0') {
-    set_field(l2_scdev,sizeof(l2_scdev),dev);
-    return;
-  }
-  if (!find_scdev(l2_scdev,sizeof(l2_scdev))) {
-    fprintf(stderr,"Could not find an L1 Controller (/dev/snsc/*) to communicate with!\n");
-    return;
-  }
-  /* drop ls' newline. (The reconstruction on main once did this through
-   * Ghidra's l2_cname[len + 0x7f], which hit l2_scdev only in the
-   * original's data layout.) */
-  len = strlen(l2_scdev);
-  if (len > 0 && l2_scdev[len - 1] == '\n')
-    l2_scdev[len - 1] = '\0';
-}
-
 /*
  * Connect as cname (task, port, our IRouter address addr) to host, or the
  * L2 sn1SCFindL2() picks, or as sn1SCParseCmdline() chose. 0 or an error;
@@ -413,20 +312,9 @@ int sn1SCInitPortAddr(char *cname, char *host, int task, int port, IRAddress add
     IRouterInitID(&ir_id,0,0);
     ir_id.addr = addr;
   }
-  if (serial_direct)
-    return L1DirectConnect();
-  if (!os_direct && sn1SCClient() != NULL)
+  if (sn1SCClient() != NULL)
     return -1;
-  if (os_direct) {
-    IRouterConnect = IRouterConnectOS;
-    IRouterDisconnect = IRouterDisconnectOS;
-    IRouterRequest = IRouterRequestOS;
-    IRouterResponse = IRouterResponseOS;
-    IRouterEvent = IRouterEventOS;
-    IRouterGetPacket = IRouterGetPacketOS;
-    set_field(l2_host,sizeof(l2_host),l2_scdev);
-  }
-  else if (host != NULL && *host != '\0') {
+  if (host != NULL && *host != '\0') {
     set_field(l2_host,sizeof(l2_host),host);
   }
   else {
@@ -505,8 +393,6 @@ int sn1SCFindL2(char *host)
   int l2_cnt = 0;
   int i, rval;
 
-  if (serial_direct || os_direct)
-    return -1;
   if (l2_host[0] != '\0') {
     if (host != NULL && host != l2_host)
       strcpy(host,l2_host);
@@ -579,7 +465,7 @@ char *sn1SCHost(void)
 /* the client, NULL if the network connection has gone */
 IRClient *sn1SCClient(void)
 {
-  if (!os_direct && ir_client != NULL && RouterFindClient(ir_client) == NULL)
+  if (ir_client != NULL && RouterFindClient(ir_client) == NULL)
     ir_client = NULL;
   return ir_client;
 }
@@ -602,7 +488,7 @@ void sn1SCUseQuiet(void)
 /* is there no network connection (when there should be one)? */
 static int connection_gone(void)
 {
-  return !serial_direct && !os_direct && sn1SCClient() == NULL;
+  return sn1SCClient() == NULL;
 }
 
 /* drop the client if the network connection has gone */
@@ -626,19 +512,10 @@ int sn1SCReq(IRAddress *toaddr, int opcode, int argc, IRArgument *argv, uint32 *
   if (connection_gone())
     return ROUTER_ERR_LOST;
   seqnum = ir_id.seqnum;
-  if (serial_direct) {
-    rval = L1DirectRequest(&ir_id,toaddr,opcode,argc,argv,(int *)id);
-    if (rval != 0) {
-      syslog(3,"SCapi.c",885,0,"IRouterRequest failed: %s",LoggerDefaultMessage(rval));
-      return rval;
-    }
-  }
-  else {
-    rval = IRouterRequest(ir_client,&ir_id,toaddr,opcode,argc,argv,id);
-    if (rval != 0) {
-      syslog(3,"SCapi.c",892,0,"IRouterRequest failed: %s",LoggerDefaultMessage(rval));
-      return rval;
-    }
+  rval = IRouterRequest(ir_client,&ir_id,toaddr,opcode,argc,argv,id);
+  if (rval != 0) {
+    syslog(3,"SCapi.c",892,0,"IRouterRequest failed: %s",LoggerDefaultMessage(rval));
+    return rval;
   }
   if (ir_show)
     fprintf(stderr,"%s\n",SCFmtPkt(seqnum,IR_REQ,argc,0,toaddr,&ir_id.addr,x));
@@ -655,20 +532,11 @@ int sn1SCRsp(IRPacket **pkt, uint32 *id, int wait)
     return -1;
   if (connection_gone())
     return ROUTER_ERR_LOST;
-  if (serial_direct) {
-    rval = L1DirectGetPacket(pkt,wait,1);
-    if (rval != 0) {
-      syslog(3,"SCapi.c",933,0,"L1DirectGetPacket failed: %s",LoggerDefaultMessage(rval));
-      return rval;
-    }
-  }
-  else {
-    rval = IRouterGetPacket(&ir_id,pkt,NULL,wait,1);
-    if (rval != 0) {
-      syslog(3,"SCapi.c",939,0,"IRouterGetPacket failed: %s",LoggerDefaultMessage(rval));
-      check_client();
-      return rval;
-    }
+  rval = IRouterGetPacket(&ir_id,pkt,NULL,wait,1);
+  if (rval != 0) {
+    syslog(3,"SCapi.c",939,0,"IRouterGetPacket failed: %s",LoggerDefaultMessage(rval));
+    check_client();
+    return rval;
   }
   if (ir_show)
     fprintf(stderr,"%s\n",IRFmtPkt("PKT recv:",*pkt,x));
@@ -692,19 +560,10 @@ int sn1SCEvent(int opcode, int argc, IRArgument *argv)
   if (connection_gone())
     return ROUTER_ERR_LOST;
   seqnum = ir_id.seqnum;
-  if (serial_direct) {
-    rval = L1DirectEvent(&ir_id,opcode,argc,argv);
-    if (rval != 0) {
-      syslog(3,"SCapi.c",1009,0,"IRouterRequest failed: %s",LoggerDefaultMessage(rval));
-      return rval;
-    }
-  }
-  else {
-    rval = IRouterEvent(ir_client,&ir_id,opcode,argc,argv);
-    if (rval != 0) {
-      syslog(3,"SCapi.c",1016,0,"IRouterEvent failed: %s",LoggerDefaultMessage(rval));
-      return rval;
-    }
+  rval = IRouterEvent(ir_client,&ir_id,opcode,argc,argv);
+  if (rval != 0) {
+    syslog(3,"SCapi.c",1016,0,"IRouterEvent failed: %s",LoggerDefaultMessage(rval));
+    return rval;
   }
   if (ir_show) {
     toaddr = 0;
@@ -723,22 +582,12 @@ int sn1SCPkt(IRPacket **pkt, int wait)
     return -1;
   if (connection_gone())
     return ROUTER_ERR_LOST;
-  if (serial_direct) {
-    rval = L1DirectGetPacket(pkt,wait,0);
-    if (rval != 0) {
-      if (rval != TIMEOUT_ERR)
-        syslog(3,"SCapi.c",1060,0,"L1DirectGetPacket failed: %s",LoggerDefaultMessage(rval));
-      return rval;
-    }
-  }
-  else {
-    rval = IRouterGetPacket(&ir_id,pkt,NULL,wait,0);
-    if (rval != 0) {
-      if (rval != TIMEOUT_ERR)
-        syslog(3,"SCapi.c",1069,0,"IRouterGetPacket failed: %s",LoggerDefaultMessage(rval));
-      check_client();
-      return rval;
-    }
+  rval = IRouterGetPacket(&ir_id,pkt,NULL,wait,0);
+  if (rval != 0) {
+    if (rval != TIMEOUT_ERR)
+      syslog(3,"SCapi.c",1069,0,"IRouterGetPacket failed: %s",LoggerDefaultMessage(rval));
+    check_client();
+    return rval;
   }
   if (ir_show)
     fprintf(stderr,"%s\n",IRFmtPkt("PKT recv:",*pkt,x));
@@ -759,19 +608,10 @@ int sn1SCSendRsp(int errcode, IRPacket *reqpkt, int argc, IRArgument *argv)
   if (connection_gone())
     return ROUTER_ERR_LOST;
   seqnum = ir_id.seqnum;
-  if (serial_direct) {
-    rval = L1DirectResponse(&ir_id,errcode,reqpkt,argc,argv);
-    if (rval != 0) {
-      syslog(3,"SCapi.c",1129,0,"IRouterResponse failed: %s",LoggerDefaultMessage(rval));
-      return rval;
-    }
-  }
-  else {
-    rval = IRouterResponse(ir_client,&ir_id,errcode,reqpkt,argc,argv);
-    if (rval != 0) {
-      syslog(3,"SCapi.c",1136,0,"IRouterResponse failed: %s",LoggerDefaultMessage(rval));
-      return rval;
-    }
+  rval = IRouterResponse(ir_client,&ir_id,errcode,reqpkt,argc,argv);
+  if (rval != 0) {
+    syslog(3,"SCapi.c",1136,0,"IRouterResponse failed: %s",LoggerDefaultMessage(rval));
+    return rval;
   }
   if (ir_show)
     fprintf(stderr,"%s\n",SCFmtPkt(seqnum,IR_RSP,argc,0,&reqpkt->_src,&ir_id.addr,x));

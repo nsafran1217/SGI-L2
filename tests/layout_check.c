@@ -14,7 +14,6 @@
 #include "../sys_ctrl/common/sys/Cmd.h"
 #include "../sys_ctrl/common/sys/FRU.h"
 #include "../sys_ctrl/common/sys/Logger.h"
-#include "../sys_ctrl/common/sys/PPP.h"
 #include "../sys_ctrl/common/sys/ipmi.h"
 #include "../sys_ctrl/common/sys/sysctl_types.h"
 #include "../sys_ctrl/common/sys/sysutils.h"
@@ -365,40 +364,6 @@ _Static_assert(sizeof(LoggerMessageRange) == 12, "LoggerMessageRange");
 _Static_assert(offsetof(LoggerMessageRange, name) == 0, "LoggerMessageRange.name");
 _Static_assert(offsetof(LoggerMessageRange, count) == 4, "LoggerMessageRange.count");
 _Static_assert(offsetof(LoggerMessageRange, message) == 8, "LoggerMessageRange.message");
-_Static_assert(sizeof(struct _PPPError) == 12, "struct _PPPError");
-_Static_assert(offsetof(struct _PPPError, status) == 0, "struct _PPPError.status");
-_Static_assert(offsetof(struct _PPPError, bptr) == 4, "struct _PPPError.bptr");
-_Static_assert(offsetof(struct _PPPError, blen) == 8, "struct _PPPError.blen");
-_Static_assert(sizeof(struct _PPPInstance) == 60, "struct _PPPInstance");
-_Static_assert(offsetof(struct _PPPInstance, efcn) == 0, "struct _PPPInstance.efcn");
-_Static_assert(offsetof(struct _PPPInstance, efcn_arg) == 4, "struct _PPPInstance.efcn_arg");
-_Static_assert(offsetof(struct _PPPInstance, ibuf) == 8, "struct _PPPInstance.ibuf");
-_Static_assert(offsetof(struct _PPPInstance, isize) == 12, "struct _PPPInstance.isize");
-_Static_assert(offsetof(struct _PPPInstance, iptr) == 16, "struct _PPPInstance.iptr");
-_Static_assert(offsetof(struct _PPPInstance, ilen) == 20, "struct _PPPInstance.ilen");
-_Static_assert(offsetof(struct _PPPInstance, obuf) == 24, "struct _PPPInstance.obuf");
-_Static_assert(offsetof(struct _PPPInstance, osize) == 28, "struct _PPPInstance.osize");
-_Static_assert(offsetof(struct _PPPInstance, optr) == 32, "struct _PPPInstance.optr");
-_Static_assert(offsetof(struct _PPPInstance, olen) == 36, "struct _PPPInstance.olen");
-_Static_assert(offsetof(struct _PPPInstance, xonxoff) == 40, "struct _PPPInstance.xonxoff");
-_Static_assert(offsetof(struct _PPPInstance, control) == 44, "struct _PPPInstance.control");
-_Static_assert(offsetof(struct _PPPInstance, offset) == 48, "struct _PPPInstance.offset");
-_Static_assert(offsetof(struct _PPPInstance, resize) == 52, "struct _PPPInstance.resize");
-_Static_assert(offsetof(struct _PPPInstance, inframe) == 56, "struct _PPPInstance.inframe");
-_Static_assert(sizeof(struct _PPPDecodeState) == 52, "struct _PPPDecodeState");
-_Static_assert(offsetof(struct _PPPDecodeState, efcn) == 0, "struct _PPPDecodeState.efcn");
-_Static_assert(offsetof(struct _PPPDecodeState, efcn_arg) == 4, "struct _PPPDecodeState.efcn_arg");
-_Static_assert(offsetof(struct _PPPDecodeState, obuf) == 8, "struct _PPPDecodeState.obuf");
-_Static_assert(offsetof(struct _PPPDecodeState, optr) == 12, "struct _PPPDecodeState.optr");
-_Static_assert(offsetof(struct _PPPDecodeState, olen) == 16, "struct _PPPDecodeState.olen");
-_Static_assert(offsetof(struct _PPPDecodeState, osize) == 20, "struct _PPPDecodeState.osize");
-_Static_assert(offsetof(struct _PPPDecodeState, fbuf) == 24, "struct _PPPDecodeState.fbuf");
-_Static_assert(offsetof(struct _PPPDecodeState, fptr) == 28, "struct _PPPDecodeState.fptr");
-_Static_assert(offsetof(struct _PPPDecodeState, flen) == 32, "struct _PPPDecodeState.flen");
-_Static_assert(offsetof(struct _PPPDecodeState, escaped) == 36, "struct _PPPDecodeState.escaped");
-_Static_assert(offsetof(struct _PPPDecodeState, resync) == 40, "struct _PPPDecodeState.resync");
-_Static_assert(offsetof(struct _PPPDecodeState, inframe) == 44, "struct _PPPDecodeState.inframe");
-_Static_assert(offsetof(struct _PPPDecodeState, async_reset) == 48, "struct _PPPDecodeState.async_reset");
 _Static_assert(sizeof(ipmiCommonHeader) == 8, "ipmiCommonHeader");
 /* struct _sem_t (common/sys/sysutils.h) embeds pthread_mutex_t/pthread_cond_t, whose
  * sizes differ between glibc 2.1.3 and today. It is in-memory only (no wire or

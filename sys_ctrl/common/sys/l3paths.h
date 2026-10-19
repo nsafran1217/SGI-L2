@@ -7,7 +7,7 @@
  *
  *   SGI_L2_NVRAM       NVRAM file          "./.l2_NVRAM" (cwd), ".N" appended for --copy N
  *   SGI_L3_SOCKET_DIR  UNIX_xxxx sockets   "/usr/tmp", or "/tmp" if /usr/tmp does not exist
- *   SGI_L3_DEV_DIR     device nodes        "/dev" (sgil1_cs, sgil1_N, snsc/, ttyS1, com2)
+ *   SGI_L3_DEV_DIR     device nodes        "/dev" (sgil1_cs, sgil1_N, ttyS1)
  *   SGI_L3_MTRACE_DIR  --mtrace output     "/tmp"
  */
 #ifndef SYS_CTRL_COMMON_SYS_L3PATHS_H

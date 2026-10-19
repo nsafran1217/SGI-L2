@@ -117,18 +117,20 @@ INFO: connection to 127.0.0.1:8000 established.
 L2 version: 1.62.0
 exit 0
 === --scdev
-./l2cmd: --scdev option missing <device>
-./l2cmd: error while parsing library command arguments
-exit 255
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+ERROR: no L1s found to match that destination
+exit 0
 === --scdev /nonexistent/sc version
-ERROR: can't open /nonexistent/sc, errno 2.
-
-exit 255
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+ERROR: no L1s found to match that destination
+exit 0
 === --sc version
-Could not find an L1 Controller (/dev/snsc/*) to communicate with!
-ERROR: can't open , errno 2.
-
-exit 255
+INFO: attempting connection to 127.0.0.1:8000
+INFO: connection to 127.0.0.1:8000 established.
+ERROR: no L1s found to match that destination
+exit 0
 === --l2 127.0.0.1 --unknown version
 INFO: attempting connection to 127.0.0.1:8000
 INFO: connection to 127.0.0.1:8000 established.
@@ -138,14 +140,10 @@ exit 0
 usage: ./l2cmd [sysco options] <command>
 System Controller command options
     --l2 <host>          hostname or IP address of L2 to connect to
-    --sc                 connect via dflt. system controller (lowest rack/slot)
-    --scdev <device>     connect via specified system controller device
     --interface|--if <iface>  net interface (ie. eth0) of L2 network to connect to
     --ssn <serial>[:<rack>]  serial number (ie. L01234567) of system to connect to
     --sysname <name>[:<rack>]    system name of system to connect to
     --irtr               (debug) show IRouter packets sent/received
-    --serial <host>:<port>        ethernet (i.e. Annex) hostname and port
-    --dev <device name>           local serial port device name
 exit 255
 === --mtrace --l2 127.0.0.1 version
 INFO: attempting connection to 127.0.0.1:8000

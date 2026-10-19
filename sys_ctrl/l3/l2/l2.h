@@ -18,7 +18,6 @@
 #include "../../common/Router/Event.h"
 #include "../../common/IRouter/IRouter.h"
 #include "../../common/IRouter/IRouter2Router.h"
-#include "../../common/sys/PPP.h"
 #include "../../common/sys/brick_types.h"
 #include "../../common/main/EnetServer.h"
 #include "../../common/main/L2Cfg.h"

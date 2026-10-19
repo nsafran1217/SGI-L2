@@ -20,12 +20,11 @@ int main(int argc, char **argv)
   char *clptr;
   char *cmd;
   char *rsp;
-  int serial = 1;
   int status;
   int i;
 
   myname = argv[0];
-  if (sn1SCParseCmdline(&argc,argv,&serial) < 0) {
+  if (sn1SCParseCmdline(&argc,argv) < 0) {
     fprintf(stderr,"%s: error while parsing library command arguments\n",myname);
     exit(-1);
   }

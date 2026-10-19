@@ -12,7 +12,6 @@
 #include "../../common/Router/SocketMsg.h"
 #include "../../common/Router/EventMsg.h"
 #include "../../common/IRouter/IRouter.h"
-#include "../../common/sys/PPP.h"
 #include "../../common/sys/Cmd.h"
 #include "../../common/drivers/flashdrv.h"
 

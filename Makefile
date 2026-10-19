@@ -50,12 +50,9 @@ LIB_SRCS := \
 	sys_ctrl/common/sys/BuffWrite.c \
 	sys_ctrl/common/sys/Logger.c \
 	sys_ctrl/common/sys/MemUsage.c \
-	sys_ctrl/common/sys/PPP.c \
 	sys_ctrl/common/sys/brick_types.c \
 	sys_ctrl/common/sys/ipmi.c \
 	sys_ctrl/l3/IRouter/IRouterL3.c \
-	sys_ctrl/l3/IRouter/IRouterOS.c \
-	sys_ctrl/l3/api/L1Direct.c \
 	sys_ctrl/l3/api/SCapi.c \
 	sys_ctrl/l3/api/SCapiL2.c \
 	sys_ctrl/l3/main/nvram.c \
@@ -214,9 +211,9 @@ golden: all
 	@for t in $(SESSION_TESTS); do GOLDEN=update NEW_BIN=$(CHECK_BIN) $$t || exit 1; done
 	git status --short tests/golden
 
-# (nvram_test and l1direct_test compare with the originals directly)
+# (nvram_test compares with the originals directly)
 interop: all
-	@fail=0; for t in $(SESSION_TESTS) tests/nvram_test.py tests/l1direct_test.py; do \
+	@fail=0; for t in $(SESSION_TESTS) tests/nvram_test.py; do \
 	    INTEROP=1 NEW_BIN=$(CHECK_BIN) $$t || fail=1; done; exit $$fail
 
 S390X := $(abspath ../tools/s390x/root/usr)

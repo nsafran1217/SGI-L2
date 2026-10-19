@@ -9,7 +9,6 @@
 #define SYS_CTRL_L3_API_SCAPI_H
 
 #include "../IRouter/IRouterL3.h"
-#include "../IRouter/IRouterOS.h"
 struct _sn1SC_L2 {
     char raw[200];
     uint32 ip_addr;
@@ -34,14 +33,13 @@ extern int (*IRouterEvent)();
 extern int (*IRouterGetPacket)();
 char *sn1SCUsage(void);
 char *SCFmtPkt(int seqnum, int clas, int argc, int err, IRAddress *to, IRAddress *from, char *bptr);
-int sn1SCParseCmdline(int *argc, char **argv, int *serial);
+int sn1SCParseCmdline(int *argc, char **argv);
 void sn1SCSetL2Host(char *host);
 char *sn1SCGetL2Host(void);
 void sn1SCSetSysName(char *sysname);
 char *sn1SCGetSysName(void);
 void sn1SCSetSSN(char *ssn);
 char *sn1SCGetSSN(void);
-void sn1SCUseSCDevice(char *dev);
 int sn1SCInitPortAddr(char *cname, char *host, int task, int port, IRAddress addr);
 int sn1SCInit(char *cname, char *host, int task);
 int sn1SCInitL2App(char *cname, char *host, int task);

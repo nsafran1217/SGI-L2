@@ -12,7 +12,6 @@
 #include <signal.h>
 extern "C" {
 #include "../api/SCapi.h"
-#include "../IRouter/IRouterOS.h"
 #include "../main/SysCfg.h"
 }
 #include "l2gui.h"
@@ -37,13 +36,12 @@ void oops_handler(int sig)
 int main(int argc, char **argv)
 {
   struct sigaction sa;
-  int serial;
 
   myname = argv[0];
   sigaction(SIGSEGV, NULL, &sa);
   sa.sa_handler = oops_handler;
   sigaction(SIGSEGV, &sa, NULL);
-  if (sn1SCParseCmdline(&argc, argv, &serial) < 0) {
+  if (sn1SCParseCmdline(&argc, argv) < 0) {
     fprintf(stderr, "%s: error while parsing library command arguments\n", myname);
     exit(-1);
   }

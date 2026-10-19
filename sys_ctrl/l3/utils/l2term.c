@@ -251,16 +251,11 @@ static void find_console_l2(void)
 
 int main(int argc, char **argv, char **envp)
 {
-  int serial = 0;
   int i;
 
   myname = argv[0];
-  if (sn1SCParseCmdline(&argc,argv,&serial) < 0) {
+  if (sn1SCParseCmdline(&argc,argv) < 0) {
     fprintf(stderr,"ERROR: command line parse problems\n");
-    exit(-1);
-  }
-  if (serial) {
-    fprintf(stderr,"ERROR: direct serial connection not supported\n");
     exit(-1);
   }
   port = IR_PORT_BIAS + (sn1SCIsQuiet() ? SMP_QUIET_PORT : SMP_PORT);
