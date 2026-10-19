@@ -231,6 +231,8 @@ int main(int argc, char **argv, char **envp)
       power_check++;
     else if (strcmp(arg,"-smpenet") == 0)
       enet_only = 1;
+    else if (strcmp(arg,"-console") == 0)
+      serial_wanted = 1;          /* (also when stdin is a terminal) */
     else
       syntax();
   }
@@ -261,7 +263,7 @@ static void l2_flow_control(void *data, RouterClient *client, int overflow)
 static void syntax(void)
 {
   fprintf(stdout,
-          "usage: %s -net | -usb | -noconn  [ -c <settings file> ] [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]\n"
+          "usage: %s -net | -usb | -noconn  [ -c <settings file> ] [ -console ] [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]\n"
           ,l2_myname);
   exit(0);
 }

@@ -972,6 +972,7 @@ void smp_read(SMP *smp)
 {
   static char rbuf[2];
   SMPGroup *g = smp->grp;
+  ssize_t n;
 
   errno = 0;
   if (!rspq_empty(g->l2cmd->q)) {
@@ -993,10 +994,15 @@ void smp_read(SMP *smp)
     g->ilen--;
     smp_input(smp,g->ibuf + g->ilen,1);
   }
-  if (read(smp->rfd,rbuf,1) < 1) {
-    /* (the serial consoles stay) */
+  n = read(smp->rfd,rbuf,1);
+  if (n < 1) {
     if (IR_ADDR_TYPE(smp->id->addr) == IR_ADDR_IP_OTHER)
       smp_free(smp);
+    else if (n == 0 || (errno != EINTR && errno != EAGAIN)) {
+      /* the serial console stays for output; its input is done (the
+       * original read the end of a /dev/null stdin over and over) */
+      EventRemoveInput(smp->rfd);
+    }
     return;
   }
   smp_input(smp,rbuf,1);
@@ -1224,9 +1230,10 @@ static int smp_vprintf(int console_event, const char *format, va_list ap)
   active = 1;
   /* (the original vsprintf()ed into the 1024 bytes) */
   rval = vsnprintf(vbuf,sizeof(vbuf),format,ap);
-  if (smp_list == NULL && !enet_only)
+  /* without the serial console (a service), always to stderr as well */
+  if (serial_console == NULL)
     write(2,vbuf,strlen(vbuf));
-  else {
+  if (smp_list != NULL) {
     smp_event(console_event ? SMP_EV_CONSOLE : SMP_EV_OUTPUT,-1,vbuf);
     for (smp = smp_list; smp != NULL; smp = smp->next)
       smp_write(smp,vbuf,strlen(vbuf));

@@ -11,6 +11,7 @@ src=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 new=${NEW_BIN:-$src/build/bin}
 orig=${ORIG_BIN:-$src/../ist/ist-software-extracted/IST/snxsc_l3/stand/sysco/bin}
 golden_fail=0
+export TZ=UTC                   # (local times and zone names: every host the same)
 if [ -n "${INTEROP:-}" ] && [ ! -f "$orig/l2" ]; then
     echo "INTEROP=1: no original binaries in $orig (set ORIG_BIN)" >&2
     exit 1

@@ -172,5 +172,5 @@ ERROR: command shell not found.
 ?-<L2IP>-L2>shell
 ERROR: no L1s found to match that destination
 ?-<L2IP>-L2>date
-<DATE>26 <TIME> EDT
+<DATE> <TIME> UTC
 ?-<L2IP>-L2>

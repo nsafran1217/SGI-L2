@@ -9,6 +9,8 @@
 #   make interop    the session tests with SGI's original binaries as well (needs
 #                   ../ist or ORIG_BIN): old clients against this l2, and the reverse
 #   make check-all  check for the native, 32-bit and ASan builds (check-s390x: big-endian)
+#   make install    the tools into $(BINDIR) (PREFIX=/usr/local); install-service: and the
+#                   udev rule and systemd unit (contrib/)
 #   make clean
 #
 # l2gui also needs FLTK, built from ../refs/fltk by ../retools/setup_fltk.sh
@@ -150,7 +152,7 @@ else ifeq ($(QEMU),)
 $(info l2gui skipped: no $(FLTK_CONFIG) (run ../retools/setup_fltk.sh $(FLTK_BITS)))
 endif
 
-.PHONY: all test check check-all check-s390x difftest golden interop clean
+.PHONY: all test check check-all check-s390x difftest golden interop install install-service clean
 all: $(TOOLS:%=$(B)/bin/%)
 
 $(B)/%.o: %.c Makefile
@@ -179,6 +181,12 @@ $(B)/bin/l2: $(L2_SRCS:%.c=$(B)/%.o) $(B)/libsgi.a
 	$(CC) $(LDFLAGS) $^ $(LDLIBS) $(LIBUSB_LIBS) -o $@
 
 $(B)/sys_ctrl/l3/l2/l1usb.o: CFLAGS += $(LIBUSB_CFLAGS)
+# (rebuilt when USB changes)
+$(B)/sys_ctrl/l3/l2/l1usb.o: $(B)/.usb-$(USB)
+$(B)/.usb-$(USB):
+	@mkdir -p $(dir $@)
+	rm -f $(B)/.usb-*
+	touch $@
 
 $(B)/bin/l2term: $(L2TERM_SRCS:%.c=$(B)/%.o) $(B)/libsgi.a
 	@mkdir -p $(dir $@)
@@ -249,6 +257,24 @@ check-s390x:
 	PATH=$(S390X)/bin:$$PATH LD_LIBRARY_PATH=$(S390X)/lib/x86_64-linux-gnu $(MAKE) check \
 	    CC=s390x-linux-gnu-gcc-14 AR=s390x-linux-gnu-ar ARCH= B=builds390x \
 	    QEMU="$(S390X)/bin/qemu-s390x -L $(S390X)/s390x-linux-gnu"
+
+# make install: the tools into $(BINDIR). make install-service (as root):
+# also the udev rule and the systemd unit; see contrib/systemd/sgi-l2.service
+# for the user it runs as.
+PREFIX     ?= /usr/local
+BINDIR     ?= $(PREFIX)/bin
+UDEVDIR    ?= /etc/udev/rules.d
+SYSTEMDDIR ?= /etc/systemd/system
+install: all
+	install -d $(DESTDIR)$(BINDIR)
+	install -m 755 $(TOOLS:%=$(B)/bin/%) $(DESTDIR)$(BINDIR)
+
+install-service: install
+	install -d $(DESTDIR)$(UDEVDIR) $(DESTDIR)$(SYSTEMDDIR)
+	install -m 644 contrib/udev/60-sgi-l1.rules $(DESTDIR)$(UDEVDIR)
+	sed 's|@BINDIR@|$(BINDIR)|g' contrib/systemd/sgi-l2.service > $(DESTDIR)$(SYSTEMDDIR)/sgi-l2.service
+	@echo "next: create the sgi-l2 user (see $(SYSTEMDDIR)/sgi-l2.service), then"
+	@echo "      udevadm control --reload && udevadm trigger && systemctl daemon-reload && systemctl enable --now sgi-l2"
 
 clean:
 	rm -rf $(B)

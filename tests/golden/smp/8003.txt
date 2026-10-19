@@ -190,6 +190,6 @@ ERROR: command shell not found.
 ERROR: no L1s found to match that destination
 ?-<L2IP>-L2>
 ?-<L2IP>-L2>date
-<DATE>26 <TIME> EDT
+<DATE> <TIME> UTC
 ?-<L2IP>-L2>
 ?-<L2IP>-L2>

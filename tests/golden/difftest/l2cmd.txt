@@ -503,7 +503,6 @@ INFO: attempting connection to 127.0.0.1:8000
 INFO: connection to 127.0.0.1:8000 established.
 Session Who          Baud  Group Mode              Console          
 ------- ------------ ----- ----- ----------------- -----------------
-      0 console port 38400     0 L2                not defined
 === serial
 INFO: attempting connection to 127.0.0.1:8000
 INFO: connection to 127.0.0.1:8000 established.
@@ -540,6 +539,7 @@ ERROR: no L1s found to match that destination
 === log
 INFO: attempting connection to 127.0.0.1:8000
 INFO: connection to 127.0.0.1:8000 established.
+log is empty.
 === autopower
 INFO: attempting connection to 127.0.0.1:8000
 INFO: connection to 127.0.0.1:8000 established.

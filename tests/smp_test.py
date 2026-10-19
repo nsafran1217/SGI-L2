@@ -37,7 +37,8 @@ def start_l2(binary, workdir):
     log = open(logname, "wb")
     # l2 spins on stdin EOF: hold the fifo open read/write so reads block
     fd = os.open(fifo, os.O_RDWR)
-    proc = subprocess.Popen([binary, "-noconn"], cwd=workdir, stdin=fd, stdout=log, stderr=log)
+    proc = subprocess.Popen([binary, "-noconn", "-console"], cwd=workdir, stdin=fd, stdout=log,
+                            stderr=log)
     for _ in range(30):
         time.sleep(0.2)
         with open(logname, "rb") as f:
@@ -99,7 +100,7 @@ def mask(data):
     text = re.sub(r"^.*SMP \d+ waited [0-9.]+\r?\n", "", text, flags=re.M)
     text = re.sub(r"[A-Z][a-z]{2} [A-Z][a-z]{2} +\d+ [\d:]{8} \d{4}", "<DATE>", text)
     text = re.sub(r"\d{2}:\d{2}:\d{2}", "<TIME>", text)
-    text = re.sub(r"\d{2}/\d{2}/\d{2}", "<DATE>", text)
+    text = re.sub(r"\d{2}/\d{2}/\d{2}(\d{2})?", "<DATE>", text)
     text = re.sub(r":\d{4,5}\)", ":<PORT>)", text)      # client ports in "accepted" lines
     return text
 

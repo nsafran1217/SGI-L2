@@ -32,6 +32,12 @@ driver loaded, `l2` detaches it from the L1s it opens.
     l2                                # USB L1s; settings in ./l2.conf
     l2 -usbpath 'b1;p2'               # only the L1s behind bus 1, port 2
     l2 -noconn                        # an L2 with no bricks
+    l2 -console                       # also a console on stdin (on by default on a terminal)
+
+As a service: `sudo make install-service` installs the tools, the udev rule
+and a systemd unit (`contrib/systemd/sgi-l2.service`, which says how to
+create its user); settings are then in `/var/lib/sgi-l2/l2.conf`.
+`contrib/docker/README.md` runs it in a container.
     l2term --l2 localhost             # its console; CTRL-] q quits
     l2cmd --l2 localhost version
 

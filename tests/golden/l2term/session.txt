@@ -408,7 +408,6 @@ ERROR: no L1s found to match that destination
 Session Who          Baud  Group Mode              Console          
 ------- ------------ ----- ----- ----------------- -----------------
 >>>  11 network port   n/a    11 L2                not defined
-      0 console port 38400     0 L2                not defined
 ?-<L2IP>-L2>serial
 L2 system serial number: not set.
 ?-<L2IP>-L2>multisys
@@ -457,9 +456,8 @@ L2 command processor engaged, <CTRL-D> for console mode.
 Session Who          Baud  Group Mode              Console          
 ------- ------------ ----- ----- ----------------- -----------------
 >>>  11 network port   n/a    11 L2                not defined
-      0 console port 38400     0 L2                not defined
 ?-<L2IP>-L2>date
-<DATE>26 <TIME> EDT
+<DATE> <TIME> UTC
 ?-<L2IP>-L2>l2find
 0 L2's discovered:
 

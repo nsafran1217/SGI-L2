@@ -1,37 +1,37 @@
 === l2 -help
 exit 0
-usage: <l2> -net | -usb | -noconn  [ -c <settings file> ] [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
+usage: <l2> -net | -usb | -noconn  [ -c <settings file> ] [ -console ] [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
 === l2 --copy
 exit 0
 <l2>: --copy option missing <copy#>
-usage: <l2> -net | -usb | -noconn  [ -c <settings file> ] [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
+usage: <l2> -net | -usb | -noconn  [ -c <settings file> ] [ -console ] [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
 === l2 --copy -noconn
 exit 0
 <l2>: --copy option missing <copy#>
-usage: <l2> -net | -usb | -noconn  [ -c <settings file> ] [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
+usage: <l2> -net | -usb | -noconn  [ -c <settings file> ] [ -console ] [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
 === l2 --copy 200
 exit 0
 <l2>: --copy: copy 200 invalid (must be 0 through 128)
-usage: <l2> -net | -usb | -noconn  [ -c <settings file> ] [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
+usage: <l2> -net | -usb | -noconn  [ -c <settings file> ] [ -console ] [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
 === l2 --copy -5
 exit 0
 <l2>: --copy option missing <copy#>
-usage: <l2> -net | -usb | -noconn  [ -c <settings file> ] [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
+usage: <l2> -net | -usb | -noconn  [ -c <settings file> ] [ -console ] [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
 === l2 -serial
 exit 0
-usage: <l2> -net | -usb | -noconn  [ -c <settings file> ] [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
+usage: <l2> -net | -usb | -noconn  [ -c <settings file> ] [ -console ] [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
 === l2 -usbpath
 exit 0
-usage: <l2> -net | -usb | -noconn  [ -c <settings file> ] [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
+usage: <l2> -net | -usb | -noconn  [ -c <settings file> ] [ -console ] [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
 === l2 -password
 exit 0
-usage: <l2> -net | -usb | -noconn  [ -c <settings file> ] [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
+usage: <l2> -net | -usb | -noconn  [ -c <settings file> ] [ -console ] [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
 === l2 -password -noconn
 exit 0
-usage: <l2> -net | -usb | -noconn  [ -c <settings file> ] [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
+usage: <l2> -net | -usb | -noconn  [ -c <settings file> ] [ -console ] [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
 === l2 -syncssn NEWSSN01
 exit 0
-usage: <l2> -net | -usb | -noconn  [ -c <settings file> ] [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
+usage: <l2> -net | -usb | -noconn  [ -c <settings file> ] [ -console ] [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
 === l2 -noconn -nodiscover
 exit running
 
@@ -43,7 +43,7 @@ WARNING: No connections will be made to L1's (-noconn)
 INFO: settings file './l2.conf' doesn't exist.....initializing
 INFO: SMP listening on port: 8001
 INFO: SMP listening on port: 8003
-?-<L2IP>-L2>--- l2.conf
+--- l2.conf
 # l2's settings: console commands change them, or edit this file while
 # l2 is stopped. A removed line is its default.
 
@@ -79,7 +79,6 @@ ping_l1 = 5
 # response timeouts in seconds (l2dbg brspto/trspto); 0 for the defaults
 broadcast_timeout = 0
 target_timeout = 0
---- l2.log
 === l2 -noconn -nodiscover --copy 3
 exit running
 
@@ -91,7 +90,7 @@ WARNING: No connections will be made to L1's (-noconn)
 INFO: settings file './l2.conf.3' doesn't exist.....initializing
 INFO: SMP listening on port: 8031
 INFO: SMP listening on port: 8033
-?-<L2IP>-L2>--- l2.conf.3
+--- l2.conf.3
 # l2's settings: console commands change them, or edit this file while
 # l2 is stopped. A removed line is its default.
 
@@ -127,7 +126,6 @@ ping_l1 = 5
 # response timeouts in seconds (l2dbg brspto/trspto); 0 for the defaults
 broadcast_timeout = 0
 target_timeout = 0
---- l2.log.3
 === l2 -noconn -nodiscover --copy 0
 exit running
 
@@ -139,7 +137,7 @@ WARNING: No connections will be made to L1's (-noconn)
 INFO: settings file './l2.conf' doesn't exist.....initializing
 INFO: SMP listening on port: 8001
 INFO: SMP listening on port: 8003
-?-<L2IP>-L2>--- l2.conf
+--- l2.conf
 # l2's settings: console commands change them, or edit this file while
 # l2 is stopped. A removed line is its default.
 
@@ -175,9 +173,17 @@ ping_l1 = 5
 # response timeouts in seconds (l2dbg brspto/trspto); 0 for the defaults
 broadcast_timeout = 0
 target_timeout = 0
---- l2.log
 === l2 -noconn -nodiscover -smpenet
 exit running
+
+
+SGI L2 Controller
+Current L2 version: 1.62.0 
+
+WARNING: No connections will be made to L1's (-noconn)
+INFO: settings file './l2.conf' doesn't exist.....initializing
+INFO: SMP listening on port: 8001
+INFO: SMP listening on port: 8003
 --- l2.conf
 # l2's settings: console commands change them, or edit this file while
 # l2 is stopped. A removed line is its default.
@@ -227,9 +233,7 @@ l1_open() in
 l1_open() out
 INFO: SMP listening on port: 8001
 INFO: SMP listening on port: 8003
-L2               0 EVT(3,0,1) D: L1    0. 0, 0,  0  S: IP e 02 1010000
-L2               2 EVT(3,0,1) D: L1    0. 0, 0,  0  S: IP e 02 1010000
-?-<L2IP>-L2>--- l2.conf
+--- l2.conf
 # l2's settings: console commands change them, or edit this file while
 # l2 is stopped. A removed line is its default.
 
@@ -265,16 +269,15 @@ ping_l1 = 5
 # response timeouts in seconds (l2dbg brspto/trspto); 0 for the defaults
 broadcast_timeout = 0
 target_timeout = 0
---- l2.log
 === l2 -nodiscover -l1sim
 exit 0
-usage: <l2> -net | -usb | -noconn  [ -c <settings file> ] [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
+usage: <l2> -net | -usb | -noconn  [ -c <settings file> ] [ -console ] [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
 === l2 -nodiscover -l1sim 4 2
 exit 0
-usage: <l2> -net | -usb | -noconn  [ -c <settings file> ] [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
+usage: <l2> -net | -usb | -noconn  [ -c <settings file> ] [ -console ] [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
 === l2 -nodiscover -l1sim_manual 6
 exit 0
-usage: <l2> -net | -usb | -noconn  [ -c <settings file> ] [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
+usage: <l2> -net | -usb | -noconn  [ -c <settings file> ] [ -console ] [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
 === l2 -nodiscover -net
 exit running
 
@@ -286,7 +289,7 @@ INFO: settings file './l2.conf' doesn't exist.....initializing
 INFO: L1 network port 9003 initialized
 INFO: SMP listening on port: 8001
 INFO: SMP listening on port: 8003
-?-<L2IP>-L2>--- l2.conf
+--- l2.conf
 # l2's settings: console commands change them, or edit this file while
 # l2 is stopped. A removed line is its default.
 
@@ -322,16 +325,15 @@ ping_l1 = 5
 # response timeouts in seconds (l2dbg brspto/trspto); 0 for the defaults
 broadcast_timeout = 0
 target_timeout = 0
---- l2.log
 === l2 -noconn -nodiscover --mtrace
 exit 0
-usage: <l2> -net | -usb | -noconn  [ -c <settings file> ] [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
+usage: <l2> -net | -usb | -noconn  [ -c <settings file> ] [ -console ] [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
 === l2 -noconn -nodiscover -noconn -bogus
 exit 0
-usage: <l2> -net | -usb | -noconn  [ -c <settings file> ] [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
+usage: <l2> -net | -usb | -noconn  [ -c <settings file> ] [ -console ] [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
 === l2 -noconn -nodiscover -c
 exit 0
-usage: <l2> -net | -usb | -noconn  [ -c <settings file> ] [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
+usage: <l2> -net | -usb | -noconn  [ -c <settings file> ] [ -console ] [ -discover -nodiscover ] [ -usbpath <path>[,<path>...] ]
 === l2 -noconn -nodiscover -c my.conf
 exit running
 
@@ -343,7 +345,6 @@ WARNING: No connections will be made to L1's (-noconn)
 INFO: settings file 'my.conf' doesn't exist.....initializing
 INFO: SMP listening on port: 8001
 INFO: SMP listening on port: 8003
-?-<L2IP>-L2>--- l2.log
 --- my.conf
 # l2's settings: console commands change them, or edit this file while
 # l2 is stopped. A removed line is its default.
@@ -391,7 +392,6 @@ WARNING: No connections will be made to L1's (-noconn)
 INFO: settings file 'my.conf' doesn't exist.....initializing
 INFO: SMP listening on port: 8021
 INFO: SMP listening on port: 8023
-?-<L2IP>-L2>--- l2.log.2
 --- my.conf
 # l2's settings: console commands change them, or edit this file while
 # l2 is stopped. A removed line is its default.
@@ -440,4 +440,3 @@ INFO: settings file 'nodir/my.conf' doesn't exist.....initializing
 L3: settings.c line 77 ; can't write the settings file 'nodir/my.conf.tmp': No such file or directory
 INFO: SMP listening on port: 8001
 INFO: SMP listening on port: 8003
-WARNING: can't write the log 'nodir/l2.log'

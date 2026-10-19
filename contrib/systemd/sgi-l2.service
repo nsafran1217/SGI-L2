@@ -1,0 +1,35 @@
+# l2, the SGI L2 system controller, as a service (make install-service
+# installs it with @BINDIR@ filled in). It runs as the system user sgi-l2,
+# whose group the udev rule (60-sgi-l1.rules) gives the L1s; create it once:
+#
+#   sudo useradd --system --user-group --no-create-home --shell /usr/sbin/nologin sgi-l2
+#
+# Settings: /var/lib/sgi-l2/l2.conf (its log: l2.log there). Consoles:
+# l2term --l2 <host>, or telnet <host> 8001. Options for l2 go in
+# /etc/default/sgi-l2 as L2_OPTIONS=... (-discover lets clients and other
+# L2s find this one without --l2).
+
+[Unit]
+Description=SGI L2 system controller (l2)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=sgi-l2
+Group=sgi-l2
+Environment=L2_OPTIONS=-discover
+EnvironmentFile=-/etc/default/sgi-l2
+ExecStart=@BINDIR@/l2 $L2_OPTIONS
+StateDirectory=sgi-l2
+WorkingDirectory=/var/lib/sgi-l2
+# ("quit" on a console exits l2: it comes back)
+Restart=always
+RestartSec=2
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

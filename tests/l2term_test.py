@@ -86,7 +86,7 @@ def mask(text):
     text = re.sub(r"^.*SMP \d+ waited [0-9.]+\n", "", text, flags=re.M)
     text = re.sub(r"[A-Z][a-z]{2} [A-Z][a-z]{2} +\d+ [\d:]{8} \d{4}", "<DATE>", text)
     text = re.sub(r"\d{2}:\d{2}:\d{2}", "<TIME>", text)
-    text = re.sub(r"\d{2}/\d{2}/\d{2}", "<DATE>", text)
+    text = re.sub(r"\d{2}/\d{2}/\d{2}(\d{2})?", "<DATE>", text)
     return text
 
 

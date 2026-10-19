@@ -14,7 +14,8 @@ change shows up as a diff of the golden file.
                                    the original l2 the original clients'
                                    output (the wire format is unchanged)
 
-What depends on the host is normalized before comparing: the user's name
+What depends on the host is normalized: the tests run with TZ=UTC, and
+before comparing, the user's name
 and GECOS field where a connection is announced, and the address l2 takes
 from the host name (<L2IP>; on hosts where that is 127.0.0.1 the goldens
 cannot tell it apart from the loopback address the tests connect to).
@@ -31,6 +32,8 @@ SRC = os.path.dirname(HERE)
 NEW = os.environ.get("NEW_BIN", os.path.join(SRC, "build/bin"))
 ORIG = os.environ.get("ORIG_BIN", os.path.join(
     SRC, "..", "ist/ist-software-extracted/IST/snxsc_l3/stand/sysco/bin"))
+# (the tools print local times and zone names: every host the same)
+os.environ["TZ"] = "UTC"
 UPDATE = os.environ.get("GOLDEN") == "update"
 INTEROP = bool(os.environ.get("INTEROP"))
 if INTEROP and not os.path.isfile(os.path.join(ORIG, "l2")):

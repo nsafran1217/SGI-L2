@@ -71,5 +71,5 @@ WebSocket (for a later web version of `l2term` and `l2gui`), events.
 | 1 | done: no authentication, no host control from the console, no L1 simulator, serial L1 links, direct client L1 connections, modem console or malloc profiling (see DEVIATIONS.md) |
 | 2 | done: `l2.conf` (settings.c) and `l2.log` (l2log.c) replace the NVRAM image; `-c <file>` |
 | 3 | done: l1usb.c (libusb, a thread for its events, hotplug), the udev rule; tested with a fake libusb (tests/libusb_shim.c), not yet on hardware |
-| 4 | |
+| 4 | done: the stdin console only with `-console` or on a terminal (and no spin at EOF), messages to stderr as a service; `make install`, `install-service`, the systemd unit; a Docker note. The socket directory needed no change: clients use TCP |
 | 5 | |
