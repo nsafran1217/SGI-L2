@@ -7,6 +7,7 @@ set -eu
 cd "$(dirname "$0")/../.."
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
+. tests/unit/recon.sh
 git show "${RECON_REF:-origin/main}":compat/decomp.h > "$tmp/decomp.h"
 git show "${RECON_REF:-origin/main}":sys_ctrl/l3/api/SCapiL2.c | sed -e '/syslimits.h/d' > "$tmp/orig_SCapiL2.c"
 cp sys_ctrl/l3/api/SCapiL2.c "$tmp/new_SCapiL2.c"

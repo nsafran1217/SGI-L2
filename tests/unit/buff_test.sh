@@ -5,6 +5,7 @@ set -eu
 cd "$(dirname "$0")/../.."
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
+. tests/unit/recon.sh
 git show "${RECON_REF:-origin/main}":compat/decomp.h > "$tmp/decomp.h"
 git show "${RECON_REF:-origin/main}":sys_ctrl/common/Router/Buff.c |
     sed -e '/#include "..\/sys\/PPP.h"/d' -e 's/#include "Buff.h"/#include "decomp.h"/' \

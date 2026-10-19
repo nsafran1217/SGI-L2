@@ -6,6 +6,7 @@ set -eu
 cd "$(dirname "$0")/../.."
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
+. tests/unit/recon.sh
 git show "${RECON_REF:-origin/main}":compat/decomp.h > "$tmp/decomp.h"
 grep '^[a-zA-Z].*dest_.*(' sys_ctrl/l3/l2/dest.h | sed -e 's/\bdest_/Origdest_/' > "$tmp/orig_dest.h"
 git show "${RECON_REF:-origin/main}":sys_ctrl/l3/l2/dest.c | sed -e 's/\bdest_\([a-z0-9]*\)\b/Origdest_\1/g' \

@@ -6,6 +6,7 @@ set -eu
 cd "$(dirname "$0")/../.."
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
+. tests/unit/recon.sh
 git show "${RECON_REF:-origin/main}":compat/decomp.h > "$tmp/decomp.h"
 git show "${RECON_REF:-origin/main}":sys_ctrl/l3/sys/syslogLib.c | sed -e '/syslimits.h/d' > "$tmp/orig_syslogLib.c"
 cp sys_ctrl/l3/sys/syslogLib.c "$tmp/new_syslogLib.c"

@@ -6,6 +6,7 @@ set -eu
 cd "$(dirname "$0")/../.."
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
+. tests/unit/recon.sh
 orig='s/\b\(_\{0,1\}\)\(Cmd[A-Za-z]*\|cmdlist[a-z]*\|match_text\|match_range\)\b/\1Orig\2/g'
 git show "${RECON_REF:-origin/main}":compat/decomp.h > "$tmp/decomp.h"
 git show "${RECON_REF:-origin/main}":sys_ctrl/common/sys/Cmd.h |

@@ -10,6 +10,7 @@ lib=${LIBSGI:-build64/libsgi.a}
 [ -f "$lib" ] || make -s ARCH=-m64 B=build64 "$lib"
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
+. tests/unit/recon.sh
 names='s/\b\(L2CfgM[A-Z][A-Za-z0-9_]*\|L2CfgInit[A-Za-z]*\|L2CfgDelete[A-Za-z0-9]*\|L2CfgDebugX\?\|L2CfgMode\|L2CfgLocal\|FmtBrick\)\b/Orig\1/g'
 git show "${RECON_REF:-origin/main}":compat/decomp.h > "$tmp/decomp.h"
 # (the original's undersized buffers enlarged, so that its overflow bugs do not

@@ -6,6 +6,7 @@ set -eu
 cd "$(dirname "$0")/../.."
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
+. tests/unit/recon.sh
 git show "${RECON_REF:-origin/main}":compat/decomp.h > "$tmp/decomp.h"
 # the functions, not the struct fields of the same names (q->rspq_head)
 rename='s/(?<![>.\w])(reqrspq_(init|reset|free)|reqq_\w+|rspq_\w+)\b(?!\.h)/Orig$1/g'

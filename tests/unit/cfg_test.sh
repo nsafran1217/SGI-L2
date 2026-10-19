@@ -6,6 +6,7 @@ set -eu
 cd "$(dirname "$0")/../.."
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
+. tests/unit/recon.sh
 git show "${RECON_REF:-origin/main}":compat/decomp.h > "$tmp/decomp.h"
 rename='s/(?<![>.\w])(cfg_\w+|pp|strdiff|del_client|del_addr|find_client_to_delete)\b(?!\.h)/Orig$1/g'
 grep '^[a-zA-Z]' sys_ctrl/l3/l2/cfg.h | perl -pe "$rename" > "$tmp/orig_cfg.h"

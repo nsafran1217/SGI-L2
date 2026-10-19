@@ -430,7 +430,7 @@ int main(void)
         memset(query_text[i],'a' + rnd(26),len);
         query_text[i][len] = '\0';
       }
-    l2_l1_conn_mode = rnd(6);
+    l2_l1_conn_mode = rnd(3);   /* none, net, usb (the serial modes are gone) */
     l2_discover = rnd(2);
     l1usb_debug = rnd(4) == 0 ? 2 : 0;
     discover_start_rval = rnd(4) ? 7 : -1;

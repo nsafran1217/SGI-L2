@@ -7,6 +7,7 @@ set -eu
 cd "$(dirname "$0")/../.."
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
+. tests/unit/recon.sh
 git show "${RECON_REF:-origin/main}":compat/decomp.h > "$tmp/decomp.h"
 git show "${RECON_REF:-origin/main}":sys_ctrl/l3/main/nvram.c |
     sed -e 's/\bnvram\([A-Z][A-Za-z]*\)\b/Orignvram\1/g' \
