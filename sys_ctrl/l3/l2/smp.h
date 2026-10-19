@@ -45,6 +45,16 @@ struct SMP_s {
 };
 typedef struct SMP_s SMP;
 
+/* (added by the reconstruction) SMPGroup.mode */
+enum {
+    SMP_MODE_L2 = 0,            /* the L2's command line */
+    SMP_MODE_CONSOLE = 1,       /* keys to the system console */
+    SMP_MODE_CONSOLE_ESC = 2,   /* ... escaped to the L2 for one command (CTRL-T) */
+    SMP_MODE_L1 = 3,            /* keys to an L1's command processor */
+    SMP_MODE_L1_ESC = 4,        /* ... escaped */
+    SMP_MODE_SHELL = 5,         /* "shell" */
+};
+
 /* the SMP (console) network ports, plus IR_PORT_BIAS (enet.c); the serial
  * consoles also give smp_init() SMP_PORT */
 #define SMP_PORT        8001

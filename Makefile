@@ -184,7 +184,9 @@ CLEAN_SRCS := \
 	sys_ctrl/l3/l2/cmd.c \
 	sys_ctrl/l3/l2/discover.c \
 	sys_ctrl/l3/l2/irtr.c \
-	sys_ctrl/l3/l2/cfg.c
+	sys_ctrl/l3/l2/cfg.c \
+	sys_ctrl/l3/l2/l1.c \
+	sys_ctrl/l3/l2/smp.c
 $(CLEAN_SRCS:%.c=$(B)/%.o): CFLAGS += -Wunused-variable -Wunused-but-set-variable \
 	-Wunused-label -Wpointer-sign
 
@@ -264,6 +266,7 @@ check: all
 	NEW_BIN=$(CHECK_BIN) tests/nvram_test.py
 	NEW_BIN=$(CHECK_BIN) tests/l1net_test.py
 	NEW_BIN=$(CHECK_BIN) tests/l1_test.py
+	NEW_BIN=$(CHECK_BIN) tests/l1usb_test.py
 	NEW_BIN=$(CHECK_BIN) tests/options_test.sh
 	NEW_BIN=$(CHECK_BIN) tests/l2_options_test.py
 	NEW_BIN=$(CHECK_BIN) tests/l1direct_test.py

@@ -3,1319 +3,1002 @@
  *
  * Reconstructed from the STABS debug info and Ghidra decompilation of l2.
  * Original: /data/cf/sysco/scs123.patch/sys_ctrl/l3/l2/l1.c
+ *
+ * The L2's links to its L1s, by l2_l1_conn_mode:
+ *  - USB (the default): the sgil1 driver (sgil1.h). The control device
+ *    reports which devices are present; each present one is opened as an
+ *    L1 port, and closed when it goes or after repeated errors;
+ *  - a serial line (-serial <device>) or a serial line on a terminal
+ *    server (-serial <host> <port>): one port, PPP-framed;
+ *  - sockets (-net, the simulator): l1net.c accepts them.
+ * Packets are read and written whole through IRouterReadPacket() and
+ * IRouterWritePacket() with the link's read and write functions.
  */
 
+#include <errno.h>
+#include <fcntl.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/ioctl.h>
-#include "../../common/Router/SocketIO.h"   /* needed by the reconstruction */
-#include "dmp.h"   /* needed by the reconstruction */
-#include "irtr.h"   /* needed by the reconstruction */
+#include <termios.h>
+#include <unistd.h>
 #include "l2.h"
 #include "l1.h"
-#include "smp.h"
-#include "l2cmd.h"
-#include "dest.h"
 #include "cfg.h"
-#include "format.h"
-#include "serial.h"
-#include "../main/nvram.h"
+#include "dmp.h"
+#include "irtr.h"
 #include "l1net.h"
 #include "l1sim.h"
+#include "serial.h"
 #include "sgil1.h"
+#include "smp.h"
+#include "../main/nvram.h"
+#include "../../common/Router/SocketIO.h"
+#include "../../common/sys/Logger.h"
 #include "../../common/sys/l3paths.h"   /* configurable paths (new) */
-#include "decomp.h"     /* Ghidra types/macros; remove once the file is cleaned up */
+
+#define MAX_FDS         64      /* lasterr[] and the like, by descriptor */
+#define READ_ERRORS     3       /* a device is closed after this many in a row */
+#define CAN             0x18    /* the serial protocol's opening */
 
 static char *l1_usb_path_str(sgil1_cfg_t *cfg, int format);
 
-int l1_throttle_freq = 50;
-unsigned char l1_pkt_in[1] = { 24 };
+int l1_throttle_freq = 50;      /* ms between reads while throttled */
+unsigned char l1_pkt_in[1] = { CAN };
 unsigned char l1_pkt_out[1] = "\r";
-static char **l1_usbpath_list;
+static char **l1_usbpath_list;  /* -usbpath: only devices on these paths */
 static int l1_usbpath_count;
 static int l1_usbpath_size;
-static int l1_do_ioctls = 1;
+static int l1_do_ioctls = 1;    /* 0 once the driver turned out to have none */
 static int sgil1_rev;
-int l1usb_debug;
+int l1usb_debug;                /* (USB messages as console events) */
 EventID l1_throttle_timerid;
 PPPInstance ppp;
 unsigned char ppp_ibuf[8];
 unsigned char ppp_obuf[256];
-static int lasterr[64];
-static int lastcnt[64];
-static char lastdev[64][60];
+/* the last read error on each descriptor, and how often it repeated */
+static int lasterr[MAX_FDS];
+static int lastcnt[MAX_FDS];
+static char lastdev[MAX_FDS][60];
 
+/* (the original indexed these by any descriptor) */
+static int fd_ok(int fd)
+{
+  return fd >= 0 && fd < MAX_FDS;
+}
+
+/* src into a field of size bytes, cut to fit */
+static void copy_field(char *dst, size_t size, const char *src)
+{
+  size_t n = strlen(src);
+
+  if (n >= size)
+    n = size - 1;
+  memcpy(dst,src,n);
+  dst[n] = '\0';
+}
+
+/* the port of an open descriptor, or -1 */
 int l1_fd_device(int fd)
 {
   int dev;
-  
-  dev = 0;
-  while( true ) {
-    if (0x27 < dev) {
-      return -1;
-    }
-    if (l2_l1_ports[dev].fd == fd) break;
-    dev = dev + 1;
-  }
-  return dev;
+
+  for (dev = 0; dev < L2_L1_PORTS; dev++)
+    if (l2_l1_ports[dev].fd == fd)
+      return dev;
+  return -1;
 }
+
+/* USB messages: console events when debugging USB, else to stderr */
+#define USB_MSG(...) \
+  do { if (l1usb_debug) l2_console_printf(__VA_ARGS__); else fprintf(stderr,__VA_ARGS__); } while (0)
+
+/* --- USB --- */
 
 int l1_open_usb(void)
 {
-  int *piVar1;
-  char *pcVar2;
-  int iVar3;
   int i;
-  int status;
-  int device;
-  
-  if (l2_debug != 0) {
+
+  if (l2_debug)
     fprintf(stderr,"l1_open_usb() in\n");
-  }
   l1usb_debug = nvramGet(NVRAM_L1USB_DEBUG);
-  if (l1usb_debug != 0) {
+  if (l1usb_debug)
     fprintf(stderr,"INFO: initializing USB debug setting to %d from NVRAM\n",l1usb_debug);
-  }
   l2_l1_device = (char *)l3path_dev("sgil1_cs");   /* original: "/dev/sgil1_cs" */
-  l2_l1_control = open(l2_l1_device,0);
+  l2_l1_control = open(l2_l1_device,O_RDONLY);
   if (l2_l1_control < 0) {
-    piVar1 = __errno_location();
-    pcVar2 = strerror(*piVar1);
-    fprintf(stderr,"ERROR: can\'t open USB control %s, %s\n",l2_l1_device,pcVar2);
-    iVar3 = -1;
+    fprintf(stderr,"ERROR: can\'t open USB control %s, %s\n",l2_l1_device,strerror(errno));
+    return -1;
   }
-  else {
-    fprintf(stderr,"INFO: opened USB control %s\n",l2_l1_device);
-    iVar3 = ioctl(l2_l1_control,0x80045306,&sgil1_rev);
-    if (iVar3 < 0) {
-      sgil1_rev = 0;
+  fprintf(stderr,"INFO: opened USB control %s\n",l2_l1_device);
+  if (ioctl(l2_l1_control,SGIL1_ST_READ_REV,&sgil1_rev) < 0)
+    sgil1_rev = 0;
+  if (l1_usbpath_count != 0) {
+    if (sgil1_rev < 2) {
+      fprintf(stderr,
+              "ERROR:  the USB path option (-usbpath) was specified, but the L1 USB kernel\n"
+              "        driver (rev %d) doesn\'t support it!\nPlease update your L1 USB kernel driver.\n",
+              sgil1_rev);
+      close(l2_l1_control);
+      return -1;
     }
-    if (l1_usbpath_count != 0) {
-      if (sgil1_rev < 2) {
-        fprintf(stderr,
-                "ERROR:  the USB path option (-usbpath) was specified, but the L1 USB kernel\n        driver (rev %d) doesn\'t support it!\nPlease update your L1 USB kernel driver.\n"
-                ,sgil1_rev);
-        close(l2_l1_control);
-        return -1;
-      }
-      fprintf(stderr,"INFO:  monitoring for L1 USB devices on the following USB paths:\n");
-      for (i = 0; i < l1_usbpath_count; i = i + 1) {
-        fprintf(stderr,"       %s\n",l1_usbpath_list[i]);
-      }
-    }
-    iVar3 = ioctl(l2_l1_control,0x80045306,&sgil1_rev);
-    if (iVar3 < 0) {
-      sgil1_rev = 0;
-    }
-    l1_service_usb(0,0);
-    EventAddInput(l2_l1_control,l1_service_usb,(EventData)0x0,"l1_open_usb");
-    if (l2_debug != 0) {
-      fprintf(stderr,"l1_open_usb() out\n");
-    }
-    iVar3 = 0;
+    fprintf(stderr,"INFO:  monitoring for L1 USB devices on the following USB paths:\n");
+    for (i = 0; i < l1_usbpath_count; i++)
+      fprintf(stderr,"       %s\n",l1_usbpath_list[i]);
   }
-  return iVar3;
+  if (ioctl(l2_l1_control,SGIL1_ST_READ_REV,&sgil1_rev) < 0)
+    sgil1_rev = 0;
+  l1_service_usb(0,0);
+  EventAddInput(l2_l1_control,l1_service_usb,NULL,"l1_open_usb");
+  if (l2_debug)
+    fprintf(stderr,"l1_open_usb() out\n");
+  return 0;
 }
 
+/* a device ioctl, unless the driver has none */
 int l1_usb_ioctl(int fd, int request)
 {
-  int iVar1;
-  
-  if (l1_do_ioctls == 0) {
-    iVar1 = 0;
-  }
-  else {
-    iVar1 = ioctl(fd,request,0);
-  }
-  return iVar1;
+  if (!l1_do_ioctls)
+    return 0;
+  return ioctl(fd,request,0);
 }
 
+/* drop what the device has buffered (both ways); reset: and reset it */
 int l1_flush_usb_device(int fd, int reset)
 {
-  int iVar1;
-  int *piVar2;
-  char *pcVar3;
-  
   if (sgil1_rev < 1) {
-    iVar1 = l1_usb_ioctl(fd,0x5302);
-    if (iVar1 != 0) {
-      piVar2 = __errno_location();
-      pcVar3 = strerror(*piVar2);
-      fprintf(stderr,"SGIL1_RESET_WRITE error, %s\n",pcVar3);
-      iVar1 = l1_usb_ioctl(fd,0x5303);
-      if (iVar1 != 0) {
-        piVar2 = __errno_location();
-        pcVar3 = strerror(*piVar2);
-        fprintf(stderr,"SGIL1_RESET_DEVICE error, %s\n",pcVar3);
+    /* the old driver: one direction at a time, resetting the device if
+     * either fails */
+    if (l1_usb_ioctl(fd,SGIL1_RESET_WRITE) != 0) {
+      fprintf(stderr,"SGIL1_RESET_WRITE error, %s\n",strerror(errno));
+      if (l1_usb_ioctl(fd,SGIL1_RESET_DEVICE) != 0) {
+        fprintf(stderr,"SGIL1_RESET_DEVICE error, %s\n",strerror(errno));
         return -1;
       }
       return 0;
     }
-    iVar1 = l1_usb_ioctl(fd,0x5301);
-    if (iVar1 != 0) {
-      piVar2 = __errno_location();
-      pcVar3 = strerror(*piVar2);
-      fprintf(stderr,"SGIL1_RESET_READ error, %s\n",pcVar3);
-      iVar1 = l1_usb_ioctl(fd,0x5303);
-      if (iVar1 != 0) {
-        piVar2 = __errno_location();
-        pcVar3 = strerror(*piVar2);
-        fprintf(stderr,"SGIL1_RESET_DEVICE error, %s\n",pcVar3);
+    if (l1_usb_ioctl(fd,SGIL1_RESET_READ) != 0) {
+      fprintf(stderr,"SGIL1_RESET_READ error, %s\n",strerror(errno));
+      if (l1_usb_ioctl(fd,SGIL1_RESET_DEVICE) != 0) {
+        fprintf(stderr,"SGIL1_RESET_DEVICE error, %s\n",strerror(errno));
         return -1;
       }
       return 0;
     }
   }
-  else {
-    iVar1 = l1_usb_ioctl(fd,0x5305);
-    if (iVar1 != 0) {
-      return -1;
-    }
-  }
-  if ((reset == 0) || (iVar1 = l1_usb_ioctl(fd,0x5303), iVar1 == 0)) {
-    iVar1 = 0;
-  }
-  else {
-    piVar2 = __errno_location();
-    pcVar3 = strerror(*piVar2);
-    fprintf(stderr,"SGIL1_RESET_DEVICE error, %s\n",pcVar3);
-    iVar1 = -1;
-  }
-  return iVar1;
-}
-
-static char *l1_usb_path_str(sgil1_cfg_t *cfg, int format)
-{
-  static char path[80];
-  size_t sVar1;
-  unsigned int uVar2;
-  char *pcVar3;
-  int i;
-  
-  if (format == 0) {
-    sprintf((char *)&path,"b%u;p",(unsigned int)cfg->bus);
-  }
-  if (format == 1) {
-    sprintf((char *)&path,"  bus: %u  path: ",(unsigned int)cfg->bus);
-  }
-  if (format == 2) {
-    sprintf((char *)&path,"b%u;p",(unsigned int)cfg->bus);
-  }
-  for (i = 0; i < (int)(unsigned int)cfg->level; i = i + 1) {
-    if (i != 0) {
-      strcat((char *)&path,"/");
-    }
-    uVar2 = (unsigned int)cfg->path[i];
-    pcVar3 = "%d";
-    sVar1 = strlen((char *)&path);
-    sprintf(path + sVar1,pcVar3,uVar2);
-  }
-  if (format == 0) {
-    uVar2 = (unsigned int)cfg->dev;
-    pcVar3 = ";d%d";
-    sVar1 = strlen((char *)&path);
-    sprintf((char *)&path + sVar1,pcVar3,uVar2);
-  }
-  if (format == 1) {
-    uVar2 = (unsigned int)cfg->dev;
-    pcVar3 = "  dev: %d";
-    sVar1 = strlen((char *)&path);
-    sprintf(path + sVar1,pcVar3,uVar2);
-  }
-  return (char *)&path;
-}
-
-int l1_open_usb_device(int device)
-{
-  int fd;
-  int *piVar1;
-  char *pcVar2;
-  int plen;
-  int llen;
-  int iVar3;
-  int iVar4;
-  FILE *stream;
-  EventID EVar5;
-  sgil1_cfg_t cfg_;
-  int i;
-  char *path;
-  sgil1_cfg_t cfg;
-  char usbpath [40];
-  char usb_cfg [60];
-  char dev_name [512];   /* original: 20; the device dir is configurable now */
-  
-  if (l2_debug != 0) {
-    fprintf(stderr,"l1_open_usb_device(%d) in\n",device);
-  }
-  if ((l1_usbpath_count != 0) && (1 < sgil1_rev)) {
-    cfg.dev = (unsigned char)device;
-    fd = ioctl(l2_l1_control,0xc0095307,&cfg);
-    if (fd != 0) {
-      piVar1 = __errno_location();
-      pcVar2 = strerror(*piVar1);
-      fprintf(stderr,"SGIL1_ST_READ_DEV_CFG error, %s\n",pcVar2);
-      return -1;
-    }
-    pcVar2 = l1_usb_path_str(&cfg,2);
-    plen = strlen(pcVar2);
-    for (i = 0; i < l1_usbpath_count; i = i + 1) {
-      llen = strlen(l1_usbpath_list[i]);
-      iVar3 = strncmp(pcVar2,l1_usbpath_list[i],llen);
-      if ((iVar3 == 0) &&
-         (((llen < plen || (l1_usbpath_list[i][plen] == '\0')) || (l1_usbpath_list[i][plen] == '/'))
-         )) break;
-    }
-    if (i == l1_usbpath_count) {
-      return 0;
-    }
-  }
-  sprintf(dev_name,"%s/sgil1_%d",l3path_dev_dir(),device);   /* original: "/dev/sgil1_%d" */
-  usb_cfg[0] = '\0';
-  usbpath[0] = '\0';
-  iVar3 = open(dev_name,2);
-  if (iVar3 < 0) {
-    piVar1 = __errno_location();
-    pcVar2 = strerror(*piVar1);
-    fprintf(stderr,"ERROR: can\'t open %s, %s\n",dev_name,pcVar2);
-    iVar3 = -1;
-  }
-  else {
-    if (l1_do_ioctls != 0) {
-      iVar4 = ioctl(iVar3,0x80095304,&cfg_);
-      if (iVar4 == 0) {
-        pcVar2 = l1_usb_path_str(&cfg_,1);
-        strcpy(usb_cfg,pcVar2);
-        pcVar2 = l1_usb_path_str(&cfg_,0);
-        strcpy(usbpath,pcVar2);
-        l1_flush_usb_device(iVar3,0);
-      }
-      else {
-        piVar1 = __errno_location();
-        if ((*piVar1 == 0x16) || (piVar1 = __errno_location(), *piVar1 == 0x19)) {
-          l1_do_ioctls = 0;
-        }
-        else {
-          piVar1 = __errno_location();
-          pcVar2 = strerror(*piVar1);
-          fprintf(stderr,"SGIL1_READ_CFG error, %s\n",pcVar2);
-        }
-      }
-    }
-    stream = stderr;
-    if (l1usb_debug != 0) {
-      stream = NULL;
-    }
-    fprintf(stream,"INFO: opened USB device at %s (%s)\n",usbpath,dev_name);
-    if (l2_l1_local_port == -1) {
-      l2_l1_local_port = device;
-    }
-    strcpy(l2_l1_ports[device].device,dev_name);
-    strcpy(l2_l1_ports[device].usbpath,usbpath);
-    l2_l1_ports[device].fd = iVar3;
-    lasterr[iVar3] = 0;
-    lastcnt[iVar3] = 0;
-    iVar4 = L2CfgMAddPort(&L2CfgLocal,device,dev_name,usbpath,2,iVar3);
-    if (iVar4 == -1) {
-      fprintf(stderr,"ERROR: device is already in use.\n");
-      iVar3 = -1;
-    }
-    else {
-      EVar5 = EventAddTimeOut(0,750000,cfg_ping_l1,(EventData)(intptr_t)device,"l1_open_usb_device");
-      l2_l1_ports[device].timer = EVar5;
-      EventAddInput(l2_l1_ports[device].fd,l1_read_packet,(EventData)(intptr_t)device,"l1_open_usb_device");
-      if (l2_debug != 0) {
-        fprintf(stderr,"l1_open_usb_device() out, fd: %d\n",iVar3);
-      }
-      iVar3 = 0;
-    }
-  }
-  return iVar3;
-}
-
-int l1_close_usb_device(int device, int reopen, char *who)
-{
-  EventID id;
-  char *dname;
-  int iVar1;
-  int *piVar2;
-  char *pcVar3;
-  FILE *stream;
-  int fd;
-  int part;
-  int slot;
-  int rack;
-  
-  if (-1 < device) {
-    if (l2_debug != 0) {
-      fprintf(stderr,"l1_close_usb_device(%d) in\n",device);
-    }
-    id = l2_l1_ports[device].fd;
-    if (-1 < (int)id) {
-      dname = L2CfgMDeviceName(&L2CfgLocal,id);
-      EventRemoveInput(id);
-      EventRemoveTimeOut(l2_l1_ports[device].timer);
-      l2_l1_ports[device].fd = -1;
-      l2_l1_ports[device].status = 0;
-      l2_l1_ports[device].wr_errcnt = 0;
-      l2_l1_ports[device].rd_errcnt = 0;
-      l2_l1_ports[device].timer = 0;
-      smp_chkcon_changes(0);
-      L2CfgMCfgPort(&L2CfgLocal,device,NULL);
-      smp_chkcon_changes(1);
-      iVar1 = close(id);
-      if (iVar1 != 0) {
-        piVar2 = __errno_location();
-        pcVar3 = strerror(*piVar2);
-        fprintf(stderr,"ERROR: can\'t close %s, %s - %s\n",dname,l2_l1_ports[device].device,pcVar3);
-        return -1;
-      }
-      stream = stderr;
-      if (l1usb_debug != 0) {
-        stream = NULL;
-      }
-      fprintf(stream,"INFO: closed %s\n",dname);
-      cfg_configcheck(1);
-    }
-    if (l2_debug != 0) {
-      fprintf(stderr,"l1_close_usb_device() out\n");
-    }
-    if (reopen != 0) {
-      EventAddTimeOut(5,0,l1_service_usb,(EventData)0x0,"l1_close_usb_device");
-    }
+  else if (l1_usb_ioctl(fd,SGIL1_RESET_PIPES) != 0)
+    return -1;
+  if (reset && l1_usb_ioctl(fd,SGIL1_RESET_DEVICE) != 0) {
+    fprintf(stderr,"SGIL1_RESET_DEVICE error, %s\n",strerror(errno));
+    return -1;
   }
   return 0;
 }
 
+/* a device's USB path: 0 "b<bus>;p<path>;d<dev>", 1 for people, 2 without
+ * the device (as -usbpath gives it) */
+static char *l1_usb_path_str(sgil1_cfg_t *cfg, int format)
+{
+  static char path[80];
+  int i;
+
+  if (format == 1)
+    sprintf(path,"  bus: %u  path: ",cfg->bus);
+  else
+    sprintf(path,"b%u;p",cfg->bus);
+  for (i = 0; i < cfg->level && i < (int)sizeof(cfg->path); i++)
+    sprintf(path + strlen(path),i != 0 ? "/%d" : "%d",cfg->path[i]);
+  if (format == 0)
+    sprintf(path + strlen(path),";d%d",cfg->dev);
+  else if (format == 1)
+    sprintf(path + strlen(path),"  dev: %d",cfg->dev);
+  return path;
+}
+
+/* whether device is on one of the -usbpath paths (all are, without
+ * -usbpath); -1 if the driver can't say */
+static int on_usbpath(int device)
+{
+  sgil1_cfg_t cfg;
+  const char *path;
+  int plen;
+  int llen;
+  int i;
+
+  if (l1_usbpath_count == 0 || sgil1_rev < 2)
+    return 1;
+  cfg.dev = device;
+  if (ioctl(l2_l1_control,SGIL1_ST_READ_DEV_CFG,&cfg) != 0) {
+    fprintf(stderr,"SGIL1_ST_READ_DEV_CFG error, %s\n",strerror(errno));
+    return -1;
+  }
+  path = l1_usb_path_str(&cfg,2);
+  plen = strlen(path);
+  for (i = 0; i < l1_usbpath_count; i++) {
+    /* the device's path starts with the listed one, at a hub boundary */
+    llen = strlen(l1_usbpath_list[i]);
+    if (strncmp(path,l1_usbpath_list[i],llen) == 0 &&
+        (llen < plen || l1_usbpath_list[i][plen] == '\0' || l1_usbpath_list[i][plen] == '/'))
+      return 1;
+  }
+  return 0;
+}
+
+/* a device appeared: open it as L1 port device */
+int l1_open_usb_device(int device)
+{
+  char dev_name[512];   /* original: 20; the device dir is configurable now */
+  char usbpath[40] = "";
+  char usb_cfg[60] = "";
+  sgil1_cfg_t cfg;
+  int fd;
+
+  if (l2_debug)
+    fprintf(stderr,"l1_open_usb_device(%d) in\n",device);
+  switch (on_usbpath(device)) {
+  case -1:
+    return -1;
+  case 0:
+    return 0;
+  }
+  sprintf(dev_name,"%s/sgil1_%d",l3path_dev_dir(),device);   /* original: "/dev/sgil1_%d" */
+  fd = open(dev_name,O_RDWR);
+  if (fd < 0) {
+    fprintf(stderr,"ERROR: can\'t open %s, %s\n",dev_name,strerror(errno));
+    return -1;
+  }
+  if (l1_do_ioctls) {
+    if (ioctl(fd,SGIL1_READ_CFG,&cfg) == 0) {
+      strcpy(usb_cfg,l1_usb_path_str(&cfg,1));
+      strcpy(usbpath,l1_usb_path_str(&cfg,0));
+      l1_flush_usb_device(fd,0);
+    }
+    else if (errno == EINVAL || errno == ENOTTY)
+      l1_do_ioctls = 0;         /* a driver without them */
+    else
+      fprintf(stderr,"SGIL1_READ_CFG error, %s\n",strerror(errno));
+  }
+  USB_MSG("INFO: opened USB device at %s (%s)\n",usbpath,dev_name);
+  if (l2_l1_local_port == -1)
+    l2_l1_local_port = device;
+  /* (both fields are shorter than the strings can be: as the original) */
+  copy_field(l2_l1_ports[device].device,sizeof(l2_l1_ports[device].device),dev_name);
+  copy_field(l2_l1_ports[device].usbpath,sizeof(l2_l1_ports[device].usbpath),usbpath);
+  l2_l1_ports[device].fd = fd;
+  if (fd_ok(fd)) {
+    lasterr[fd] = 0;
+    lastcnt[fd] = 0;
+  }
+  if (L2CfgMAddPort(&L2CfgLocal,device,dev_name,usbpath,2,fd) == -1) {
+    fprintf(stderr,"ERROR: device is already in use.\n");
+    return -1;
+  }
+  l2_l1_ports[device].timer = EventAddTimeOut(0,750000,cfg_ping_l1,(EventData)(intptr_t)device,
+                                              "l1_open_usb_device");
+  EventAddInput(l2_l1_ports[device].fd,l1_read_packet,(EventData)(intptr_t)device,"l1_open_usb_device");
+  if (l2_debug)
+    fprintf(stderr,"l1_open_usb_device() out, fd: %d\n",fd);
+  return 0;
+}
+
+/* close L1 port device (who: why, unused); reopen: look at the devices
+ * again in 5 seconds */
+int l1_close_usb_device(int device, int reopen, char *who)
+{
+  char *dname;
+  int fd;
+
+  if (device < 0)
+    return 0;
+  if (l2_debug)
+    fprintf(stderr,"l1_close_usb_device(%d) in\n",device);
+  fd = l2_l1_ports[device].fd;
+  if (fd >= 0) {
+    dname = L2CfgMDeviceName(&L2CfgLocal,fd);
+    EventRemoveInput(fd);
+    EventRemoveTimeOut(l2_l1_ports[device].timer);
+    l2_l1_ports[device].fd = -1;
+    l2_l1_ports[device].status = 0;
+    l2_l1_ports[device].wr_errcnt = 0;
+    l2_l1_ports[device].rd_errcnt = 0;
+    l2_l1_ports[device].timer = 0;
+    smp_chkcon_changes(0);
+    L2CfgMCfgPort(&L2CfgLocal,device,NULL);
+    smp_chkcon_changes(1);
+    if (close(fd) != 0) {
+      fprintf(stderr,"ERROR: can\'t close %s, %s - %s\n",dname,l2_l1_ports[device].device,strerror(errno));
+      return -1;
+    }
+    USB_MSG("INFO: closed %s\n",dname);
+    cfg_configcheck(1);
+  }
+  if (l2_debug)
+    fprintf(stderr,"l1_close_usb_device() out\n");
+  if (reopen)
+    EventAddTimeOut(5,0,l1_service_usb,NULL,"l1_close_usb_device");
+  return 0;
+}
+
+/* the control device reports a change: close the devices that went, then
+ * open the ones that came */
 void l1_service_usb(int data, int fd)
 {
+  char status[SGIL1_MAX];
   int devices;
-  int *piVar1;
-  char *pcVar2;
   int device;
-  char status [40];
-  
-  if (l2_debug != 0) {
+
+  if (l2_debug)
     fprintf(stderr,"l1_service_usb_device(%d) in\n",fd);
-  }
-  devices = read(l2_l1_control,status,0x28);
+  devices = read(l2_l1_control,status,sizeof(status));
   if (devices < 1) {
     fprintf(stderr,"WARNING: can\'t read USB connection status, ");
-    if (devices < 0) {
-      piVar1 = __errno_location();
-      pcVar2 = strerror(*piVar1);
-      fprintf(stderr,"%s\n",pcVar2);
-    }
-    else {
+    if (devices < 0)
+      fprintf(stderr,"%s\n",strerror(errno));
+    else
       fprintf(stderr,"no devices\n");
+    return;
+  }
+  for (device = 0; device < devices; device++) {
+    if (status[device] != l2_l1_ports[device].status && status[device] == 0) {
+      l2_l1_ports[device].status = status[device];
+      l1_close_usb_device(device,0,"[driver]");
     }
   }
-  else {
-    for (device = 0; device < devices; device = device + 1) {
-      if (((int)status[device] != l2_l1_ports[device].status) && (status[device] == '\0')) {
-        l2_l1_ports[device].status = (int)status[device];
-        l1_close_usb_device(device,0,"[driver]");
-      }
-    }
-    for (device = 0; device < devices; device = device + 1) {
-      if (((int)status[device] != l2_l1_ports[device].status) && (status[device] != '\0')) {
-        l2_l1_ports[device].status = (int)status[device];
-        l1_open_usb_device(device);
-      }
-    }
-    if (l2_debug != 0) {
-      fprintf(stderr,"l1_service_usb_device() out\n");
+  for (device = 0; device < devices; device++) {
+    if (status[device] != l2_l1_ports[device].status && status[device] != 0) {
+      l2_l1_ports[device].status = status[device];
+      l1_open_usb_device(device);
     }
   }
-  return;
+  if (l2_debug)
+    fprintf(stderr,"l1_service_usb_device() out\n");
 }
 
 int l1_close_usb(void)
 {
   int device;
-  
-  if (l2_debug != 0) {
+
+  if (l2_debug)
     fprintf(stderr,"l1_close_usb() in\n");
-  }
-  for (device = 0; device < 0x28; device = device + 1) {
-    if (l2_l1_ports[device].status != 0) {
+  for (device = 0; device < L2_L1_PORTS; device++)
+    if (l2_l1_ports[device].status != 0)
       l1_close_usb_device(device,0,"[app close]");
-    }
-  }
   EventRemoveInput(l2_l1_control);
   close(l2_l1_control);
   fprintf(stderr,"INFO: closed USB control %s\n",l2_l1_device);
-  if (l2_debug != 0) {
+  if (l2_debug)
     fprintf(stderr,"l1_close_usb() out\n");
-  }
   return 0;
+}
+
+/* --- serial --- */
+
+static void serial_opened(int fd, const char *name)
+{
+  if (fd_ok(fd)) {
+    lasterr[fd] = 0;
+    lastcnt[fd] = 0;
+  }
+  if (l2_l1_local_port == -1)
+    l2_l1_local_port = 0;
+  copy_field(l2_l1_ports[0].device,sizeof(l2_l1_ports[0].device),name);
 }
 
 int l1_open_serial_direct(void)
 {
-  int *piVar1;
-  int iVar2;
-  
-  if (l2_debug != 0) {
+  if (l2_debug)
     fprintf(stderr,"l1_open_serial_direct() in\n");
-  }
   l2_l1_ports[0].fd = l1_tty_open(l2_l1_serial_device);
   if (l2_l1_ports[0].fd < 0) {
-    piVar1 = __errno_location();
-    fprintf(stderr,"ERROR: can\'t open device %s, errno: %d\n",l2_l1_serial_device,*piVar1);
-    iVar2 = -1;
+    fprintf(stderr,"ERROR: can\'t open device %s, errno: %d\n",l2_l1_serial_device,errno);
+    return -1;
   }
-  else {
-    lasterr[l2_l1_ports[0].fd] = 0;
-    lastcnt[l2_l1_ports[0].fd] = 0;
-    if (l2_l1_local_port == -1) {
-      l2_l1_local_port = 0;
-    }
-    strcpy(l2_l1_ports[0].device,l2_l1_serial_device);
-    if (l2_debug != 0) {
-      fprintf(stderr,"l1_open_serial_direct() out\n");
-    }
-    iVar2 = 0;
-  }
-  return iVar2;
+  /* (the original strcpy()ed the device into its 20 bytes) */
+  serial_opened(l2_l1_ports[0].fd,l2_l1_serial_device);
+  if (l2_debug)
+    fprintf(stderr,"l1_open_serial_direct() out\n");
+  return 0;
 }
 
 int l1_close_serial_direct(void)
 {
-  int iVar1;
-  int *piVar2;
-  
-  iVar1 = l1_tty_close(l2_l1_ports[0].fd);
-  if (iVar1 == 0) {
-    iVar1 = 0;
+  if (l1_tty_close(l2_l1_ports[0].fd) != 0) {
+    fprintf(stderr,"ERROR: can\'t close device %s, errno: %d\n",l2_l1_serial_device,errno);
+    return -1;
   }
-  else {
-    piVar2 = __errno_location();
-    fprintf(stderr,"ERROR: can\'t close device %s, errno: %d\n",l2_l1_serial_device,*piVar2);
-    iVar1 = -1;
-  }
-  return iVar1;
+  return 0;
 }
 
 int l1_open_serial_enet(void)
 {
-  int *piVar1;
-  int iVar2;
-  
-  if (l2_debug != 0) {
+  if (l2_debug)
     fprintf(stderr,"l1_open_serial_enet() in\n");
-  }
   l2_l1_ports[0].fd = SocketMakeInetConnection(l2_l1_serial_hostname,l2_l1_serial_hostport,0);
   if (l2_l1_ports[0].fd < 0) {
-    piVar1 = __errno_location();
     fprintf(stderr," ERROR: can\'t open connection %s:%d, errno: %d\n",l2_l1_serial_hostname,
-            l2_l1_serial_hostport,*piVar1);
-    iVar2 = -1;
+            l2_l1_serial_hostport,errno);
+    return -1;
   }
-  else {
-    lasterr[l2_l1_ports[0].fd] = 0;
-    lastcnt[l2_l1_ports[0].fd] = 0;
-    if (l2_l1_local_port == -1) {
-      l2_l1_local_port = 0;
-    }
-    strcpy(l2_l1_ports[0].device,"ENET");
-    if (l2_debug != 0) {
-      fprintf(stderr,"l1_open_serial_enet() out\n");
-    }
-    iVar2 = 0;
-  }
-  return iVar2;
+  serial_opened(l2_l1_ports[0].fd,"ENET");
+  if (l2_debug)
+    fprintf(stderr,"l1_open_serial_enet() out\n");
+  return 0;
 }
 
 int l1_close_serial_enet(void)
 {
-  int iVar1;
-  int *piVar2;
-  
-  iVar1 = SocketClose(l2_l1_ports[0].fd);
-  if (iVar1 == 0) {
-    iVar1 = 0;
-  }
-  else {
-    piVar2 = __errno_location();
+  if (SocketClose(l2_l1_ports[0].fd) != 0) {
     fprintf(stderr," ERROR: can\'t close connection %s:%d, errno: %d\n",l2_l1_serial_hostname,
-            l2_l1_serial_hostport,*piVar2);
-    iVar1 = -1;
+            l2_l1_serial_hostport,errno);
+    return -1;
   }
-  return iVar1;
+  return 0;
 }
 
+/* a byte to the serial link; 1 if written */
+static int serial_put(int fd, unsigned char c)
+{
+  if (l2_l1_conn_mode == L2_CONN_SERIAL)
+    return write(fd,&c,1);
+  return SocketWrite(fd,&c,1);
+}
+
+static int serial_get(int fd, unsigned char *c)
+{
+  if (l2_l1_conn_mode == L2_CONN_SERIAL)
+    return read(fd,c,1);
+  return SocketRead(fd,c,1);
+}
+
+/* the serial protocol's opening: a CR, after two seconds a CAN, and the L1
+ * echoes the CAN; then the line is an L1 port. Exits if it fails. */
+static void serial_start(void)
+{
+  int fd = l2_l1_ports[0].fd;
+  unsigned char echo;
+  int status;
+
+  PPPInit(&ppp,ppp_ibuf,sizeof(ppp_ibuf),ppp_obuf,sizeof(ppp_obuf),0,1,IR_FRAME_PREFIX,0,l1_ppperr,NULL);
+  if (serial_put(fd,'\r') != 1) {
+    fprintf(stderr,"FATAL: can\'t initiate L1 protocol, errno: %d\n",errno);
+    exit(1);
+  }
+  sleep(2);
+  if (serial_put(fd,CAN) != 1) {
+    fprintf(stderr,"FATAL: can\'t initiate L1 protocol, errno: %d\n",errno);
+    exit(1);
+  }
+  for (;;) {
+    errno = 0;
+    if (l2_debug)
+      fprintf(stderr,"l1_open() waiting\n");
+    echo = 0;
+    status = serial_get(fd,&echo);
+    if (status < 1) {
+      fprintf(stderr,"FATAL: can\'t confirm L1 protocol, errno: %d\n",errno);
+      exit(1);
+    }
+    if (l2_debug)
+      fprintf(stderr,"l1_open() read %02x, status %d, errno %d\n",(int)(signed char)echo,status,errno);
+    if (echo == CAN)
+      break;
+  }
+  status = SocketNodelayMode(fd,1);
+  if (status != 0) {
+    fprintf(stderr,"FATAL: can\'t set delay mode on L1 connection, status: %d, errno: %d\n",status,errno);
+    exit(1);
+  }
+  if (L2CfgMAddPort(&L2CfgLocal,0,l2_l1_serial_device,NULL,1,fd) == -1) {
+    fprintf(stderr,"WARNING: device is already in use.\n");
+    return;
+  }
+  /* (the descriptor as the port number: any is port 0 on a serial link) */
+  EventAddTimeOut(1,0,cfg_ping_l1,(EventData)(intptr_t)fd,"l1_open");
+  EventAddInput(fd,l1_read_packet,NULL,"l1_open");
+}
+
+/* open the L1 link(s); exits if it can't */
 void l1_open(void)
 {
-  int *piVar1;
-  int iVar2;
-  char echo [1];
-  int status;
+  int status = 0;
   int device;
-  bool initialized;
-  
-  status = 0;
-  initialized = false;
+
   memset(l2_l1_ports,0,sizeof(l2_l1_ports));
-  for (device = 0; device < 0x28; device = device + 1) {
+  for (device = 0; device < L2_L1_PORTS; device++)
     l2_l1_ports[device].fd = -1;
-  }
-  if (l2_debug != 0) {
+  if (l2_debug)
     fprintf(stderr,"l1_open() in\n");
-  }
-  switch(l2_l1_conn_mode) {
-  case 0:
-    break;
-  case 1:
+  switch (l2_l1_conn_mode) {
+  case L2_CONN_NET:
     status = l1net_export();
     break;
-  case 2:
+  case L2_CONN_USB:
     status = l1_open_usb();
     break;
-  case 3:
+  case L2_CONN_SERIAL:
     status = l1_open_serial_direct();
     break;
-  case 4:
+  case L2_CONN_SERIAL_NET:
     status = l1_open_serial_enet();
     break;
-  case 5:
+  case L2_CONN_SIM:
     status = l1sim_export();
+    break;
   }
   if (status != 0) {
     fprintf(stderr,"FATAL: can\'t open connection to L1\n");
     exit(1);
   }
-  if ((l2_l1_conn_mode < 5) && (2 < l2_l1_conn_mode)) {
-    PPPInit(&ppp,ppp_ibuf,8,ppp_obuf,0x100,0,1,IR_FRAME_PREFIX,0,l1_ppperr,NULL);
-    if (l2_l1_conn_mode == 3) {
-      status = write(l2_l1_ports[0].fd,"\r",1);
-    }
-    else if (l2_l1_conn_mode == 4) {
-      status = SocketWrite(l2_l1_ports[0].fd,"\r",1);
-    }
-    if (status != 1) {
-      piVar1 = __errno_location();
-      fprintf(stderr,"FATAL: can\'t initiate L1 protocol, errno: %d\n",*piVar1);
-      exit(1);
-    }
-    sleep(2);
-    if (l2_l1_conn_mode == 3) {
-      status = write(l2_l1_ports[0].fd,"\x18",1);
-    }
-    else if (l2_l1_conn_mode == 4) {
-      status = SocketWrite(l2_l1_ports[0].fd,"\x18",1);
-    }
-    if (status != 1) {
-      piVar1 = __errno_location();
-      fprintf(stderr,"FATAL: can\'t initiate L1 protocol, errno: %d\n",*piVar1);
-      exit(1);
-    }
-    while (!initialized) {
-      piVar1 = __errno_location();
-      *piVar1 = 0;
-      if (l2_debug != 0) {
-        fprintf(stderr,"l1_open() waiting\n");
-      }
-      if (l2_l1_conn_mode == 3) {
-        status = read(l2_l1_ports[0].fd,echo,1);
-      }
-      else if (l2_l1_conn_mode == 4) {
-        status = SocketRead(l2_l1_ports[0].fd,(unsigned char *)echo,1);
-      }
-      if (status < 1) {
-        piVar1 = __errno_location();
-        fprintf(stderr,"FATAL: can\'t confirm L1 protocol, errno: %d\n",*piVar1);
-        exit(1);
-      }
-      if (l2_debug != 0) {
-        piVar1 = __errno_location();
-        fprintf(stderr,"l1_open() read %02x, status %d, errno %d\n",(int)echo[0],status,*piVar1);
-      }
-      if (echo[0] == 24) {
-        iVar2 = SocketNodelayMode(l2_l1_ports[0].fd,1);
-        if (iVar2 != 0) {
-          piVar1 = __errno_location();
-          fprintf(stderr,"FATAL: can\'t set delay mode on L1 connection, status: %d, errno: %d\n",
-                  iVar2,*piVar1);
-          exit(1);
-        }
-        iVar2 = L2CfgMAddPort(&L2CfgLocal,0,l2_l1_serial_device,NULL,1,l2_l1_ports[0].fd);
-        if (iVar2 == -1) {
-          fprintf(stderr,"WARNING: device is already in use.\n");
-          return;
-        }
-        EventAddTimeOut(1,0,cfg_ping_l1,(EventData)(intptr_t)l2_l1_ports[0].fd,"l1_open");
-        EventAddInput(l2_l1_ports[0].fd,l1_read_packet,(EventData)0x0,"l1_open");
-        initialized = true;
-        status = 0;
-      }
-    }
-  }
-  if (l2_debug != 0) {
+  if (l2_l1_conn_mode == L2_CONN_SERIAL || l2_l1_conn_mode == L2_CONN_SERIAL_NET)
+    serial_start();
+  if (l2_debug)
     fprintf(stderr,"l1_open() out\n");
-  }
-  return;
 }
 
+/* an L1 link closed; exits if it can't be */
 void l1_close(int fd)
 {
-  int status;
-  
-  status = 0;
-  switch(l2_l1_conn_mode) {
-  case 0:
-    break;
-  case 1:
-  case 5:
+  int status = 0;
+
+  switch (l2_l1_conn_mode) {
+  case L2_CONN_NET:
+  case L2_CONN_SIM:
     l1net_close(fd);
     break;
-  case 2:
+  case L2_CONN_USB:
     status = l1_close_usb();
     break;
-  case 3:
+  case L2_CONN_SERIAL:
+  case L2_CONN_SERIAL_NET:
     EventRemoveInput(l2_l1_ports[0].fd);
-    if (l2_l1_ports[0].timer != 0) {
+    if (l2_l1_ports[0].timer != 0)
       EventRemoveTimeOut(l2_l1_ports[0].timer);
-    }
     l2_l1_ports[0].timer = 0;
-    smp_input_l1sysco(serial_console,0xd);
-    status = l1_close_serial_direct();
+    smp_input_l1sysco(serial_console,'\r');
+    status = l2_l1_conn_mode == L2_CONN_SERIAL ? l1_close_serial_direct() : l1_close_serial_enet();
     break;
-  case 4:
-    EventRemoveInput(l2_l1_ports[0].fd);
-    if (l2_l1_ports[0].timer != 0) {
-      EventRemoveTimeOut(l2_l1_ports[0].timer);
-    }
-    l2_l1_ports[0].timer = 0;
-    smp_input_l1sysco(serial_console,0xd);
-    status = l1_close_serial_enet();
   }
-  if (status == 0) {
-    return;
+  if (status != 0) {
+    fprintf(stderr,"FATAL: can\'t close connection to L1\n");
+    exit(1);
   }
-  fprintf(stderr,"FATAL: can\'t close connection to L1\n");
-  exit(1);
 }
 
 void l1_tty_debug(int td)
 {
-  int iVar1;
-  int *piVar2;
   struct termios termios;
   int i;
-  
-  iVar1 = tcgetattr(td,(struct termios *)&termios);
-  if (iVar1 == -1) {
-    piVar2 = __errno_location();
-    fprintf(stderr,"WARNING: can\'t get termios, errno: %d\n",*piVar2);
+
+  if (tcgetattr(td,&termios) == -1) {
+    fprintf(stderr,"WARNING: can\'t get termios, errno: %d\n",errno);
+    return;
   }
-  else {
-    fprintf(stderr,"---\niflag:  0x%04x\n",termios.c_iflag);
-    fprintf(stderr,"oflag:  0x%04x\n",termios.c_oflag);
-    fprintf(stderr,"cflag:  0x%04x\n",termios.c_cflag);
-    fprintf(stderr,"lflag:  0x%04x\n",termios.c_lflag);
-    fprintf(stderr,"ispeed:  %8d\n",termios.c_ispeed);
-    fprintf(stderr,"ospeed:  %8d\n",termios.c_ospeed);
-    for (i = 0; i < 0x20; i = i + 1) {
-      fprintf(stderr,"cc_c[0x%2x]: 0x%04x\n",i,(unsigned int)termios.c_cc[i]);
-    }
-  }
-  return;
+  fprintf(stderr,"---\niflag:  0x%04x\n",termios.c_iflag);
+  fprintf(stderr,"oflag:  0x%04x\n",termios.c_oflag);
+  fprintf(stderr,"cflag:  0x%04x\n",termios.c_cflag);
+  fprintf(stderr,"lflag:  0x%04x\n",termios.c_lflag);
+  fprintf(stderr,"ispeed:  %8d\n",termios.c_ispeed);
+  fprintf(stderr,"ospeed:  %8d\n",termios.c_ospeed);
+  for (i = 0; i < 0x20; i++)
+    fprintf(stderr,"cc_c[0x%2x]: 0x%04x\n",i,termios.c_cc[i]);
 }
 
+/* open a serial device raw, 8 bits, hardware flow control */
 int l1_tty_open(char *device)
 {
-  int td;
-  int *piVar1;
-  int iVar2;
   struct termios termios;
-  
-  td = open(device,2);
+  int td;
+
+  td = open(device,O_RDWR);
   if (td == -1) {
-    piVar1 = __errno_location();
-    fprintf(stderr,"ERROR: can\'t open %s, errno %d\n",device,*piVar1);
-    td = -1;
+    fprintf(stderr,"ERROR: can\'t open %s, errno %d\n",device,errno);
+    return -1;
   }
-  else {
-    iVar2 = tcgetattr(td,(struct termios *)&termios);
-    if (iVar2 == -1) {
-      piVar1 = __errno_location();
-      fprintf(stderr,"ERROR: can\'t get termios, errno %d.\n",*piVar1);
-      td = -1;
-    }
-    else {
-      termios.c_iflag = 5;
-      termios.c_oflag = 0;
-      termios.c_cflag = 0x800008b0;
-      termios.c_lflag = 0;
-      termios.c_ospeed = 0xf;
-      termios.c_ispeed = 0xf;
-      termios.c_cc[6] = 1;
-      termios.c_cc[5] = '\0';
-      iVar2 = tcsetattr(td,0,(struct termios *)&termios);
-      if (iVar2 == -1) {
-        piVar1 = __errno_location();
-        fprintf(stderr,"ERROR: can\'t put termios, errno %d.\n",*piVar1);
-        td = -1;
-      }
-    }
+  if (tcgetattr(td,&termios) == -1) {
+    fprintf(stderr,"ERROR: can\'t get termios, errno %d.\n",errno);
+    return -1;
+  }
+  termios.c_iflag = IGNBRK | IGNPAR;
+  termios.c_oflag = 0;
+  /* (no speed bits: the original put B38400 in the c_ispeed/c_ospeed
+   * fields, which Linux's tcsetattr() ignores, so the line is set to B0) */
+  termios.c_cflag = CRTSCTS | CLOCAL | CREAD | CS8;
+  termios.c_lflag = 0;
+  termios.c_ospeed = B38400;
+  termios.c_ispeed = B38400;
+  termios.c_cc[VMIN] = 1;
+  termios.c_cc[VTIME] = 0;
+  if (tcsetattr(td,TCSANOW,&termios) == -1) {
+    fprintf(stderr,"ERROR: can\'t put termios, errno %d.\n",errno);
+    return -1;
   }
   return td;
 }
 
 int l1_tty_close(int td)
 {
-  int iVar1;
-  struct termios termios;
-  
-  iVar1 = close(td);
-  if (iVar1 == 0) {
-    iVar1 = 0;
-  }
-  else {
-    iVar1 = -1;
-  }
-  return iVar1;
+  return close(td) == 0 ? 0 : -1;
 }
 
+/* after a failed read or write: a device that is gone is closed (0); 1 if
+ * it is still there */
 int l1_usb_recover(int fd, int error)
 {
-  int iVar1;
-  int reopen;
-  char *who;
-  int device;
-  
-  if ((error == 0x13) || (error == 0x16)) {
-    who = "[no device]";
-    reopen = 0;
-    iVar1 = l1_fd_device(fd);
-    l1_close_usb_device(iVar1,reopen,who);
-    iVar1 = 0;
+  if (error != ENODEV && error != EINVAL)
+    return 1;
+  l1_close_usb_device(l1_fd_device(fd),0,"[no device]");
+  return 0;
+}
+
+/* after a failed read or write on a device that is still there: count
+ * it, close the device after READ_ERRORS in a row, else reset that
+ * direction (reset_dir), and the whole device if that fails. 0 if the
+ * device is closed. */
+static int usb_error(int fd, int dev, int *errcnt, const char *what, int reset_dir, const char *reset_name)
+{
+  if (++*errcnt >= READ_ERRORS) {
+    l2_console_printf("WARNING: closing %s after multiple %s errors\n",L2CfgMDeviceName(&L2CfgLocal,fd),what);
+    l1_flush_usb_device(fd,1);
+    l1_close_usb_device(dev,1,*what == 'r' ? "[rd error]" : "[wr error]");
+    return 0;
   }
-  else {
-    iVar1 = 1;
+  if (l1_usb_ioctl(fd,reset_dir) == 0)
+    return 1;
+  if (!l1_usb_recover(fd,errno))
+    return 0;
+  if (l2_debug)
+    fprintf(stderr,"%s error, %s\n",reset_name,strerror(errno));
+  if (l1_usb_ioctl(fd,SGIL1_RESET_DEVICE) != 0) {
+    if (!l1_usb_recover(fd,errno))
+      return 0;
+    fprintf(stderr,"SGIL1_RESET_DEVICE error, %s\n",strerror(errno));
   }
-  return iVar1;
+  return 1;
 }
 
 int l1_read_usb(int fd, unsigned char **bptr, int blen)
 {
-  int dev;
-  int *piVar1;
+  int dev_still_open = 1;
+  int dev = l1_fd_device(fd);
   int status;
-  char *pcVar2;
-  int iVar3;
-  int dev_still_open;
-  uint32_t uVar4;
-  
-  uVar4 = 0;
-  dev_still_open = 1;
-  dev = l1_fd_device(fd);
-  if (l2_debug != 0) {
-    fprintf(stderr,"l1_read_usb(%d,%lx(%lx),%d) in\n",fd,(unsigned long)(uintptr_t)bptr,(unsigned long)(uintptr_t)*bptr,blen);
-  }
-  piVar1 = __errno_location();
-  *piVar1 = 0;
+
+  if (l2_debug)
+    fprintf(stderr,"l1_read_usb(%d,%lx(%lx),%d) in\n",fd,(unsigned long)(uintptr_t)bptr,
+            (unsigned long)(uintptr_t)*bptr,blen);
+  errno = 0;
   status = read(fd,*bptr + IR_FRAME_PREFIX,blen);
   if (status < 0) {
-    piVar1 = __errno_location();
-    dev_still_open = l1_usb_recover(fd,*piVar1);
-    if (dev_still_open != 0) {
-      l2_l1_ports[dev].rd_errcnt = l2_l1_ports[dev].rd_errcnt + 1;
-      if (2 < l2_l1_ports[dev].rd_errcnt) {
-        pcVar2 = L2CfgMDeviceName(&L2CfgLocal,fd);
-        l2_console_printf("WARNING: closing %s after multiple read errors\n",pcVar2);
-        l1_flush_usb_device(fd,1);
-        l1_close_usb_device(dev,1,"[rd error]");
-        dev_still_open = 0;
-      }
-      if ((dev_still_open != 0) && (iVar3 = l1_usb_ioctl(fd,0x5301), iVar3 != 0)) {
-        piVar1 = __errno_location();
-        dev_still_open = l1_usb_recover(fd,*piVar1);
-        if (dev_still_open != 0) {
-          if (l2_debug != 0) {
-            piVar1 = __errno_location();
-            pcVar2 = strerror(*piVar1);
-            fprintf(stderr,"SGIL1_RESET_READ error, %s\n",pcVar2);
-          }
-          iVar3 = l1_usb_ioctl(fd,0x5303);
-          if (iVar3 != 0) {
-            piVar1 = __errno_location();
-            dev_still_open = l1_usb_recover(fd,*piVar1);
-            if (dev_still_open != 0) {
-              piVar1 = __errno_location();
-              pcVar2 = strerror(*piVar1);
-              fprintf(stderr,"SGIL1_RESET_DEVICE error, %s\n",pcVar2);
-            }
-          }
-        }
-      }
-      goto LAB_0804c4f1;
-    }
+    dev_still_open = l1_usb_recover(fd,errno);
+    if (dev_still_open)
+      dev_still_open = usb_error(fd,dev,&l2_l1_ports[dev].rd_errcnt,"read",SGIL1_RESET_READ,
+                                 "SGIL1_RESET_READ");
   }
-  l2_l1_ports[dev].rd_errcnt = 0;
-LAB_0804c4f1:
-  if (l2_debug != 0) {
-    piVar1 = __errno_location();
-    fprintf(stderr,"l1_read_usb() out, status %d, errno %d\n",status,*piVar1);
-  }
-  if (1 < l2_debug) {
+  else
+    l2_l1_ports[dev].rd_errcnt = 0;
+  if (l2_debug)
+    fprintf(stderr,"l1_read_usb() out, status %d, errno %d\n",status,errno);
+  if (l2_debug > 1)
     dmp("READ",*bptr + IR_FRAME_PREFIX,status,1);
-  }
-  if (dev_still_open == 0) {
-    status = 0;
-  }
-  return status;
+  return dev_still_open ? status : 0;
 }
 
 int l1_read_raw(int fd, unsigned char *bptr, int blen)
 {
-  int *piVar1;
   int status;
-  
-  if (l2_debug != 0) {
+
+  if (l2_debug)
     fprintf(stderr,"l1_read_raw(%d,%lx,%d) in\n",fd,(unsigned long)(uintptr_t)bptr,blen);
-  }
-  piVar1 = __errno_location();
-  *piVar1 = 0;
+  errno = 0;
   status = SocketRead(fd,bptr,blen);
-  if (l2_debug != 0) {
-    piVar1 = __errno_location();
-    fprintf(stderr,"l1_read_raw() out, status %d, errno %d\n",status,*piVar1);
-  }
-  if (1 < l2_debug) {
+  if (l2_debug)
+    fprintf(stderr,"l1_read_raw() out, status %d, errno %d\n",status,errno);
+  if (l2_debug > 1)
     dmp("READ",bptr,status,1);
-  }
   return status;
 }
 
 int l1_read_socket(int fd, unsigned char *bptr, int blen)
 {
-  int *piVar1;
   int status;
-  
-  if (l2_debug != 0) {
+
+  if (l2_debug)
     fprintf(stderr,"l1_read_socket(%d,%lx,%d) in\n",fd,(unsigned long)(uintptr_t)bptr,blen);
-  }
-  piVar1 = __errno_location();
-  *piVar1 = 0;
+  errno = 0;
   status = SocketRead(fd,bptr,blen);
-  if (l2_debug != 0) {
-    piVar1 = __errno_location();
-    fprintf(stderr,"l1_read_socket() out, status %d, errno %d\n",status,*piVar1);
-  }
-  if (1 < l2_debug) {
+  if (l2_debug)
+    fprintf(stderr,"l1_read_socket() out, status %d, errno %d\n",status,errno);
+  if (l2_debug > 1)
     dmp("READ",bptr,status,1);
-  }
   return status;
 }
 
 int l1_read_ppp(int fd, unsigned char **bptr, int32 blen)
 {
+  int (*rfcn)() = l2_l1_conn_mode == L2_CONN_SERIAL ? l1_read_raw : l1_read_socket;
   int status;
-  int (*rfcn)();
-  
-  if (l2_l1_conn_mode == 3) {
-    rfcn = l1_read_raw;
-  }
-  else if (l2_l1_conn_mode == 4) {
-    rfcn = l1_read_socket;
-  }
-  if (l2_debug != 0) {
+
+  if (l2_debug)
     fprintf(stderr,"l1_read_ppp(%d,%lx,%d) in\n",fd,(unsigned long)(uintptr_t)bptr,blen);
-  }
   status = PPPRead(&ppp,rfcn,(void *)(intptr_t)fd,bptr,blen);
-  if (l2_debug != 0) {
+  if (l2_debug)
     fprintf(stderr,"l1_read_ppp() out\n");
-  }
   return status;
 }
 
+/* a frame from a socket: its 16-bit size (network order) first */
 int l1_read_l1net(int fd, unsigned char **pbptr, int blen)
 {
-  unsigned char *puVar1;
-  uint16_t uVar2;
-  int *piVar3;
+  unsigned char *bptr = *pbptr + IR_FRAME_PREFIX;
   int status;
-  unsigned char *bptr;
-  
-  puVar1 = *pbptr;
-  bptr = puVar1 + IR_FRAME_PREFIX;
-  piVar3 = __errno_location();
-  *piVar3 = 0;
+
+  errno = 0;
   status = SocketRead(fd,bptr,2);
-  if (0 < status) {
-    uVar2 = ntohs(*(uint16_t *)bptr);
-    status = SocketRead(fd,bptr + 2,uVar2 - 2);
-    if (0 < status) {
-      status = status + 2;
-    }
+  if (status > 0) {
+    status = SocketRead(fd,bptr + 2,(bptr[0] << 8 | bptr[1]) - 2);
+    if (status > 0)
+      status += 2;
   }
   return status;
 }
 
+/* network clients fall behind (throttle): read the L1s every
+ * l1_throttle_freq ms only; 0: as fast as they come */
 void l1_throttle_input(int throttle)
 {
   int device;
-  
-  if (throttle == 0) {
+
+  if (!throttle) {
     if (l1_throttle_timerid != 0) {
       EventRemoveTimeOut(l1_throttle_timerid);
       l1_throttle_timerid = 0;
     }
   }
-  else {
-    l1_throttle_timerid =
-         EventAddTimeOut(0,l1_throttle_freq * 1000,l1_throttle_input,(EventData)0x1,
-                         "L1 input throttle");
-  }
-  for (device = 0; device < 0x28; device = device + 1) {
-    if (-1 < l2_l1_ports[device].fd) {
+  else
+    l1_throttle_timerid = EventAddTimeOut(0,l1_throttle_freq * 1000,l1_throttle_input,(EventData)1,
+                                          "L1 input throttle");
+  for (device = 0; device < L2_L1_PORTS; device++)
+    if (l2_l1_ports[device].fd >= 0)
       EventEnableInput(l2_l1_ports[device].fd,1);
-    }
-  }
-  return;
 }
 
+/* the link's read and write functions */
+static int (*read_fcn(void))()
+{
+  switch (l2_l1_conn_mode) {
+  case L2_CONN_NET:
+  case L2_CONN_SIM:
+    return l1_read_l1net;
+  case L2_CONN_USB:
+    return l1_read_usb;
+  case L2_CONN_SERIAL:
+  case L2_CONN_SERIAL_NET:
+    return l1_read_ppp;
+  }
+  return NULL;
+}
+
+static int (*write_fcn(void))()
+{
+  switch (l2_l1_conn_mode) {
+  case L2_CONN_NET:
+  case L2_CONN_SIM:
+    return l1_write_l1net;
+  case L2_CONN_USB:
+    return l1_write_usb;
+  case L2_CONN_SERIAL:
+  case L2_CONN_SERIAL_NET:
+    return l1_write_ppp;
+  }
+  return NULL;
+}
+
+/* read errors: console events on USB, else to stderr */
+#define READ_MSG(...) \
+  do { if (l2_l1_conn_mode == L2_CONN_USB) l2_console_printf(__VA_ARGS__); else fprintf(stderr,__VA_ARGS__); } while (0)
+
+/* a packet from L1 port port (descriptor fd): route it. Read errors are
+ * reported once, then counted until another (or a packet) comes. */
 void l1_read_packet(int port, int fd)
 {
-  int status;
-  char *pcVar1;
-  FILE *pFVar2;
-  int err;
-  int task;
-  int type;
   IRPacket *p;
-  int (*rfcn)();
-  
-  rfcn = NULL;
-  if (l1_throttle_timerid != 0) {
+  int status;
+
+  if (l1_throttle_timerid != 0)
     EventEnableInput(fd,0);
-  }
-  switch(l2_l1_conn_mode) {
-  case 1:
-  case 5:
-    rfcn = l1_read_l1net;
-    break;
-  case 2:
-    rfcn = l1_read_usb;
-    break;
-  case 3:
-  case 4:
-    rfcn = l1_read_ppp;
-  }
-  if (l2_debug != 0) {
+  if (l2_debug)
     fprintf(stderr,"l1_read_packet(%x,%d) in\n",port,fd);
-  }
-  status = IRouterReadPacket(&l2_id,rfcn,(void *)(intptr_t)fd,&p);
+  status = IRouterReadPacket(&l2_id,read_fcn(),(void *)(intptr_t)fd,&p);
   if (status == 0) {
-    if (1 < lastcnt[fd]) {
-      pFVar2 = stderr;
-      if (l2_l1_conn_mode == 2) {
-        pFVar2 = NULL;
-      }
-      fprintf(pFVar2,"WARNING: last error on %s repeated %d times\n",lastdev[fd],lastcnt[fd]);
+    if (fd_ok(fd)) {
+      if (lastcnt[fd] > 1)
+        READ_MSG("WARNING: last error on %s repeated %d times\n",lastdev[fd],lastcnt[fd]);
+      lastcnt[fd] = 0;
+      lasterr[fd] = 0;
     }
-    lastcnt[fd] = 0;
-    lasterr[fd] = 0;
     p->_client_data = (uint8 *)(intptr_t)port;
     IRouterSendPacket(NULL,p);
   }
-  else if (status == -0x26d) {
-    if ((l2_l1_conn_mode == 1) || (l2_l1_conn_mode == 5)) {
+  else if (status == IR_ERRNO(IRERR_READ_FAILED_EOF)) {
+    if (l2_l1_conn_mode == L2_CONN_NET || l2_l1_conn_mode == L2_CONN_SIM)
       l1_close(fd);
+  }
+  else if (fd_ok(fd)) {
+    if (status == lasterr[fd])
+      lastcnt[fd]++;
+    else {
+      if (lastcnt[fd] > 1)
+        READ_MSG("WARNING: last read error on %s repeated %d times\n",lastdev[fd],lastcnt[fd]);
+      lasterr[fd] = status;
+      lastcnt[fd] = 1;
+      copy_field(lastdev[fd],sizeof(lastdev[fd]),L2CfgMDeviceName(&L2CfgLocal,fd));
+      READ_MSG("WARNING: can\'t read packet from %s:   %s\n",lastdev[fd],LoggerDefaultMessage(status));
     }
   }
-  else if (status == lasterr[fd]) {
-    lastcnt[fd] = lastcnt[fd] + 1;
-  }
-  else {
-    if (1 < lastcnt[fd]) {
-      pFVar2 = stderr;
-      if (l2_l1_conn_mode == 2) {
-        pFVar2 = NULL;
-      }
-      fprintf(pFVar2,"WARNING: last read error on %s repeated %d times\n",lastdev[fd],lastcnt[fd]);
-    }
-    lasterr[fd] = status;
-    lastcnt[fd] = 1;
-    pcVar1 = L2CfgMDeviceName(&L2CfgLocal,fd);
-    strcpy(lastdev[fd],pcVar1);
-    pcVar1 = LoggerDefaultMessage(status);
-    pFVar2 = stderr;
-    if (l2_l1_conn_mode == 2) {
-      pFVar2 = NULL;
-    }
-    fprintf(pFVar2,"WARNING: can\'t read packet from %s:   %s\n",lastdev[fd],pcVar1);
-  }
-  if (l2_debug != 0) {
+  if (l2_debug)
     fprintf(stderr,"l1_read_packet() out\n");
-  }
-  return;
 }
 
 int l1_write_usb(int fd, unsigned char *bptr, int blen)
 {
-  int dev;
+  int dev_still_open = 1;
+  int dev = l1_fd_device(fd);
   int status;
-  int *piVar1;
-  char *pcVar2;
-  int iVar3;
-  int dev_still_open;
-  
-  dev_still_open = 1;
-  iVar3 = blen;
-  dev = l1_fd_device(fd);
-  if (l2_debug != 0) {
+
+  if (l2_debug)
     fprintf(stderr,"l1_write_usb(%d,%lx,%d) in\n",fd,(unsigned long)(uintptr_t)bptr,blen);
-  }
   status = write(fd,bptr,blen);
   if (status < 0) {
-    piVar1 = __errno_location();
-    dev_still_open = l1_usb_recover(fd,*piVar1);
-    if (dev_still_open != 0) {
-      l2_l1_ports[dev].wr_errcnt = l2_l1_ports[dev].wr_errcnt + 1;
-      if (2 < l2_l1_ports[dev].wr_errcnt) {
-        pcVar2 = L2CfgMDeviceName(&L2CfgLocal,fd);
-        l2_console_printf("WARNING: closing %s after multiple write errors\n",pcVar2);
-        l1_flush_usb_device(fd,1);
-        l1_close_usb_device(dev,1,"[wr error]");
-        dev_still_open = 0;
-      }
-      if ((dev_still_open != 0) && (iVar3 = l1_usb_ioctl(fd,0x5302), iVar3 != 0)) {
-        piVar1 = __errno_location();
-        dev_still_open = l1_usb_recover(fd,*piVar1);
-        if (dev_still_open != 0) {
-          if (l2_debug != 0) {
-            piVar1 = __errno_location();
-            pcVar2 = strerror(*piVar1);
-            fprintf(stderr,"SGIL1_RESET_WRITE error, %s\n",pcVar2);
-          }
-          iVar3 = l1_usb_ioctl(fd,0x5303);
-          if (iVar3 != 0) {
-            piVar1 = __errno_location();
-            dev_still_open = l1_usb_recover(fd,*piVar1);
-            if (dev_still_open != 0) {
-              piVar1 = __errno_location();
-              pcVar2 = strerror(*piVar1);
-              fprintf(stderr,"SGIL1_RESET_DEVICE error, %s\n",pcVar2);
-            }
-          }
-        }
-      }
-      goto LAB_0804cddd;
-    }
+    dev_still_open = l1_usb_recover(fd,errno);
+    if (dev_still_open)
+      dev_still_open = usb_error(fd,dev,&l2_l1_ports[dev].wr_errcnt,"write",SGIL1_RESET_WRITE,
+                                 "SGIL1_RESET_WRITE");
   }
-  l2_l1_ports[dev].wr_errcnt = 0;
-LAB_0804cddd:
-  if (l2_debug != 0) {
-    piVar1 = __errno_location();
-    fprintf(stderr,"l1_write_usb() out, status %d, errno %d\n",status,*piVar1);
-  }
-  if (1 < l2_debug) {
+  else
+    l2_l1_ports[dev].wr_errcnt = 0;
+  if (l2_debug)
+    fprintf(stderr,"l1_write_usb() out, status %d, errno %d\n",status,errno);
+  if (l2_debug > 1)
     dmp("WRITE",bptr,blen,1);
-  }
-  if (dev_still_open == 0) {
-    status = 0;
-  }
-  return status;
+  return dev_still_open ? status : 0;
 }
 
 int l1_write_raw(int fd, unsigned char *bptr, int blen)
 {
   int status;
-  int *piVar1;
-  
-  if (l2_debug != 0) {
+
+  if (l2_debug)
     fprintf(stderr,"l1_write_raw(%d,%lx,%d) in\n",fd,(unsigned long)(uintptr_t)bptr,blen);
-  }
   status = write(fd,bptr,blen);
-  if (1 < l2_debug) {
+  if (l2_debug > 1)
     dmp("WRITE",bptr,blen,1);
-  }
-  if (l2_debug != 0) {
-    piVar1 = __errno_location();
-    fprintf(stderr,"l1_write_raw() out, status %d, errno %d\n",status,*piVar1);
-  }
+  if (l2_debug)
+    fprintf(stderr,"l1_write_raw() out, status %d, errno %d\n",status,errno);
   return status;
 }
 
 int l1_write_socket(int fd, unsigned char *bptr, int blen)
 {
   int status;
-  int *piVar1;
-  
-  if (l2_debug != 0) {
+
+  if (l2_debug)
     fprintf(stderr,"l1_write_socket(%d,%lx,%d) in\n",fd,(unsigned long)(uintptr_t)bptr,blen);
-  }
   status = SocketWrite(fd,bptr,blen);
-  if (1 < l2_debug) {
+  if (l2_debug > 1)
     dmp("WRITE",bptr,blen,1);
-  }
-  if (l2_debug != 0) {
-    piVar1 = __errno_location();
-    fprintf(stderr,"l1_write_socket() out, status %d, errno %d\n",status,*piVar1);
-  }
+  if (l2_debug)
+    fprintf(stderr,"l1_write_socket() out, status %d, errno %d\n",status,errno);
   return status;
 }
 
 int l1_write_ppp(int fd, unsigned char *bptr, int blen)
 {
+  int (*wfcn)() = l2_l1_conn_mode == L2_CONN_SERIAL ? l1_write_raw : l1_write_socket;
   int status;
-  int (*wfcn)();
-  
-  if (l2_l1_conn_mode == 3) {
-    wfcn = l1_write_raw;
-  }
-  else if (l2_l1_conn_mode == 4) {
-    wfcn = l1_write_socket;
-  }
-  if (l2_debug != 0) {
+
+  if (l2_debug)
     fprintf(stderr,"l1_write_ppp(%d,%lx,%d) in\n",fd,(unsigned long)(uintptr_t)bptr,blen);
-  }
   status = PPPWrite(&ppp,wfcn,(void *)(intptr_t)fd,bptr,blen);
-  if (l2_debug != 0) {
+  if (l2_debug)
     fprintf(stderr,"l1_write_ppp() out\n");
-  }
   return status;
 }
 
 int l1_write_l1net(int fd, unsigned char *bptr, int blen)
 {
-  int status;
-  
-  status = SocketWrite(fd,bptr,blen);
-  return status;
+  return SocketWrite(fd,bptr,blen);
 }
 
+/* a packet to the L1 link at fd */
 void l1_write_packet(int fd, IRPacket *p)
 {
+  IRAddress dest = p->_dest;
   int status;
-  char *pcVar1;
-  char *pcVar2;
-  IRAddress IVar3;
-  int (*wfcn)();
-  IRAddress dest;
-  
-  wfcn = NULL;
-  if (l2_debug != 0) {
+
+  if (l2_debug)
     fprintf(stderr,"l1_write_packet(%d, %lx) in\n",fd,(unsigned long)(uintptr_t)p);
-  }
-  switch(l2_l1_conn_mode) {
-  case 1:
-  case 5:
-    wfcn = l1_write_l1net;
-    break;
-  case 2:
-    wfcn = l1_write_usb;
-    break;
-  case 3:
-  case 4:
-    wfcn = l1_write_ppp;
-  }
-  IVar3 = p->_dest;
-  status = IRouterWritePacket(&l2_id,wfcn,(void *)(intptr_t)fd,p);
-  if ((status != 0) && (status != -0x26e)) {
-    pcVar1 = LoggerDefaultMessage(status);
-    pcVar2 = L2CfgMDeviceName(&L2CfgLocal,fd);
-    l2_console_printf("WARNING: can\'t write to %s [0x%08x]:   %s\n",pcVar2,IVar3,pcVar1);
-  }
-  if (l2_debug != 0) {
+  status = IRouterWritePacket(&l2_id,write_fcn(),(void *)(intptr_t)fd,p);
+  if (status != 0 && status != IR_ERRNO(IRERR_WRITE_FAILED_EOF))
+    l2_console_printf("WARNING: can\'t write to %s [0x%08x]:   %s\n",L2CfgMDeviceName(&L2CfgLocal,fd),
+                      dest,LoggerDefaultMessage(status));
+  if (l2_debug)
     fprintf(stderr,"l1_write_packet() out\n");
-  }
-  return;
 }
 
-/* ORIGINAL BUG (fixed, ORIGINAL_BUGS.md): the original took PPP's PPPError
- * pointer as an int error number */
+/* PPP's error callback */
 void l1_ppperr(void *arg, PPPError *err)
 {
-  char *pcVar1;
-  
-  pcVar1 = LoggerDefaultMessage(err->status);
-  fprintf(stderr,"WARNING: PPP error %s\n",pcVar1);
-  return;
+  /* (the original took the PPPError pointer as an error number) */
+  fprintf(stderr,"WARNING: PPP error %s\n",LoggerDefaultMessage(err->status));
 }
 
+/*
+ * -usbpath <path>[,<path>...]: each "b<bus>;p<port>[/<port>...]" (the ';'
+ * optional, either letter in either case), kept as "b<bus>;p<port>...".
+ * -1 for an invalid one.
+ */
 int l1_parse_usbpath(char *usbpath)
 {
-  int iVar1;
-  char *pcVar2;
-  size_t sVar3;
-  size_t sVar4;
-  char *pcVar5;
-  char *eptr;
-  char path2 [100];
-  char path [100];
-  char c2;
-  char c1;
+  char path[100];
+  char *list;
+  char *next;
+  char *cptr;
+  char *path2;
+  char *c1;
+  char *c2;
   int pathno;
   int busno;
   int i;
-  char *ccptr;
-  char *cptr;
-  
+
   if (l1_usbpath_list != NULL) {
-    for (i = 0; i < l1_usbpath_count; i = i + 1) {
-      if (l1_usbpath_list[i] != NULL) {
-        free(l1_usbpath_list[i]);
-      }
-    }
+    for (i = 0; i < l1_usbpath_count; i++)
+      free(l1_usbpath_list[i]);
     free(l1_usbpath_list);
   }
   l1_usbpath_list = malloc(10 * sizeof(char *));
   if (l1_usbpath_list == NULL) {
     fprintf(stderr,"ERROR: -usbpath: could not allocate memory to store USB path\n");
-    iVar1 = -1;
+    return -1;
   }
-  else {
-    l1_usbpath_count = 0;
-    l1_usbpath_size = 10;
-    ccptr = strdup(usbpath);
-    cptr = ccptr;
-    while ((cptr != NULL && (*cptr != '\0'))) {
-      path2[0] = '\0';
-      memset(path2 + 1,0,99);
-      pcVar5 = cptr;
-      pcVar2 = strchr(cptr,0x2c);
-      if (pcVar2 == NULL) {
-        cptr = NULL;
-      }
-      else {
-        *pcVar2 = '\0';
-        cptr = pcVar2 + 1;
-      }
-      iVar1 = sscanf(pcVar5,"%[Bb]%d;%[Pp]%d%s",&c1,&busno,&c2,&pathno,path2);
-      if ((iVar1 < 4) &&
-         (iVar1 = sscanf(pcVar5,"%[Bb]%d%[Pp]%d%s",&c1,&busno,&c2,&pathno,path2), iVar1 < 4)) {
-        fprintf(stderr,"ERROR: -usbpath: invalid USB path:   \'%s\'\n",pcVar5);
-        return -1;
-      }
-      if (path2[0] != '\0') {
-        sVar3 = strspn(path2,"/0123456789");
-        sVar4 = strlen(path2);
-        if (sVar3 != sVar4) {
-          fprintf(stderr,"ERROR: -usbpath: invalid USB path:   \'%s\'\n",pcVar5);
-          return -1;
-        }
-      }
-      /* (the original sprintf()ed past path's end for a long path) */
-      if (snprintf(path,sizeof(path),"b%d;p%d%s",busno,pathno,path2) >= (int)sizeof(path)) {
-        fprintf(stderr,"ERROR: -usbpath: invalid USB path:   \'%s\'\n",pcVar5);
-        return -1;
-      }
-      if (l1_usbpath_count == l1_usbpath_size) {
-        l1_usbpath_size = l1_usbpath_size + 10;
-        l1_usbpath_list = realloc(l1_usbpath_list, l1_usbpath_size * sizeof(char *));
-        if (l1_usbpath_list == NULL) {
-          fprintf(stderr,"-usbpath: could not allocate memory to store USB path\n");
-          return -1;
-        }
-      }
-      pcVar5 = strdup(path);
-      l1_usbpath_list[l1_usbpath_count] = pcVar5;
-      l1_usbpath_count = l1_usbpath_count + 1;
+  l1_usbpath_count = 0;
+  l1_usbpath_size = 10;
+  list = strdup(usbpath);
+  /* (room for whatever %[ and %s match: the original scanned "%[Bb]" into
+   * a char, and the rest into 100 bytes) */
+  path2 = malloc(3 * strlen(usbpath) + 3);
+  c1 = path2 + strlen(usbpath) + 1;
+  c2 = c1 + strlen(usbpath) + 1;
+  for (next = list; next != NULL && *next != '\0'; ) {
+    cptr = next;
+    next = strchr(cptr,',');
+    if (next != NULL)
+      *next++ = '\0';
+    path2[0] = '\0';
+    if (sscanf(cptr,"%[Bb]%d;%[Pp]%d%s",c1,&busno,c2,&pathno,path2) < 4 &&
+        sscanf(cptr,"%[Bb]%d%[Pp]%d%s",c1,&busno,c2,&pathno,path2) < 4) {
+      fprintf(stderr,"ERROR: -usbpath: invalid USB path:   \'%s\'\n",cptr);
+      return -1;
     }
-    free(ccptr);
-    iVar1 = 0;
+    if (path2[0] != '\0' && strspn(path2,"/0123456789") != strlen(path2)) {
+      fprintf(stderr,"ERROR: -usbpath: invalid USB path:   \'%s\'\n",cptr);
+      return -1;
+    }
+    /* (the original sprintf()ed past path's end for a long path) */
+    if (snprintf(path,sizeof(path),"b%d;p%d%s",busno,pathno,path2) >= (int)sizeof(path)) {
+      fprintf(stderr,"ERROR: -usbpath: invalid USB path:   \'%s\'\n",cptr);
+      return -1;
+    }
+    if (l1_usbpath_count == l1_usbpath_size) {
+      l1_usbpath_size += 10;
+      l1_usbpath_list = realloc(l1_usbpath_list,l1_usbpath_size * sizeof(char *));
+      if (l1_usbpath_list == NULL) {
+        fprintf(stderr,"-usbpath: could not allocate memory to store USB path\n");
+        return -1;
+      }
+    }
+    l1_usbpath_list[l1_usbpath_count++] = strdup(path);
   }
-  return iVar1;
+  free(path2);
+  free(list);
+  return 0;
 }

@@ -70,6 +70,7 @@ def net_session(port, lines):
         s.sendall(line + b"\r\n")
         out += read_until_prompt(s)
     s.close()
+    time.sleep(0.5)     # (l2 closes its side: the next session gets the same socket number)
     return out
 
 
@@ -95,8 +96,8 @@ def stdin_session(fd, logname, lines):
 
 
 def mask(data):
-    text = data.decode("latin-1").replace("\r", "")
-    text = re.sub(r"^.*SMP \d+ waited [0-9.]+\n", "", text, flags=re.M)
+    text = data.decode("latin-1")     # (with the CRs: the console sends CR LF)
+    text = re.sub(r"^.*SMP \d+ waited [0-9.]+\r?\n", "", text, flags=re.M)
     text = re.sub(r"[A-Z][a-z]{2} [A-Z][a-z]{2} +\d+ [\d:]{8} \d{4}", "<DATE>", text)
     text = re.sub(r"\d{2}:\d{2}:\d{2}", "<TIME>", text)
     text = re.sub(r"\d{2}/\d{2}/\d{2}", "<DATE>", text)
@@ -133,6 +134,23 @@ def main():
         else:
             shutil.rmtree(work)
     ok = True
+    # the rebuilt l2 alone: a line too long for the console's 128 bytes
+    # rings the bell, and the console goes on working (the original's did
+    # not: ORIGINAL_BUGS.md, smp.c)
+    work2 = tempfile.mkdtemp()
+    try:
+        proc, fd, _ = start_l2(os.path.join(NEW, "l2"), os.path.join(work2, "long"))
+        try:
+            out = net_session(8001, [b"a" * 130, b"version"])
+        finally:
+            proc.terminate()
+            proc.wait()
+            os.close(fd)
+    finally:
+        shutil.rmtree(work2)
+    long_ok = out.count(b"\a") == 3 and re.search(rb"version.*\n.*\d+\.\d+\.\d+", out, re.S) is not None
+    ok &= long_ok
+    print(f"{'PASS' if long_ok else 'FAIL'}  smp: a 130-character line, then a command")
     for key in ref:
         same = new[key] == ref[key]
         ok &= same

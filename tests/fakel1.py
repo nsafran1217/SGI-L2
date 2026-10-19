@@ -69,15 +69,20 @@ def parse(buf):
 
 
 class FakeL1(threading.Thread):
-    def __init__(self, port=9003, rack=1, slot=2, brick_type=ord("C")):
+    def __init__(self, port=9003, rack=1, slot=2, brick_type=ord("C"), sock=None):
+        """sock: an accepted SOCK_SEQPACKET connection instead (a fake USB
+        device, tests/sgil1_shim.c), one frame per message."""
         super().__init__(daemon=True)
-        self.sock = socket.create_connection(("127.0.0.1", port))
+        self.packet = sock is not None
+        self.sock = sock if sock is not None else socket.create_connection(("127.0.0.1", port))
         self.rack, self.slot, self.type = rack, slot, brick_type
         self.requests = []          # (dest task, texts) of non-config requests
         self.config_requests = 0
         self.start()
 
     def recv_frame(self):
+        if self.packet:
+            return self.sock.recv(65536) or None
         hdr = b""
         while len(hdr) < 2:
             d = self.sock.recv(2 - len(hdr))
