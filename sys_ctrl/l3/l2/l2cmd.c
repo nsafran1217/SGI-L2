@@ -44,8 +44,8 @@
 #include "../../common/sys/MemUsage.h"
 #include "../../common/sys/minfo.h"
 
-#define L2CMD_FORMS     190     /* l2cmd_cmds[] */
-#define FORM_CATCH_ALL  188     /* the last two forms: "[<target>] <command>" */
+#define L2CMD_FORMS     ((int)(sizeof(l2cmd_cmds) / sizeof(l2cmd_cmds[0])))
+#define FORM_CATCH_ALL  (L2CMD_FORMS - 2)   /* the last two forms: "[<target>] <command>" */
 #define L2_PEER_PORT    9001    /* plus IR_PORT_BIAS */
 #define L1REQ_REBOOT    0x4002  /* the request task's reboot */
 
@@ -132,7 +132,7 @@ static uint32 l2dsp_debug_state;
 static int load_debug;
 static EventID load_timerid;
 static uint32 l2_misc_debug;
-Cmd l2cmd_cmds[190] = {
+Cmd l2cmd_cmds[] = {
   { .toks = { "router|io|compute|other", CMD_TOK(CMD_REST) }, .func = l2cmd_broadcast, .desc = "targets command to class of bricks" },
   { .toks = { "autopower|apwr" }, .func = l2cmd_autopower, .desc = "shows current auto power up setting" },
   { .toks = { "autopower|apwr", "on" }, .func = l2cmd_autopower, .params = { 1 }, .desc = "enables auto power on" },
