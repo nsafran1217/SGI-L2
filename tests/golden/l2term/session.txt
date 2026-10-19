@@ -430,6 +430,7 @@ console output: not filtered
 ?-<L2IP>-L2>dhcpserver
 ERROR: no L1s found to match that destination
 ?-<L2IP>-L2>log
+log is empty.
 ?-<L2IP>-L2>autopower
 auto powerup disabled
 auto powerup delay 30 seconds

@@ -149,6 +149,7 @@ console input: not defined
 console output: not filtered
 ?-<L2IP>-L2>
 ?-<L2IP>-L2>log
+log is empty.
 ?-<L2IP>-L2>
 ?-<L2IP>-L2>autopower
 auto powerup disabled

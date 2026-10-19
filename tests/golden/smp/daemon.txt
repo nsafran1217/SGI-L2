@@ -138,6 +138,7 @@ current system console
 console input: not defined
 console output: not filtered
 ?-<L2IP>-L2>log
+log is empty.
 ?-<L2IP>-L2>autopower
 auto powerup disabled
 auto powerup delay 30 seconds
