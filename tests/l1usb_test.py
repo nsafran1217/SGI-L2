@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""l2's USB L1 link (l1.c: l1_open_usb() and on), with a fake driver.
+"""l2's USB L1 link (l1.c: l1_open_usb() and on, l1usb.c), with a fake libusb.
 
     tests/l1usb_test.py
 
-l2 runs '-usb' with tests/sgil1_shim.c preloaded: its /dev/sgil1_* devices
-are Unix packet sockets served here, where a fake L1 (tests/fakel1.py)
-behind device 0 reports brick 001c02. Each command in
+l2 runs '-usb' with tests/libusb_shim.c preloaded: its USB devices are Unix
+packet sockets served here (presence on sgil1_cs, device n on sgil1_<n>,
+the names of the sgil1 driver the shim once faked), where a fake L1
+(tests/fakel1.py) behind device 0 reports brick 001c02. Each command in
 tests/l1_commands.txt goes through l2cmd; then
 device reads fail (once; twice, then a good one; the device is unplugged and
 plugged in again; three times, which closes and reopens it; with ENODEV,
@@ -42,7 +43,10 @@ def elf_bits(path):
 def build_shim(work, source, bits):
     so = os.path.join(work, f"{os.path.splitext(source)[0]}{bits}.so")
     if not os.path.exists(so):
-        cmd = ["gcc", f"-m{bits}", "-shared", "-fPIC", "-o", so, os.path.join(HERE, source), "-ldl"]
+        cflags = subprocess.run([os.environ.get("PKG_CONFIG", "pkg-config"), "--cflags", "libusb-1.0"],
+                                capture_output=True, text=True).stdout.split()
+        cmd = ["gcc", f"-m{bits}", "-shared", "-fPIC", *cflags, "-o", so, os.path.join(HERE, source),
+               "-pthread"]
         if bits == 32 and not os.path.isdir("/usr/include/i386-linux-gnu/bits"):
             cmd[2:2] = ["-isystem", "/usr/include/x86_64-linux-gnu"]
         subprocess.run(cmd, check=True)
@@ -88,7 +92,7 @@ class FakeUSB:
                     l1.close()
 
     def inject(self, err):
-        """The device's next read fails with errno err (tests/sgil1_shim.c)."""
+        """The device's next read fails with errno err (tests/libusb_shim.c)."""
         with self.lock:
             self.l1s[-1].sock.send(b"\xff\xfeERR%d" % err)
 
@@ -199,11 +203,15 @@ def session(l2bin, preload, commands, work, name):
 def main():
     global L2CMD
     commands = [l.strip() for l in open(os.path.join(HERE, "l1_commands.txt")) if l.strip()]
+    with open(os.path.join(NEW, "l2"), "rb") as f:
+        if b"built without libusb" in f.read():
+            print("SKIP  l1usb: l2 was built without libusb")
+            return 0
     g = Golden("l1usb")
     work = tempfile.mkdtemp()
     try:
         new_l2 = os.path.join(NEW, "l2")
-        shim = build_shim(work, "sgil1_shim.c", elf_bits(new_l2))
+        shim = build_shim(work, "libusb_shim.c", elf_bits(new_l2))
         runs = [("l2cmd=new", NEW)] + ([("l2cmd=orig", ORIG)] if INTEROP else [])
         for label, cdir in runs:
             L2CMD = os.path.join(cdir, "l2cmd")

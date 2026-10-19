@@ -37,7 +37,7 @@ typedef struct {
 enum {
     L2_CONN_NONE = 0,           /* -noconn */
     L2_CONN_NET = 1,            /* -net: L1s connect to the L1 port (l1net.c) */
-    L2_CONN_USB = 2,            /* -usb (the default): the sgil1 driver */
+    L2_CONN_USB = 2,            /* -usb (the default): libusb (l1usb.c) */
 };
 #define L2_L1_PORTS 40          /* l2_l1_ports[] */
 
@@ -55,7 +55,6 @@ extern int l2_flow_lwater;
 extern int l2_copynum;
 extern L2L1Port l2_l1_ports[L2_L1_PORTS];
 extern int l2_l1_control;
-extern char *l2_l1_device;
 extern IRIdent l2_id;
 extern IRIdent l2_console_id;
 extern IRIdent l2_cfg_id;

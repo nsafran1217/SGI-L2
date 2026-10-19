@@ -57,8 +57,7 @@ int l2_flow_hwater;
 int l2_flow_lwater;
 int l2_copynum;                 /* --copy */
 L2L1Port l2_l1_ports[L2_L1_PORTS];
-int l2_l1_control;              /* the sgil1 driver's control device */
-char *l2_l1_device;
+int l2_l1_control;              /* USB: readable when L1s come or go (l1usb.c) */
 IRIdent l2_id;
 IRIdent l2_console_id;
 IRIdent l2_cfg_id;

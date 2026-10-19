@@ -3,9 +3,9 @@ L2 <L2IP>: - ---- (no rack ID set) (LOCAL)
 L1 <L2IP>:0:0         - 001c02    
 === config verbose
 L2 <L2IP>: - ---- (no rack ID set) (IR 80000101, C 00000000) (LOCAL)
-L1 <L2IP>:0:0         - 001c02     (b1;p1;d2 /dev/sgil1_0)
+L1 <L2IP>:0:0         - 001c02     (b1;p1;d2 usb0)
 L3 Clients:
-   127.0.0.1: (IR cd000101) <USER> (<GECOS>) @ localhost running 'l2cmd'
+   127.0.0.1: (IR d1000101) <USER> (<GECOS>) @ localhost running 'l2cmd'
 === config summary
 L2s: 1
 L1s: 1

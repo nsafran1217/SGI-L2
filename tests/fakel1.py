@@ -71,7 +71,7 @@ def parse(buf):
 class FakeL1(threading.Thread):
     def __init__(self, port=9003, rack=1, slot=2, brick_type=ord("C"), sock=None):
         """sock: an accepted SOCK_SEQPACKET connection instead (a fake USB
-        device, tests/sgil1_shim.c), one frame per message."""
+        device, tests/libusb_shim.c), one frame per message."""
         super().__init__(daemon=True)
         self.packet = sock is not None
         self.sock = sock if sock is not None else socket.create_connection(("127.0.0.1", port))

@@ -4,8 +4,8 @@ SGI L2 Controller
 Current L2 version: 1.62.0 
 
 INFO: settings file './l2.conf' doesn't exist.....initializing
-INFO: opened USB control /dev/sgil1_cs
-INFO: opened USB device at b1;p1;d2 (/dev/sgil1_0)
+INFO: watching for L1s on USB
+INFO: opened USB device at b1;p1;d2 (usb0)
 INFO: SMP listening on port: 8001
 INFO: SMP listening on port: 8003
 ?-<L2IP>-L2>INFO: Validating connection from 'localhost' (127.0.0.1)
@@ -13,10 +13,10 @@ WARNING: can't read packet from connection to 001c02:   IRouter:read failed - re
 WARNING: can't read packet from connection to 001c02:   IRouter:read failed - read error
 WARNING: last error on connection to 001c02 repeated 2 times
 INFO: closed connection to 001c02
-INFO: opened USB device at b1;p1;d2 (/dev/sgil1_0)
+INFO: opened USB device at b1;p1;d2 (usb0)
 WARNING: can't read packet from connection to 001c02:   IRouter:read failed - read error
 WARNING: closing connection to 001c02 after multiple read errors
 INFO: closed connection to 001c02
-INFO: opened USB device at b1;p1;d2 (/dev/sgil1_0)
+INFO: opened USB device at b1;p1;d2 (usb0)
 INFO: closed connection to 001c02
-INFO: opened USB device at b1;p1;d2 (/dev/sgil1_0)
+INFO: opened USB device at b1;p1;d2 (usb0)

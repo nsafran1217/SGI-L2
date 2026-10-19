@@ -5,20 +5,19 @@
  * Original: /data/cf/sysco/scs123.patch/sys_ctrl/l3/l2/l1.c
  *
  * The L2's links to its L1s, by l2_l1_conn_mode:
- *  - USB (the default): the sgil1 driver (sgil1.h). The control device
- *    reports which devices are present; each present one is opened as an
- *    L1 port, and closed when it goes or after repeated errors;
+ *  - USB (the default): libusb (l1usb.c, which stands in for SGI's sgil1
+ *    driver). It reports which devices are present; each present one is
+ *    opened as an L1 port, and closed when it goes or after repeated
+ *    errors;
  *  - sockets (-net): l1net.c accepts them.
  * Packets are read and written whole through IRouterReadPacket() and
  * IRouterWritePacket() with the link's read and write functions.
  */
 
 #include <errno.h>
-#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/ioctl.h>
 #include <unistd.h>
 #include "l2.h"
 #include "l1.h"
@@ -26,25 +25,22 @@
 #include "dmp.h"
 #include "irtr.h"
 #include "l1net.h"
-#include "sgil1.h"
+#include "l1usb.h"
 #include "smp.h"
 #include "../main/settings.h"
 #include "../main/l2log.h"
 #include "../../common/Router/SocketIO.h"
 #include "../../common/sys/Logger.h"
-#include "../../common/sys/l3paths.h"   /* configurable paths (new) */
 
 #define MAX_FDS         64      /* lasterr[] and the like, by descriptor */
 #define READ_ERRORS     3       /* a device is closed after this many in a row */
 
-static char *l1_usb_path_str(sgil1_cfg_t *cfg, int format);
+static char *l1_usb_path_str(l1usb_cfg_t *cfg, int format);
 
 int l1_throttle_freq = 50;      /* ms between reads while throttled */
 static char **l1_usbpath_list;  /* -usbpath: only devices on these paths */
 static int l1_usbpath_count;
 static int l1_usbpath_size;
-static int l1_do_ioctls = 1;    /* 0 once the driver turned out to have none */
-static int sgil1_rev;
 int l1usb_debug;                /* (USB messages as console events) */
 EventID l1_throttle_timerid;
 /* the last read error on each descriptor, and how often it repeated */
@@ -92,30 +88,15 @@ int l1_open_usb(void)
 
   if (l2_debug)
     fprintf(stderr,"l1_open_usb() in\n");
-  l2_l1_device = (char *)l3path_dev("sgil1_cs");   /* original: "/dev/sgil1_cs" */
-  l2_l1_control = open(l2_l1_device,O_RDONLY);
-  if (l2_l1_control < 0) {
-    fprintf(stderr,"ERROR: can\'t open USB control %s, %s\n",l2_l1_device,strerror(errno));
+  l2_l1_control = l1usb_start();
+  if (l2_l1_control < 0)
     return -1;
-  }
-  fprintf(stderr,"INFO: opened USB control %s\n",l2_l1_device);
-  if (ioctl(l2_l1_control,SGIL1_ST_READ_REV,&sgil1_rev) < 0)
-    sgil1_rev = 0;
+  fprintf(stderr,"INFO: watching for L1s on USB\n");
   if (l1_usbpath_count != 0) {
-    if (sgil1_rev < 2) {
-      fprintf(stderr,
-              "ERROR:  the USB path option (-usbpath) was specified, but the L1 USB kernel\n"
-              "        driver (rev %d) doesn\'t support it!\nPlease update your L1 USB kernel driver.\n",
-              sgil1_rev);
-      close(l2_l1_control);
-      return -1;
-    }
     fprintf(stderr,"INFO:  monitoring for L1 USB devices on the following USB paths:\n");
     for (i = 0; i < l1_usbpath_count; i++)
       fprintf(stderr,"       %s\n",l1_usbpath_list[i]);
   }
-  if (ioctl(l2_l1_control,SGIL1_ST_READ_REV,&sgil1_rev) < 0)
-    sgil1_rev = 0;
   l1_service_usb(0,0);
   EventAddInput(l2_l1_control,l1_service_usb,NULL,"l1_open_usb");
   if (l2_debug)
@@ -123,41 +104,19 @@ int l1_open_usb(void)
   return 0;
 }
 
-/* a device ioctl, unless the driver has none */
-int l1_usb_ioctl(int fd, int request)
+/* a reset of the device on descriptor fd (l1usb_reset()'s what) */
+int l1_usb_reset(int fd, int what)
 {
-  if (!l1_do_ioctls)
-    return 0;
-  return ioctl(fd,request,0);
+  return l1usb_reset(l1_fd_device(fd),what);
 }
 
 /* drop what the device has buffered (both ways); reset: and reset it */
 int l1_flush_usb_device(int fd, int reset)
 {
-  if (sgil1_rev < 1) {
-    /* the old driver: one direction at a time, resetting the device if
-     * either fails */
-    if (l1_usb_ioctl(fd,SGIL1_RESET_WRITE) != 0) {
-      fprintf(stderr,"SGIL1_RESET_WRITE error, %s\n",strerror(errno));
-      if (l1_usb_ioctl(fd,SGIL1_RESET_DEVICE) != 0) {
-        fprintf(stderr,"SGIL1_RESET_DEVICE error, %s\n",strerror(errno));
-        return -1;
-      }
-      return 0;
-    }
-    if (l1_usb_ioctl(fd,SGIL1_RESET_READ) != 0) {
-      fprintf(stderr,"SGIL1_RESET_READ error, %s\n",strerror(errno));
-      if (l1_usb_ioctl(fd,SGIL1_RESET_DEVICE) != 0) {
-        fprintf(stderr,"SGIL1_RESET_DEVICE error, %s\n",strerror(errno));
-        return -1;
-      }
-      return 0;
-    }
-  }
-  else if (l1_usb_ioctl(fd,SGIL1_RESET_PIPES) != 0)
+  if (l1_usb_reset(fd,L1USB_RESET_PIPES) != 0)
     return -1;
-  if (reset && l1_usb_ioctl(fd,SGIL1_RESET_DEVICE) != 0) {
-    fprintf(stderr,"SGIL1_RESET_DEVICE error, %s\n",strerror(errno));
+  if (reset && l1_usb_reset(fd,L1USB_RESET_DEVICE) != 0) {
+    fprintf(stderr,"USB device reset error, %s\n",strerror(errno));
     return -1;
   }
   return 0;
@@ -165,7 +124,7 @@ int l1_flush_usb_device(int fd, int reset)
 
 /* a device's USB path: 0 "b<bus>;p<path>;d<dev>", 1 for people, 2 without
  * the device (as -usbpath gives it) */
-static char *l1_usb_path_str(sgil1_cfg_t *cfg, int format)
+static char *l1_usb_path_str(l1usb_cfg_t *cfg, int format)
 {
   static char path[80];
   int i;
@@ -184,22 +143,19 @@ static char *l1_usb_path_str(sgil1_cfg_t *cfg, int format)
 }
 
 /* whether device is on one of the -usbpath paths (all are, without
- * -usbpath); -1 if the driver can't say */
+ * -usbpath); -1 if it is gone */
 static int on_usbpath(int device)
 {
-  sgil1_cfg_t cfg;
+  l1usb_cfg_t cfg;
   const char *path;
   int plen;
   int llen;
   int i;
 
-  if (l1_usbpath_count == 0 || sgil1_rev < 2)
+  if (l1_usbpath_count == 0)
     return 1;
-  cfg.dev = device;
-  if (ioctl(l2_l1_control,SGIL1_ST_READ_DEV_CFG,&cfg) != 0) {
-    fprintf(stderr,"SGIL1_ST_READ_DEV_CFG error, %s\n",strerror(errno));
+  if (l1usb_cfg(device,&cfg) != 0)
     return -1;
-  }
   path = l1_usb_path_str(&cfg,2);
   plen = strlen(path);
   for (i = 0; i < l1_usbpath_count; i++) {
@@ -215,10 +171,9 @@ static int on_usbpath(int device)
 /* a device appeared: open it as L1 port device */
 int l1_open_usb_device(int device)
 {
-  char dev_name[512];   /* original: 20; the device dir is configurable now */
+  char dev_name[20];
   char usbpath[40] = "";
-  char usb_cfg[60] = "";
-  sgil1_cfg_t cfg;
+  l1usb_cfg_t cfg;
   int fd;
 
   if (l2_debug)
@@ -229,22 +184,15 @@ int l1_open_usb_device(int device)
   case 0:
     return 0;
   }
-  sprintf(dev_name,"%s/sgil1_%d",l3path_dev_dir(),device);   /* original: "/dev/sgil1_%d" */
-  fd = open(dev_name,O_RDWR);
+  /* (the original's /dev/sgil1_<n>) */
+  snprintf(dev_name,sizeof(dev_name),"usb%d",device);
+  if (l1usb_cfg(device,&cfg) == 0)
+    snprintf(usbpath,sizeof(usbpath),"%s",l1_usb_path_str(&cfg,0));
+  fd = l1usb_open(device);
   if (fd < 0) {
-    fprintf(stderr,"ERROR: can\'t open %s, %s\n",dev_name,strerror(errno));
+    fprintf(stderr,"ERROR: can\'t open USB device at %s, %s%s\n",usbpath,strerror(errno),
+            errno == EACCES ? " (a udev rule for 065e:1234 lets l2 run as a user)" : "");
     return -1;
-  }
-  if (l1_do_ioctls) {
-    if (ioctl(fd,SGIL1_READ_CFG,&cfg) == 0) {
-      strcpy(usb_cfg,l1_usb_path_str(&cfg,1));
-      strcpy(usbpath,l1_usb_path_str(&cfg,0));
-      l1_flush_usb_device(fd,0);
-    }
-    else if (errno == EINVAL || errno == ENOTTY)
-      l1_do_ioctls = 0;         /* a driver without them */
-    else
-      fprintf(stderr,"SGIL1_READ_CFG error, %s\n",strerror(errno));
   }
   USB_MSG("INFO: opened USB device at %s (%s)\n",usbpath,dev_name);
   if (l2_l1_local_port == -1)
@@ -253,6 +201,7 @@ int l1_open_usb_device(int device)
   copy_field(l2_l1_ports[device].device,sizeof(l2_l1_ports[device].device),dev_name);
   copy_field(l2_l1_ports[device].usbpath,sizeof(l2_l1_ports[device].usbpath),usbpath);
   l2_l1_ports[device].fd = fd;
+  l1_flush_usb_device(fd,0);
   if (fd_ok(fd)) {
     lasterr[fd] = 0;
     lastcnt[fd] = 0;
@@ -293,7 +242,7 @@ int l1_close_usb_device(int device, int reopen, char *who)
     smp_chkcon_changes(0);
     L2CfgMCfgPort(&L2CfgLocal,device,NULL);
     smp_chkcon_changes(1);
-    if (close(fd) != 0) {
+    if (l1usb_close(device) != 0) {
       fprintf(stderr,"ERROR: can\'t close %s, %s - %s\n",dname,l2_l1_ports[device].device,strerror(errno));
       return -1;
     }
@@ -307,25 +256,18 @@ int l1_close_usb_device(int device, int reopen, char *who)
   return 0;
 }
 
-/* the control device reports a change: close the devices that went, then
- * open the ones that came */
+/* devices came or went (l1usb.c): close the ones that went, then open
+ * the ones that came */
 void l1_service_usb(int data, int fd)
 {
-  char status[SGIL1_MAX];
+  unsigned char status[L1USB_SLOTS];
   int devices;
   int device;
 
   if (l2_debug)
     fprintf(stderr,"l1_service_usb_device(%d) in\n",fd);
-  devices = read(l2_l1_control,status,sizeof(status));
-  if (devices < 1) {
-    fprintf(stderr,"WARNING: can\'t read USB connection status, ");
-    if (devices < 0)
-      fprintf(stderr,"%s\n",strerror(errno));
-    else
-      fprintf(stderr,"no devices\n");
-    return;
-  }
+  l1usb_drain();
+  devices = l1usb_status(status,sizeof(status));
   for (device = 0; device < devices; device++) {
     if (status[device] != l2_l1_ports[device].status && status[device] == 0) {
       l2_l1_ports[device].status = status[device];
@@ -352,8 +294,8 @@ int l1_close_usb(void)
     if (l2_l1_ports[device].status != 0)
       l1_close_usb_device(device,0,"[app close]");
   EventRemoveInput(l2_l1_control);
-  close(l2_l1_control);
-  fprintf(stderr,"INFO: closed USB control %s\n",l2_l1_device);
+  l1usb_stop();
+  fprintf(stderr,"INFO: stopped watching USB\n");
   if (l2_debug)
     fprintf(stderr,"l1_close_usb() out\n");
   return 0;
@@ -427,16 +369,16 @@ static int usb_error(int fd, int dev, int *errcnt, const char *what, int reset_d
     l1_close_usb_device(dev,1,*what == 'r' ? "[rd error]" : "[wr error]");
     return 0;
   }
-  if (l1_usb_ioctl(fd,reset_dir) == 0)
+  if (l1_usb_reset(fd,reset_dir) == 0)
     return 1;
   if (!l1_usb_recover(fd,errno))
     return 0;
   if (l2_debug)
     fprintf(stderr,"%s error, %s\n",reset_name,strerror(errno));
-  if (l1_usb_ioctl(fd,SGIL1_RESET_DEVICE) != 0) {
+  if (l1_usb_reset(fd,L1USB_RESET_DEVICE) != 0) {
     if (!l1_usb_recover(fd,errno))
       return 0;
-    fprintf(stderr,"SGIL1_RESET_DEVICE error, %s\n",strerror(errno));
+    fprintf(stderr,"USB device reset error, %s\n",strerror(errno));
   }
   return 1;
 }
@@ -451,12 +393,12 @@ int l1_read_usb(int fd, unsigned char **bptr, int blen)
     fprintf(stderr,"l1_read_usb(%d,%lx(%lx),%d) in\n",fd,(unsigned long)(uintptr_t)bptr,
             (unsigned long)(uintptr_t)*bptr,blen);
   errno = 0;
-  status = read(fd,*bptr + IR_FRAME_PREFIX,blen);
+  status = l1usb_read(fd,*bptr + IR_FRAME_PREFIX,blen);
   if (status < 0) {
     dev_still_open = l1_usb_recover(fd,errno);
     if (dev_still_open)
-      dev_still_open = usb_error(fd,dev,&l2_l1_ports[dev].rd_errcnt,"read",SGIL1_RESET_READ,
-                                 "SGIL1_RESET_READ");
+      dev_still_open = usb_error(fd,dev,&l2_l1_ports[dev].rd_errcnt,"read",L1USB_RESET_READ,
+                                 "USB read reset");
   }
   else
     l2_l1_ports[dev].rd_errcnt = 0;
@@ -580,12 +522,12 @@ int l1_write_usb(int fd, unsigned char *bptr, int blen)
 
   if (l2_debug)
     fprintf(stderr,"l1_write_usb(%d,%lx,%d) in\n",fd,(unsigned long)(uintptr_t)bptr,blen);
-  status = write(fd,bptr,blen);
+  status = l1usb_write(dev,bptr,blen);
   if (status < 0) {
     dev_still_open = l1_usb_recover(fd,errno);
     if (dev_still_open)
-      dev_still_open = usb_error(fd,dev,&l2_l1_ports[dev].wr_errcnt,"write",SGIL1_RESET_WRITE,
-                                 "SGIL1_RESET_WRITE");
+      dev_still_open = usb_error(fd,dev,&l2_l1_ports[dev].wr_errcnt,"write",L1USB_RESET_WRITE,
+                                 "USB write reset");
   }
   else
     l2_l1_ports[dev].wr_errcnt = 0;

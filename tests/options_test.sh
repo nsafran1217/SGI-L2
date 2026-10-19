@@ -67,7 +67,7 @@ for v in new; do
     while IFS= read -r opts; do
         echo "=== $opts" >> "$work/$v.txt"
         # shellcheck disable=SC2086
-        (cd "$work/$v" && SGI_L3_DEV_DIR=/nonexistent \
+        (cd "$work/$v" && \
             timeout 20 ./l2cmd $opts) > "$work/out" 2>&1
         status=$?
         sed -E "s/[0-9]{2}:[0-9]{2}:[0-9]{2}/<TIME>/g; s|$work|<work>|g" "$work/out" >> "$work/$v.txt"

@@ -55,18 +55,3 @@ const char *l3path_socket_dir(void)
   return "/tmp";
 }
 
-const char *l3path_dev_dir(void)
-{
-  return env_or("SGI_L3_DEV_DIR", "/dev");
-}
-
-const char *l3path_dev(const char *name)
-{
-  /* a few distinct names are in use at once (sgil1_cs plus the serial ports) */
-  static char bufs[4][512];
-  static int next;
-  char *b = bufs[next++ & 3];
-
-  snprintf(b, sizeof(bufs[0]), "%s/%s", l3path_dev_dir(), name);
-  return b;
-}

@@ -23,7 +23,6 @@
 #include "../sys_ctrl/l3/l2/l2.h"
 #include "../sys_ctrl/l3/l2/l2cmd.h"
 #include "../sys_ctrl/l3/l2/reqrspq.h"
-#include "../sys_ctrl/l3/l2/sgil1.h"
 #include "../sys_ctrl/l3/l2/smp.h"
 #include "../sys_ctrl/l3/l2demo/l2demo.h"
 #include "../sys_ctrl/l3/main/SysCfg.h"
@@ -456,11 +455,6 @@ _Static_assert(offsetof(struct REQRSPQ_s, rspq_timer) == 40, "struct REQRSPQ_s.r
 _Static_assert(offsetof(struct REQRSPQ_s, rspq_tofunc) == 44, "struct REQRSPQ_s.rspq_tofunc");
 _Static_assert(offsetof(struct REQRSPQ_s, rspq_etofunc) == 48, "struct REQRSPQ_s.rspq_etofunc");
 _Static_assert(offsetof(struct REQRSPQ_s, rspq_todata) == 52, "struct REQRSPQ_s.rspq_todata");
-_Static_assert(sizeof(sgil1_cfg_t) == 9, "sgil1_cfg_t");
-_Static_assert(offsetof(sgil1_cfg_t, bus) == 0, "sgil1_cfg_t.bus");
-_Static_assert(offsetof(sgil1_cfg_t, level) == 1, "sgil1_cfg_t.level");
-_Static_assert(offsetof(sgil1_cfg_t, dev) == 2, "sgil1_cfg_t.dev");
-_Static_assert(offsetof(sgil1_cfg_t, path) == 3, "sgil1_cfg_t.path");
 _Static_assert(sizeof(struct _demo_msg_t) == 88, "struct _demo_msg_t");
 _Static_assert(offsetof(struct _demo_msg_t, msgno) == 0, "struct _demo_msg_t.msgno");
 _Static_assert(offsetof(struct _demo_msg_t, msgtxt) == 4, "struct _demo_msg_t.msgtxt");

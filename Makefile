@@ -35,6 +35,21 @@ CFLAGS  += $(WERROR)
 LDFLAGS += $(ARCH) $(EXTRA_LDFLAGS)
 CFLAGS  += $(EXTRA_CFLAGS)   # e.g. EXTRA_CFLAGS=-fsanitize=address EXTRA_LDFLAGS=-fsanitize=address
 B       := build
+# l2 talks to USB L1s through libusb (Debian: libusb-1.0-0-dev). Native
+# builds use it if pkg-config finds it; without (USB=no, and always for
+# -m32 and cross builds, whose libusb pkg-config would not find) l2 has
+# only -net and -noconn.
+PKG_CONFIG ?= pkg-config
+USB        ?= $(if $(filter-out -m64,$(ARCH))$(QEMU),no,$(shell $(PKG_CONFIG) --exists libusb-1.0 && echo yes || echo no))
+ifeq ($(USB),yes)
+LIBUSB_CFLAGS := $(shell $(PKG_CONFIG) --cflags libusb-1.0) -pthread
+LIBUSB_LIBS   := $(shell $(PKG_CONFIG) --libs libusb-1.0) -pthread
+else
+LIBUSB_CFLAGS := -DL1USB_NONE
+ifeq ($(ARCH)$(QEMU),)
+$(info l2 without USB L1s: no libusb-1.0 (Debian: libusb-1.0-0-dev))
+endif
+endif
 
 LIB_SRCS := \
 	sys_ctrl/common/sys/l3paths.c \
@@ -61,6 +76,7 @@ LIB_SRCS := \
 L2_SRCS := \
 	sys_ctrl/l3/l2/l2.c \
 	sys_ctrl/l3/l2/l1.c \
+	sys_ctrl/l3/l2/l1usb.c \
 	sys_ctrl/l3/l2/l1net.c \
 	sys_ctrl/l3/l2/serial.c \
 	sys_ctrl/l3/l2/smp.c \
@@ -160,7 +176,9 @@ $(B)/libsgi.a: $(LIB_OBJS)
 
 $(B)/bin/l2: $(L2_SRCS:%.c=$(B)/%.o) $(B)/libsgi.a
 	@mkdir -p $(dir $@)
-	$(CC) $(LDFLAGS) $^ $(LDLIBS) -o $@
+	$(CC) $(LDFLAGS) $^ $(LDLIBS) $(LIBUSB_LIBS) -o $@
+
+$(B)/sys_ctrl/l3/l2/l1usb.o: CFLAGS += $(LIBUSB_CFLAGS)
 
 $(B)/bin/l2term: $(L2TERM_SRCS:%.c=$(B)/%.o) $(B)/libsgi.a
 	@mkdir -p $(dir $@)

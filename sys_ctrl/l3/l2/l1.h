@@ -19,7 +19,7 @@ extern int l1usb_debug;
 extern EventID l1_throttle_timerid;
 int l1_fd_device(int fd);
 int l1_open_usb(void);
-int l1_usb_ioctl(int fd, int request);
+int l1_usb_reset(int fd, int what);
 int l1_flush_usb_device(int fd, int reset);
 int l1_open_usb_device(int device);
 int l1_close_usb_device(int device, int reopen, char *who);

@@ -11,7 +11,8 @@ changing and how far along it is.
 
     make            # build/bin/{l2,l2term,l2cmd,l2gui}
 
-Needs gcc and make. `l2gui` also needs FLTK 1.3 or 1.4
+Needs gcc, make and libusb (Debian: `libusb-1.0-0-dev`; without it `l2`
+has no USB L1s). `l2gui` also needs FLTK 1.3 or 1.4
 (`FLTK_CONFIG=<path to fltk-config>`); without it, `make` skips `l2gui`.
 In the reconstruction workspace, `../retools/setup_fltk.sh 64` builds one
 into `../tools/fltk/`.
@@ -23,10 +24,14 @@ Other builds:
 
 ## Run
 
-Until phase 3 is done, `l2 -usb` still needs SGI's `sgil1` kernel driver
-(the port for current kernels is in SGI-L2-Docker). Without L1s:
+`l2` reaches the L1s on USB itself, through libusb: no kernel driver.
+To run it as a user rather than root, install the udev rule
+(`contrib/udev/60-sgi-l1.rules`, instructions inside). With SGI's `sgil1`
+driver loaded, `l2` detaches it from the L1s it opens.
 
-    l2 -noconn                        # an L2 with no bricks; settings in ./l2.conf
+    l2                                # USB L1s; settings in ./l2.conf
+    l2 -usbpath 'b1;p2'               # only the L1s behind bus 1, port 2
+    l2 -noconn                        # an L2 with no bricks
     l2term --l2 localhost             # its console; CTRL-] q quits
     l2cmd --l2 localhost version
 
@@ -62,7 +67,6 @@ it is not in git.
 |---|---|---|
 | `SGI_L2_CONFIG` | `l2`'s settings file (`.N` appended with `--copy N`; `l2 -c <file>` overrides); its log, `l2.log`, is in the same directory | `$STATE_DIRECTORY/l2.conf` under systemd, else `./l2.conf` |
 | `SGI_L3_SOCKET_DIR` | local `UNIX_xxxx` sockets | `/usr/tmp`, or `/tmp` if `/usr/tmp` does not exist |
-| `SGI_L3_DEV_DIR` | `sgil1_cs`, `sgil1_N`, `ttyS1` | `/dev` |
 
 ## Documents
 
