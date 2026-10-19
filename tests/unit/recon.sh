@@ -3,7 +3,7 @@
 # from it into $tmp/recon, whose directories go on CPATH (after every -I),
 # so its sources still compile here; so do this tree's, for the headers
 # those include from their own directory.
-recon_ref=${RECON_REF:-origin/main}
+recon_ref=${RECON_REF:-decomp}
 for h in $(git ls-tree -r --name-only "$recon_ref" sys_ctrl | grep '\.h$'); do
     [ -e "$h" ] && continue
     mkdir -p "$tmp/recon/$(dirname "$h")"

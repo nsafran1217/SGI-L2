@@ -103,7 +103,7 @@ clients against the original `l2` must produce what the original clients
 do. That is the check that the wire format stays compatible.
 
 The unit tests (`tests/unit/`) compare modules with the faithful
-reconstruction in `origin/main` (`RECON_REF=<ref>`) and are skipped if
+reconstruction in the `decomp` branch (`RECON_REF=<ref>`) and are skipped if
 it is not in git.
 
 `l2gui_test.py` needs Xvfb, xdotool, ImageMagick and strace.

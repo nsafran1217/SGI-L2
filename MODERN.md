@@ -6,9 +6,9 @@ or Onyx: no kernel driver, no 32-bit libraries, no binary NVRAM image, and
 a web-friendly API. `l2` stays the daemon; `l2term`, `l2cmd` and `l2gui`
 stay its clients.
 
-It was cloned from the reconstruction (`origin`, the `src` repository):
-`origin/main` is the faithful reconstruction of SGI's 1.62.0 source,
-`origin/rewrite` the same code made readable without changing what it does.
+It branched from the reconstruction, which this repository keeps:
+`decomp` is the faithful reconstruction of SGI's 1.62.0 source,
+`rewrite-decomp` the same code made readable without changing what it does.
 Fixes to the reconstruction can still be fetched and merged.
 
 ## Rules

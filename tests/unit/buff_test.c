@@ -1,6 +1,6 @@
 /*
  * Equivalence test for the Router compression (common/Router/Buff.c):
- * the rewritten functions against the original reconstruction (main
+ * the rewritten functions against the original reconstruction (decomp
  * branch), compiled in as Orig*. Built and run by tests/unit/buff_test.sh.
  */
 #include <stdio.h>

@@ -1,7 +1,7 @@
 #!/bin/sh
 # common/sys/BuffWrite.c against plain concatenation, under ASan (the
 # original wrote its terminator one past the buffer when the text filled it
-# exactly, so there is no comparison with main).
+# exactly, so there is no comparison with decomp).
 set -eu
 cd "$(dirname "$0")/../.."
 tmp=$(mktemp -d)

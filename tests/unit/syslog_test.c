@@ -1,6 +1,6 @@
 /*
  * Equivalence test for SGI's syslog() (l3/sys/syslogLib.c): each level and
- * message through the rewritten and the original (main branch) version;
+ * message through the rewritten and the original (decomp branch) version;
  * the stderr output and the callback's level and text must match. (Levels
  * 0-2's file and line are masked: the original printed an address.) Run by
  * tests/unit/syslog_test.sh.

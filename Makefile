@@ -227,12 +227,12 @@ test:
 
 # make check: the unit tests and every session test against this build (B=;
 # cross builds run through their qemu wrappers). The unit tests compare
-# modules with the faithful reconstruction (RECON_REF, default origin/main:
-# the src repository's main) and are skipped without it.
+# modules with the faithful reconstruction (RECON_REF, default decomp:
+# the decomp branch) and are skipped without it.
 # make check-all: the native, 32-bit and ASan builds; make check-s390x the
 # big-endian one.
 CHECK_BIN  = $(abspath $(B))/$(if $(QEMU),qemu-bin,bin)
-RECON_REF ?= origin/main
+RECON_REF ?= decomp
 # (l2cfg_test links a 64-bit libsgi.a: this build's, if it is a plain native one)
 UNIT_LIBSGI = $(if $(ARCH)$(EXTRA_CFLAGS),,LIBSGI=$(abspath $(B))/libsgi.a)
 SESSION_TESTS = tests/difftest.sh tests/l2term_test.py tests/smp_test.py \

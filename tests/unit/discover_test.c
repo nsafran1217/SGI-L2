@@ -1,6 +1,6 @@
 /*
  * Equivalence test for L2 discovery (l3/api/SCapiL2.c): the rewritten
- * functions against the original reconstruction (main branch), both built
+ * functions against the original reconstruction (decomp branch), both built
  * by tests/unit/discover_wrap.c. Run by tests/unit/discover_test.sh.
  */
 #include <arpa/inet.h>

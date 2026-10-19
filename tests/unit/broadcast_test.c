@@ -1,5 +1,5 @@
 /*
- * Equivalence test of broadcasting (l3/l2/broadcast.c) against the main
+ * Equivalence test of broadcasting (l3/l2/broadcast.c) against the decomp
  * branch's reconstruction (Orig*): random destinations, bricks, classes,
  * power filters, slot lists and methods; every request queued, marker,
  * send and pause must match. broadcast_test.sh builds it under ASan with

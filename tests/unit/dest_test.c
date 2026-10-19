@@ -1,6 +1,6 @@
 /*
  * Equivalence test of the destination selection (l3/l2/dest.c) against the
- * main branch's reconstruction (Origdest_*), on random configurations of
+ * decomp branch's reconstruction (Origdest_*), on random configurations of
  * L2s, ports and bricks and random rack/slot/partition selections.
  * dest_test.sh builds it under ASan; L2CfgMFindBrickCfg() is a stub over
  * the same configuration.

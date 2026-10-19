@@ -1,7 +1,7 @@
 /*
  * Equivalence test for the error messages and log formatting
  * (common/sys/Logger.c): the rewritten functions against the original
- * reconstruction (main branch), compiled in as Orig*. Built and run by
+ * reconstruction (decomp branch), compiled in as Orig*. Built and run by
  * tests/unit/logger_test.sh.
  */
 #include <stdio.h>

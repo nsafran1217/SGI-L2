@@ -1,14 +1,14 @@
 #!/bin/sh
 # Equivalence test of the brick type conversions (common/sys/brick_types.c)
-# against the main branch's (original) reconstruction, under ASan, for every
-# type value. Needs the faithful reconstruction (origin/main, or RECON_REF) in git.
+# against the decomp branch's (original) reconstruction, under ASan, for every
+# type value. Needs the faithful reconstruction (decomp, or RECON_REF) in git.
 set -eu
 cd "$(dirname "$0")/../.."
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 . tests/unit/recon.sh
-git show "${RECON_REF:-origin/main}":compat/decomp.h > "$tmp/decomp.h"
-git show "${RECON_REF:-origin/main}":sys_ctrl/common/sys/brick_types.c |
+git show "${RECON_REF:-decomp}":compat/decomp.h > "$tmp/decomp.h"
+git show "${RECON_REF:-decomp}":sys_ctrl/common/sys/brick_types.c |
     sed -e '/#include "PPP.h"/d' -e 's/#include "brick_types.h"/#include <stdint.h>/' \
         -e 's/\bbrick\([A-Z][A-Za-z]*\)\b/Origbrick\1/g' > "$tmp/orig_brick.c"
 gcc -g -fsanitize=address -Icompat -I"$tmp" -o "$tmp/brick_test" tests/unit/brick_test.c \
