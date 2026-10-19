@@ -1,14 +1,14 @@
-# Cleanup plan (rewrite branch)
+# Cleanup plan (rewrite-decomp branch)
 
 Branches:
 
-- `main` keeps the faithful reconstruction of SGI's 1.62.0 source: Ghidra's
+- `decomp` keeps the faithful reconstruction of SGI's 1.62.0 source: Ghidra's
   naming and structure, SGI's bugs where they shape output, the `sgil1` kernel
   driver. Fixes to the historical reconstruction land there first and are
   merged forward.
-- `rewrite` (this branch) turns it into maintainable C without changing what
+- `rewrite-decomp` (this branch) turns it into maintainable C without changing what
   the tools do (phases 0-2).
-- `modern` will branch from the finished rewrite for the big changes
+- `main` (the modern L2) branched from the finished rewrite for the big changes
   (phase 3: the L1 transport and libusb, portability, fixing SGI's bugs).
 
 ## Rules
@@ -24,7 +24,7 @@ Branches:
 - SGI's names stay where they are SGI's (functions, globals, struct fields,
   STABS locals); only decompiler inventions (`iVar1`, `pcVar3`, `LAB_...`,
   `local_14`, `auStack_...`) are renamed.
-- During the cleanup (phases 1-2) SGI bugs that `main` keeps for output
+- During the cleanup (phases 1-2) SGI bugs that `decomp` keeps for output
   fidelity stay as they are, so the cleanup itself changes no behaviour.
   Mechanical steps are proven with `tools/objcmp.sh` (identical object code).
 - From phase 3 on (modernizing) object code no longer matters, only
@@ -65,7 +65,7 @@ l3/main (nvram, SysCfg), l3/api (SCapi*, L1Direct), l3/IRouter, then l3/l2
 (smallest first, l2cmd.c last) and l3/utils. l3/gui is already hand-written.
 
 Code the differential tests do not reach gets a unit test in `tests/unit/`
-that compiles `main`'s version next to the new one and compares them on many
+that compiles `decomp`'s version next to the new one and compares them on many
 inputs (`buff_test.sh` is the model); `make check` runs them.
 
 Per file:

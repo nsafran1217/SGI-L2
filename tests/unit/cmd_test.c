@@ -2,7 +2,7 @@
  * Equivalence test for the command parser (common/sys/Cmd.c): every form
  * of l2's command table, filled in with good and bad values one token at
  * a time, shortened and lengthened, through the rewritten CmdProcess() and
- * the original reconstruction's (main branch, compiled in as Orig*); the
+ * the original reconstruction's (decomp branch, compiled in as Orig*); the
  * parsed CmdData, return values and messages must agree. Also the help
  * texts. Built and run by tests/unit/cmd_test.sh.
  */

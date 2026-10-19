@@ -1,7 +1,7 @@
 /*
  * Equivalence test for the malloc profiler (common/sys/minfo.c): the same
  * blocks added to and removed from the rewritten and the original
- * (main branch) bookkeeping; the "l2dbg mstat" and "mmap" reports must
+ * (decomp branch) bookkeeping; the "l2dbg mstat" and "mmap" reports must
  * match. Built and run by tests/unit/minfo_test.sh.
  */
 #include <stdio.h>

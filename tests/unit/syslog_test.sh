@@ -1,13 +1,13 @@
 #!/bin/sh
-# Equivalence test of SGI's syslog() (l3/sys/syslogLib.c) against the main
+# Equivalence test of SGI's syslog() (l3/sys/syslogLib.c) against the decomp
 # branch's (original) reconstruction, under ASan: every level, the stderr
-# text and what the callback gets. Needs the main branch in git.
+# text and what the callback gets. Needs the decomp branch in git.
 set -eu
 cd "$(dirname "$0")/../.."
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
-git show main:compat/decomp.h > "$tmp/decomp.h"
-git show main:sys_ctrl/l3/sys/syslogLib.c | sed -e '/syslimits.h/d' > "$tmp/orig_syslogLib.c"
+git show decomp:compat/decomp.h > "$tmp/decomp.h"
+git show decomp:sys_ctrl/l3/sys/syslogLib.c | sed -e '/syslimits.h/d' > "$tmp/orig_syslogLib.c"
 cp sys_ctrl/l3/sys/syslogLib.c "$tmp/new_syslogLib.c"
 for v in new orig; do
     gcc -g -fsanitize=address -w -Icompat -I"$tmp" -iquote sys_ctrl/l3/sys -DIMPL="\"$v"_syslogLib.c\" \

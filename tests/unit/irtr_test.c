@@ -1,5 +1,5 @@
 /*
- * Equivalence test of the L2's packet switch (l3/l2/irtr.c) against the main
+ * Equivalence test of the L2's packet switch (l3/l2/irtr.c) against the decomp
  * branch's reconstruction (Orig*): random requests, responses and events
  * from and to L1s, L2s and L3 clients go through IRouterSendPacket() on
  * random configurations (clients and the events they want, other L2s and

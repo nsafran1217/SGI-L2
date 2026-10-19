@@ -1,6 +1,6 @@
 /*
  * Equivalence test of the configuration upkeep (l3/l2/cfg.c) against the
- * main branch's reconstruction (Orig*): random L1 events, configuration
+ * decomp branch's reconstruction (Orig*): random L1 events, configuration
  * requests and responses, L2 pings, configuration checks and timers on a
  * random world (bricks, L1 ports, other L2s, L3 clients). Each side has its
  * own copy of the world; every call cfg.c makes is a logged stub, and the

@@ -1,5 +1,5 @@
 /*
- * Equivalence test of format_caddress() (l3/l2/format.c) against the main
+ * Equivalence test of format_caddress() (l3/l2/format.c) against the decomp
  * branch's reconstruction (Origformat_caddress), for every brick type and
  * many addresses and partitions. format_test.sh builds it under ASan; the
  * L2 configuration lookups are stubs.

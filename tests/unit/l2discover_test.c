@@ -1,6 +1,6 @@
 /*
  * Equivalence test of the L2's discovery responder (discover_response() in
- * l3/l2/discover.c) against the main branch's reconstruction (Orig*): random
+ * l3/l2/discover.c) against the decomp branch's reconstruction (Orig*): random
  * requests (keys, matching and other values) sent on lo to a socket each
  * side answers on, with random settings (serial number, name, multisys,
  * primary/secondary mode). The answers, log messages and heartbeats must

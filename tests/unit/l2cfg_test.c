@@ -2,7 +2,7 @@
  * Equivalence test for the system configuration (common/main/L2Cfg.c):
  * random configuration texts (as L2CfgMQuery() writes and L2CfgMCfgL2()
  * reads) and L1 port configurations (L2CfgMCfgPort()) through the
- * rewritten code and the original reconstruction (main branch, compiled in
+ * rewritten code and the original reconstruction (decomp branch, compiled in
  * as Orig*), each into its own configuration; then every printer, query
  * and lookup must give the same. Inputs that crash the original go to the
  * new code alone. Built and run by tests/unit/l2cfg_test.sh.
@@ -33,7 +33,7 @@ static void mask_pointers(char *s)
 
   char *q;
 
-  /* (main prints them in 8 digits, the rewrite in full) */
+  /* (decomp prints them in 8 digits, the rewrite in full) */
   for (p = s; (p = strstr(p, ", C ")) != NULL; p += 4) {
     for (q = p + 4; *q != ')' && *q != '\0'; q++)
       ;

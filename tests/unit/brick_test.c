@@ -1,7 +1,7 @@
 /*
  * Equivalence test for the brick type conversions (common/sys/
  * brick_types.c): every type value and every one-letter and known name,
- * through the rewritten functions and the original reconstruction (main
+ * through the rewritten functions and the original reconstruction (decomp
  * branch, compiled in as Orig*). Built and run by tests/unit/brick_test.sh.
  */
 #include <stdio.h>

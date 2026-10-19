@@ -1,7 +1,7 @@
 /*
  * Equivalence test for the PPP framing (common/sys/PPP.c): the rewritten
  * PPPWrite(), PPPRead() and PPPDecode() against the original
- * reconstruction (main branch, compiled in as OrigPPP*), on random frames
+ * reconstruction (decomp branch, compiled in as OrigPPP*), on random frames
  * and on noisy streams read in random pieces. Every return value, frame
  * and error callback must agree. Built and run by tests/unit/ppp_test.sh.
  */

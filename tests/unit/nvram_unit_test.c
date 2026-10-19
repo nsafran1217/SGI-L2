@@ -1,7 +1,7 @@
 /*
  * Equivalence test for the NVRAM image (l3/main/nvram.c): the same
  * settings, log messages and resets through the rewritten code and the
- * original reconstruction (main branch, compiled in as Orignvram*), each
+ * original reconstruction (decomp branch, compiled in as Orignvram*), each
  * with its own file; after every step the files and the log text must
  * match. The clock is faked so the log times agree. Built and run by
  * tests/unit/nvram_unit_test.sh.

@@ -1,9 +1,9 @@
 #!/bin/sh
 # Equivalence test of the system configuration code (common/main/L2Cfg.c)
-# against the main branch's (original) reconstruction, under ASan: random
+# against the decomp branch's (original) reconstruction, under ASan: random
 # configuration texts and L1 configurations into both, then every printer,
 # query and lookup compared. Links the rest from build64/libsgi.a (built by
-# make check before the unit tests). Needs the main branch in git.
+# make check before the unit tests). Needs the decomp branch in git.
 set -eu
 cd "$(dirname "$0")/../.."
 lib=${LIBSGI:-build64/libsgi.a}
@@ -11,10 +11,10 @@ lib=${LIBSGI:-build64/libsgi.a}
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 names='s/\b\(L2CfgM[A-Z][A-Za-z0-9_]*\|L2CfgInit[A-Za-z]*\|L2CfgDelete[A-Za-z0-9]*\|L2CfgDebugX\?\|L2CfgMode\|L2CfgLocal\|FmtBrick\)\b/Orig\1/g'
-git show main:compat/decomp.h > "$tmp/decomp.h"
+git show decomp:compat/decomp.h > "$tmp/decomp.h"
 # (the original's undersized buffers enlarged, so that its overflow bugs do not
 # stop the comparison: 75 bytes a line, and malloc(0) with no bricks)
-git show main:sys_ctrl/common/main/L2Cfg.c | sed -e '/syslimits.h/d' -e "$names" \
+git show decomp:sys_ctrl/common/main/L2Cfg.c | sed -e '/syslimits.h/d' -e "$names" \
     -e 's/malloc(count \* 0x4b)/malloc(count * 0x4b * 4 + 400)/' \
     -e 's/malloc(count \* 0x50)/malloc(count * 0x50 + 32)/' -e 's/malloc(count << 4)/malloc((count << 4) + 2)/' \
     -e 's/#include "L2Cfg.h"/&\n#include "orig_protos.h"/' > "$tmp/orig_L2Cfg.c"

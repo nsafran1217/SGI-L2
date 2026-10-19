@@ -1,6 +1,6 @@
 /*
  * Equivalence test of a command's request and response queues
- * (l3/l2/reqrspq.c) against the main branch's reconstruction (Orig*): the
+ * (l3/l2/reqrspq.c) against the decomp branch's reconstruction (Orig*): the
  * same random operations on one queue of each, with the packets, timers and
  * L2 lookups stubbed and every result, callback and free compared.
  * reqrspq_test.sh builds it under ASan.
