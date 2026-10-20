@@ -3,9 +3,26 @@
 `l2` (the L2 system controller, as SGI's L3 software emulated it on a PC),
 and its clients `l2term`, `l2cmd` and `l2gui`, rebuilt from source for
 current Linux. The source was reconstructed from SGI's snxsc_l3 1.62.0
-binaries (IST 3.24); this repository is where it becomes a tool for
-hobbyists with an Origin 3000, Altix or Onyx: see MODERN.md for what is
-changing and how far along it is.
+binaries (IST 3.24).
+
+This repo will have improvments and bug fixes to the original tools, 
+as well as fixes to allow them to compile on modern hosts and architectures.
+
+The biggest improvment is the removing the need for a kernel driver for `sgil1`.   
+Just run the `l2` binary with a L1 connected to your computer.
+
+TODO:  
+Dockerfile  
+Better Readme  
+`l2gui` recreation in web application  
+test the IST tools (`errdump`, etc.) and fix if broken
+
+The vast majority of this content has been written by an LLM (Claude Opus 5.5).
+
+### Branches
+ - decomp - ghidra and claude decomp of original binaries with changes to allow it to build on 64 bit hosts  
+- rewrite-decomp - Claude rewritten to be more readable. Matches behavior of original totols
+- main - Modernized as needed, removes the requirement for the `sgil1` driver
 
 ## Build
 
