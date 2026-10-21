@@ -446,20 +446,21 @@ static const char *mime_type(const char *path)
   return "application/octet-stream";
 }
 
-/* GET of a file under --www */
+/* GET of a file under --www (a query string is the page's own) */
 static void do_file(http_conn *c)
 {
   char path[1024];
   struct stat st;
   char *data;
   FILE *fp;
+  size_t n = strcspn(c->path,"?");
 
-  if (strstr(c->path,"..") != NULL || strchr(c->path,'?') != NULL) {
+  if (strstr(c->path,"..") != NULL) {
     reply_error(c,400,"bad path");
     return;
   }
-  snprintf(path,sizeof(path),"%s%s%s",www,c->path,
-           c->path[strlen(c->path) - 1] == '/' ? "index.html" : "");
+  snprintf(path,sizeof(path),"%s%.*s%s",www,(int)n,c->path,
+           n == 0 || c->path[n - 1] == '/' ? "index.html" : "");
   fp = fopen(path,"rb");
   if (fp == NULL || fstat(fileno(fp),&st) != 0 || !S_ISREG(st.st_mode)) {
     if (fp != NULL)
