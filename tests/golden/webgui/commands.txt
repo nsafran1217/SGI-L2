@@ -1,0 +1,2 @@
+'p <none> power down'
+'p <none> nmi'

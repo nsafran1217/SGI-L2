@@ -167,8 +167,21 @@ else ifeq ($(QEMU),)
 $(info l2gui skipped: no $(FLTK_CONFIG) (run ../retools/setup_fltk.sh $(FLTK_BITS)))
 endif
 
+# the web l2gui (sys_ctrl/l3/webgui), with the logos, as l2api --www serves it
+WWW_SRCS := $(wildcard sys_ctrl/l3/webgui/*.html sys_ctrl/l3/webgui/*.js sys_ctrl/l3/webgui/*.css)
+WWW      := $(WWW_SRCS:sys_ctrl/l3/webgui/%=$(B)/www/%) \
+            $(patsubst sys_ctrl/l3/gui/ui/%,$(B)/www/%,$(wildcard sys_ctrl/l3/gui/ui/images/*.xpm))
+
 .PHONY: all test check check-all check-s390x difftest golden interop install install-udev install-service clean ist-orig
-all: $(TOOLS:%=$(B)/bin/%)
+all: $(TOOLS:%=$(B)/bin/%) $(WWW)
+
+$(B)/www/%: sys_ctrl/l3/webgui/%
+	@mkdir -p $(dir $@)
+	cp $< $@
+
+$(B)/www/images/%: sys_ctrl/l3/gui/ui/images/%
+	@mkdir -p $(dir $@)
+	cp $< $@
 
 $(B)/%.o: %.c Makefile
 	@mkdir -p $(dir $@)
@@ -246,7 +259,8 @@ RECON_REF ?= decomp
 UNIT_LIBSGI = $(if $(ARCH)$(EXTRA_CFLAGS),,LIBSGI=$(abspath $(B))/libsgi.a)
 SESSION_TESTS = tests/difftest.sh tests/l2term_test.py tests/smp_test.py \
 	tests/l1net_test.py tests/l1_test.py tests/l1usb_test.py tests/options_test.sh \
-	tests/l2_options_test.py tests/l2api_test.py $(if $(filter l2gui,$(TOOLS)),tests/l2gui_test.py)
+	tests/l2_options_test.py tests/l2api_test.py $(if $(filter l2gui,$(TOOLS)),tests/l2gui_test.py) \
+	tests/webgui_test.py
 check: all
 	$(if $(QEMU),,@if git rev-parse -q --verify $(RECON_REF) >/dev/null; then \
 	    for t in tests/unit/*_test.sh; do RECON_REF=$(RECON_REF) $(UNIT_LIBSGI) $$t || exit 1; done; \
@@ -283,14 +297,17 @@ check-s390x:
 # for the user it runs as.
 PREFIX     ?= /usr/local
 BINDIR     ?= $(PREFIX)/bin
+WWWDIR     ?= $(PREFIX)/share/sgi-l2/www
 UDEVDIR    ?= /etc/udev/rules.d
 SYSTEMDDIR ?= /etc/systemd/system
 # the group the udev rule gives the L1s to (the l2 service's)
 L1_GROUP   := sgi-l2
 L1_GID     ?= 1234
 install: all
-	install -d $(DESTDIR)$(BINDIR)
+	install -d $(DESTDIR)$(BINDIR) $(DESTDIR)$(WWWDIR)/images
 	install -m 755 $(TOOLS:%=$(B)/bin/%) $(DESTDIR)$(BINDIR)
+	install -m 644 $(filter-out $(B)/www/images/%,$(WWW)) $(DESTDIR)$(WWWDIR)
+	install -m 644 $(filter $(B)/www/images/%,$(WWW)) $(DESTDIR)$(WWWDIR)/images
 
 # the group is made on this system only when not installing into a DESTDIR
 install-udev:
@@ -312,7 +329,8 @@ endif
 install-service: install install-udev
 	install -d $(DESTDIR)$(SYSTEMDDIR)
 	sed 's|@BINDIR@|$(BINDIR)|g' contrib/systemd/sgi-l2.service > $(DESTDIR)$(SYSTEMDDIR)/sgi-l2.service
-	sed 's|@BINDIR@|$(BINDIR)|g' contrib/systemd/sgi-l2api.service > $(DESTDIR)$(SYSTEMDDIR)/sgi-l2api.service
+	sed 's|@BINDIR@|$(BINDIR)|g; s|@WWWDIR@|$(WWWDIR)|g' contrib/systemd/sgi-l2api.service \
+	    > $(DESTDIR)$(SYSTEMDDIR)/sgi-l2api.service
 	@echo "next: create the sgi-l2 user (see $(SYSTEMDDIR)/sgi-l2.service), then"
 	@echo "      systemctl daemon-reload && systemctl enable --now sgi-l2"
 	@echo "      (and for the HTTP API: systemctl enable --now sgi-l2api)"

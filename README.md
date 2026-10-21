@@ -14,7 +14,6 @@ Just run the `l2` binary with a L1 connected to your computer.
 TODO:  
 Dockerfile  
 Better Readme  
-`l2gui` recreation in web application  
 test the IST tools (`errdump`, etc.) and fix if broken
 
 The vast majority of this content has been written by an LLM (Claude Opus 5.5).
@@ -102,6 +101,23 @@ or Apache (mod_proxy, mod_proxy_http, mod_proxy_wstunnel):
 Requests are served one at a time: a command holds the others up for as
 long as the L2 takes to answer it.
 
+## Web l2gui
+
+`sys_ctrl/l3/webgui` is `l2gui` as a web page: plain JavaScript modules,
+no build step, served by `l2api --www` (`make` copies it, with the logos,
+to `build/www`; `make install` to `$(PREFIX)/share/sgi-l2/www`, which the
+installed `sgi-l2api.service` serves):
+
+    l2api --l2 localhost --www build/www      # http://127.0.0.1:8080/
+
+It draws the L2's 320x240 panel on a canvas, pixel for pixel as SGI's
+`l2gui` did (its FLTK 1.0 widgets on Nano-X, with Nano-X's font and
+palette; `tools/mkwebdata.py` takes those from the original binary into
+`fldata.js`), scaled by a whole number to fit the window (`?scale=N` fixes
+it). Each module is a port of the `gui/*.cc` file of the same name. It
+follows the L2 through `/api/v1/events` and sends its commands to
+`/api/v1/command`, so it works wherever the API does, behind a proxy too.
+
 ## Test
 
     make check      # unit tests, then every session test against tests/golden/
@@ -126,7 +142,9 @@ The unit tests (`tests/unit/`) compare modules with the faithful
 reconstruction in the `decomp` branch (`RECON_REF=<ref>`) and are skipped if
 it is not in git.
 
-`l2gui_test.py` needs Xvfb, xdotool, ImageMagick and strace.
+`l2gui_test.py` needs Xvfb, xdotool, ImageMagick and strace;
+`webgui_test.py` needs Chrome or Chromium (it runs l2gui's session in the
+web l2gui, headless).
 
 ## Configurable paths
 

@@ -63,6 +63,10 @@ A separate daemon serving HTTP and WebSockets on top of the client
 library: the L2 and its bricks as JSON, commands, power, the console as a
 WebSocket (for a later web version of `l2term` and `l2gui`), events.
 
+### 6. The web `l2gui`
+`l2gui` as a page `l2api` serves: the same windows and behaviour, drawn on
+a canvas pixel for pixel as SGI's FLTK 1.0 on Nano-X drew them.
+
 ## Progress
 
 | Phase | State |
@@ -73,3 +77,4 @@ WebSocket (for a later web version of `l2term` and `l2gui`), events.
 | 3 | done: l1usb.c (libusb, a thread for its events, hotplug), the udev rule; tested with a fake libusb (tests/libusb_shim.c), not yet on hardware |
 | 4 | done: the stdin console only with `-console` or on a terminal (and no spin at EOF), messages to stderr as a service; `make install`, `install-service`, the systemd unit; a Docker note. The socket directory needed no change: clients use TCP |
 | 5 | done: `l2api` (its own small HTTP/WebSocket server, http.c, instead of a vendored library), `sgi-l2api.service`; tests/l2api_test.py |
+| 6 | done: `sys_ctrl/l3/webgui` (plain JavaScript, no build step), served by `l2api --www`; `l2api` gained the `l2` event; tests/webgui_test.py. Identical to SGI's `l2gui` in every screenshot of `l2gui_test.py`'s session but for the mouse cursor |
