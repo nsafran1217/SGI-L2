@@ -72,12 +72,12 @@ scripts and for a web interface:
 
 | Endpoint | |
 |---|---|
-| `GET /api/v1/l2` | the L2s of the system |
+| `GET /api/v1/l2` | the L2s of the system (address, rack, serial, system name, whether the display is locked) and whether `l2api` is connected |
 | `GET /api/v1/config` | the bricks: name (`001c07`), rack, slot, type, partition, power, serial numbers |
-| `POST /api/v1/command` | an L2 command, as `l2cmd` runs it: `{"command": "..."}` or plain text; answers `{"status": 0, "output": "..."}` |
+| `POST /api/v1/command` | an L2 command, as `l2cmd` runs it: `{"command": "..."}` or plain text; answers `{"status": 0, "output": "..."}` (and a `"message"` for a status other than 0) |
 | `POST /api/v1/power` | `{"action": "up\|down\|reset\|status", "target": "r 1 s 7"}` (target optional: the L2's destination) |
 | `GET /api/v1/console` | a WebSocket to the L2's console, byte for byte, as `l2term` has it |
-| `GET /api/v1/events` | server-sent events: `config`, with the bricks, whenever they change |
+| `GET /api/v1/events` | server-sent events: `config`, with the bricks, and `l2`, as `/api/v1/l2` has it, whenever they change |
 
 `--www <dir>` also serves the files in a directory (a web interface).
 `l2api` has no authentication: it listens on 127.0.0.1 only, unless

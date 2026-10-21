@@ -5,13 +5,14 @@
  * for a web version of l2gui and l2term. It is an L3 client of the L2
  * like l2term (SCapi.c, SysCfg.c), and serves
  *
- *   GET  /api/v1/l2        the L2s of the system (JSON)
+ *   GET  /api/v1/l2        the L2s of the system, and whether l2api is connected (JSON)
  *   GET  /api/v1/config    the bricks: rack, slot, type, partition, power (JSON)
  *   POST /api/v1/command   an L2 command, as l2cmd runs it: {"command": "..."}
  *                          or the command as plain text; {"status", "output"}
  *   POST /api/v1/power     {"action": "up|down|reset|status", "target": "<rack/slot>"}
  *   GET  /api/v1/console   WebSocket: the L2's console (its SMP port, as l2term)
- *   GET  /api/v1/events    server-sent events: "config" when the bricks change
+ *   GET  /api/v1/events    server-sent events: "config" when the bricks change,
+ *                          "l2" when the L2s or the connection do
  *
  * and with --www <dir>, the files there (a web interface). It listens on
  * 127.0.0.1:8080 unless --listen says otherwise, and has no
@@ -58,6 +59,7 @@ static http_conn *conns;
 static int l2_up;               /* connected to the L2 */
 static time_t next_connect;
 static char *last_config;       /* the configuration JSON last sent as an event */
+static char *last_l2s;          /* and the L2s' */
 
 /* --- JSON --- */
 
@@ -203,13 +205,31 @@ static void l2_connect(void)
 }
 
 static void config_json(jbuf *b);
+static void l2s_json(jbuf *b);
 
-/* events from the L2: a new configuration goes to the event streams */
+/* b (malloc()ed JSON) to the event streams as event, if it is not what
+ * *last holds; *last keeps it */
+static void event_if_new(const char *event, jbuf *b, char **last)
+{
+  http_conn *c;
+
+  if (*last != NULL && strcmp(*last,b->s) == 0) {
+    free(b->s);
+    return;
+  }
+  free(*last);
+  *last = b->s;
+  for (c = conns; c != NULL; c = c->next)
+    if (c->state == HTTP_EVENTS)
+      events_send(c,event,*last);
+}
+
+/* events from the L2: a new configuration, or new L2s, go to the event
+ * streams */
 static void l2_service(void)
 {
   IRPacket *p;
-  http_conn *c;
-  jbuf b = { 0 };
+  jbuf b = { 0 }, l = { 0 };
   int status;
 
   for (;;) {
@@ -218,6 +238,8 @@ static void l2_service(void)
     if (status == ROUTER_ERR_LOST) {
       fprintf(stderr,"%s: lost the L2\n",myname);
       l2_up = 0;
+      l2s_json(&l);
+      event_if_new("l2",&l,&last_l2s);
       return;
     }
     if (status != 0)
@@ -227,15 +249,9 @@ static void l2_service(void)
     IRouterFreePacket(p);
   }
   config_json(&b);
-  if (last_config == NULL || strcmp(last_config,b.s) != 0) {
-    free(last_config);
-    last_config = b.s;
-    for (c = conns; c != NULL; c = c->next)
-      if (c->state == HTTP_EVENTS)
-        events_send(c,"config",last_config);
-  }
-  else
-    free(b.s);
+  event_if_new("config",&b,&last_config);
+  l2s_json(&l);
+  event_if_new("l2",&l,&last_l2s);
 }
 
 /* an L2 command; its status (0 if it worked) and output (malloc()ed) */
@@ -270,8 +286,9 @@ static void l2s_json(jbuf *b)
     jb_str(b,l2->ssn);
     jb_lit(b,", \"sysname\": ");
     jb_str(b,l2->sysname);
-    jb_printf(b,", \"mode\": \"%s\"}",
-              l2->net.msmode == 1 ? "secondary" : l2->net.msmode == 2 ? "primary" : "none");
+    jb_printf(b,", \"mode\": \"%s\", \"display_disabled\": %s}",
+              l2->net.msmode == 1 ? "secondary" : l2->net.msmode == 2 ? "primary" : "none",
+              l2->l2dsp_disabled ? "true" : "false");
   }
   jb_lit(b,"]}");
 }
@@ -314,6 +331,10 @@ static void command_reply(http_conn *c, const char *cmd)
   status = l2_command(cmd,&out);
   jb_printf(&b,"{\"status\": %d, \"output\": ",status);
   jb_str(&b,out);
+  if (status != 0) {
+    jb_lit(&b,", \"message\": ");
+    jb_str(&b,LoggerDefaultMessage(status));
+  }
   jb_lit(&b,"}");
   free(out);
   reply_json(c,status == 0 ? 200 : 502,&b);
@@ -414,7 +435,7 @@ static const char *mime_type(const char *path)
   } types[] = {
     { ".html", "text/html; charset=utf-8" }, { ".js", "text/javascript" },
     { ".css", "text/css" }, { ".json", "application/json" }, { ".svg", "image/svg+xml" },
-    { ".png", "image/png" }, { ".ico", "image/x-icon" },
+    { ".png", "image/png" }, { ".ico", "image/x-icon" }, { ".xpm", "image/x-xpixmap" },
   };
   const char *ext = strrchr(path,'.');
   size_t i;
@@ -502,6 +523,11 @@ static void route(http_conn *c)
     events_start(c);
     config_json(&b);
     events_send(c,"config",b.s);
+    free(b.s);
+    b.s = NULL;
+    b.len = b.cap = 0;
+    l2s_json(&b);
+    events_send(c,"l2",b.s);
     free(b.s);
   }
   else if (strncmp(c->path,"/api/",5) == 0)

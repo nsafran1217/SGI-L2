@@ -1,8 +1,8 @@
 === GET /api/v1/l2 None
 200 application/json
 {"host": "127.0.0.1", "connected": true, "l2s": [
-  {"ip": "127.0.0.1", "rack": 0, "serial": "", "sysname": "", "mode": "none"},
-  {"ip": "<L2IP>", "rack": 0, "serial": "", "sysname": "", "mode": "none"}]}
+  {"ip": "127.0.0.1", "rack": 0, "serial": "", "sysname": "", "mode": "none", "display_disabled": false},
+  {"ip": "<L2IP>", "rack": 0, "serial": "", "sysname": "", "mode": "none", "display_disabled": false}]}
 === GET /api/v1/config None
 200 application/json
 {"bricks": [
