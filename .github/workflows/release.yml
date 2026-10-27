@@ -1,0 +1,120 @@
+# A release, for a tag v<version>: the tests, then for linux/amd64,
+# linux/arm64 and linux/arm/v7 (32-bit Raspberry Pi OS) the image
+# ghcr.io/<owner>/sgi-l2:<version> and :latest, and the archives
+# sgi-l2-<version>-linux-<arch>.tar.gz (make dist) on a GitHub release.
+# Both come from contrib/docker/Dockerfile, the arm builds under QEMU.
+#
+# Run by hand (workflow_dispatch), it builds everything and publishes
+# nothing: the archives are the run's artifacts.
+
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      # (gcc-multilib: make test checks the layouts 32-bit; Chrome for the
+      # web l2gui's test is on the runner; no FLTK, so no l2gui test)
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libusb-1.0-0-dev gcc-multilib musl-tools
+      - run: make -j"$(nproc)"
+      - run: make test
+      - run: make check
+      # the releases are static with musl: the same tests with musl's stdio,
+      # time and name lookups (USB=no: the USB test's fake libusb is a
+      # shared library, which a static l2 can't load)
+      - name: make check (static, musl)
+        run: make check STATIC=yes CC=musl-gcc USB=no B=build-musl
+
+  build:
+    needs: check
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write     # the release
+      packages: write     # the image
+    env:
+      PLATFORMS: linux/amd64,linux/arm64,linux/arm/v7
+      PUBLISH: ${{ github.event_name == 'push' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Version
+        id: version
+        run: |
+          if [ "$PUBLISH" = true ]; then v=${GITHUB_REF_NAME#v}; else v=dev-${GITHUB_SHA::7}; fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/sgi-l2
+          tags: |
+            type=semver,pattern={{version}}
+            type=raw,value=latest,enable=${{ github.event_name == 'push' && !contains(github.ref_name, '-') }}
+          labels: |
+            org.opencontainers.image.title=sgi-l2
+            org.opencontainers.image.description=The SGI L2 system controller (l2), its telnet console and the web l2gui
+
+      - name: Archives
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: contrib/docker/Dockerfile
+          target: dist
+          platforms: ${{ env.PLATFORMS }}
+          build-args: VERSION=${{ steps.version.outputs.version }}
+          outputs: type=local,dest=dist
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Checksums
+        run: |
+          mkdir out
+          cp dist/*/*.tar.gz out/
+          cd out && sha256sum *.tar.gz > SHA256SUMS && cat SHA256SUMS
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sgi-l2-${{ steps.version.outputs.version }}
+          path: out/
+
+      - uses: docker/login-action@v3
+        if: env.PUBLISH == 'true'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: contrib/docker/Dockerfile
+          target: runtime
+          platforms: ${{ env.PLATFORMS }}
+          build-args: VERSION=${{ steps.version.outputs.version }}
+          push: ${{ env.PUBLISH == 'true' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+
+      - name: Release
+        if: env.PUBLISH == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" out/* --verify-tag --generate-notes \
+              --title "$GITHUB_REF_NAME" $(case "$GITHUB_REF_NAME" in *-*) echo --prerelease;; esac)

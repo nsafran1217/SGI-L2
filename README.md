@@ -12,7 +12,6 @@ The biggest improvment is the removing the need for a kernel driver for `sgil1`.
 Just run the `l2` binary with a L1 connected to your computer.
 
 TODO:  
-Dockerfile  
 Better Readme  
 test the IST tools (`errdump`, etc.) and fix if broken
 
@@ -22,6 +21,21 @@ The vast majority of this content has been written by an LLM (Claude Opus 5.5).
  - decomp - ghidra and claude decomp of original binaries with changes to allow it to build on 64 bit hosts  
 - rewrite-decomp - Claude rewritten to be more readable. Matches behavior of original totols
 - main - Modernized as needed, removes the requirement for the `sgil1` driver
+
+## Prebuilt
+
+Each [release](https://github.com/nsafran1217/SGI-L2/releases) has the
+tools built for `amd64`, `arm64` and `armv7` (32-bit ARM, such as 32-bit
+Raspberry Pi OS). They are static, so they run on any Linux:
+
+    tar -xzf sgi-l2-<version>-linux-<arch>.tar.gz
+    cd sgi-l2-<version>-linux-<arch>
+    sudo ./install.sh                         # the tools, the udev rule, the systemd units
+    sudo systemctl enable --now sgi-l2
+
+(`INSTALL.md` in the archive says more). The same release is a Docker
+image, `ghcr.io/nsafran1217/sgi-l2`, with the console on telnet and the
+web l2gui: `contrib/docker/README.md`.
 
 ## Build
 
