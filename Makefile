@@ -38,18 +38,23 @@ LDFLAGS += $(ARCH) $(EXTRA_LDFLAGS)
 CFLAGS  += $(EXTRA_CFLAGS)   # e.g. EXTRA_CFLAGS=-fsanitize=address EXTRA_LDFLAGS=-fsanitize=address
 B       := build
 # l2 talks to USB L1s through libusb (Debian: libusb-1.0-0-dev). Native
-# builds use it if pkg-config finds it; without (USB=no, and always for
-# -m32 and cross builds, whose libusb pkg-config would not find) l2 has
-# only -net and -noconn.
+# builds need it: without it the build fails, unless USB=no builds l2 with
+# only -net and -noconn. -m32 and cross builds default to USB=no (their
+# libusb is not what pkg-config would find).
 PKG_CONFIG ?= pkg-config
-USB        ?= $(if $(filter-out -m64,$(ARCH))$(QEMU),no,$(shell $(PKG_CONFIG) --exists libusb-1.0 && echo yes || echo no))
+USB        ?= $(if $(filter-out -m64,$(ARCH))$(QEMU),no,yes)
 ifeq ($(USB),yes)
+ifneq ($(shell $(PKG_CONFIG) --exists libusb-1.0 && echo yes),yes)
+ifneq ($(MAKECMDGOALS),clean)
+$(error pkg-config finds no libusb-1.0 (Debian: libusb-1.0-0-dev); make USB=no builds l2 without USB L1s)
+endif
+endif
 LIBUSB_CFLAGS := $(shell $(PKG_CONFIG) --cflags libusb-1.0) -pthread
 LIBUSB_LIBS   := $(shell $(PKG_CONFIG) --libs libusb-1.0) -pthread
 else
 LIBUSB_CFLAGS := -DL1USB_NONE
 ifeq ($(ARCH)$(QEMU),)
-$(info l2 without USB L1s: no libusb-1.0 (Debian: libusb-1.0-0-dev))
+$(info l2 without USB L1s (USB=no))
 endif
 endif
 

@@ -28,8 +28,9 @@ The vast majority of this content has been written by an LLM (Claude Opus 5.5).
 
     make            # build/bin/{l2,l2term,l2cmd,l2api,l2gui}
 
-Needs gcc, make and libusb (Debian: `libusb-1.0-0-dev`; without it `l2`
-has no USB L1s). `l2gui` also needs FLTK 1.3 or 1.4
+Needs gcc, make and libusb (Debian: `libusb-1.0-0-dev`); without libusb
+the build fails, and `make USB=no` builds an `l2` with no USB L1s
+(`-net` and `-noconn` only). `l2gui` also needs FLTK 1.3 or 1.4
 (`FLTK_CONFIG=<path to fltk-config>`); without it, `make` skips `l2gui`.
 In the reconstruction workspace, `../retools/setup_fltk.sh 64` builds one
 into `../tools/fltk/`.
