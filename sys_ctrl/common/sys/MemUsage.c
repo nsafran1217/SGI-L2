@@ -18,8 +18,11 @@ char *MemUsageBuf(void)
   char *bptr = buf;
 #if defined(__GLIBC__) && (__GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 33))
   struct mallinfo2 info = mallinfo2();     /* mallinfo() is deprecated since glibc 2.33 */
-#else
+#elif defined(__GLIBC__)
   struct mallinfo info = mallinfo();
+#else
+  /* (musl keeps no such statistics) */
+  struct { long arena, ordblks, smblks, hblks, hblkhd, usmblks, fsmblks, uordblks, fordblks, keepcost; } info = { 0 };
 #endif
 
   bptr += sprintf(bptr,"\narena:        %d\n",(int)info.arena);

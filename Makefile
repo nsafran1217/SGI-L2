@@ -22,6 +22,9 @@
 # selects another FLTK 1.3/1.4 build.
 #
 # ARCH=-m32 B=build32 builds with the original binaries' struct layouts.
+# STATIC=yes links statically; with musl (CC=musl-gcc, or on Alpine) the tools then
+# run on any Linux. (With glibc it links, but glibc's host name lookups still load
+# its shared libraries at run time.)
 
 CC      ?= gcc
 ARCH    ?=
@@ -46,6 +49,10 @@ B       := build
 # only -net and -noconn. -m32 and cross builds default to USB=no (their
 # libusb is not what pkg-config would find).
 PKG_CONFIG ?= pkg-config
+ifeq ($(STATIC),yes)
+LDFLAGS    += -static
+PKG_CONFIG := $(PKG_CONFIG) --static
+endif
 USB        ?= $(if $(filter-out -m64,$(ARCH))$(QEMU),no,yes)
 ifeq ($(USB),yes)
 ifneq ($(shell $(PKG_CONFIG) --exists libusb-1.0 && echo yes),yes)
@@ -152,6 +159,10 @@ FLTK_CXXFLAGS := $(patsubst -I%,-isystem %,$(filter-out -D_FILE_OFFSET_BITS% -D_
                    $(shell $(FLTK_CONFIG) --cxxflags)))
 FLTK_LDFLAGS  := $(if $(filter 32,$(FLTK_BITS)),-L$(abspath ../tools/fltk/i386-lib)) \
                  $(shell $(FLTK_CONFIG) --ldstaticflags)
+# (static: the X libraries' own, which fltk-config leaves out)
+ifeq ($(STATIC),yes)
+FLTK_LDFLAGS  += $(shell $(PKG_CONFIG) --libs x11 xext)
+endif
 endif
 CXXFLAGS ?= -g -O0
 CXXFLAGS += $(ARCH) -fno-strict-aliasing -fsigned-char -Icompat -Wall -Wextra -Wno-unused-parameter -Wno-format-zero-length -Wno-write-strings \

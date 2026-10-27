@@ -10,12 +10,14 @@
  */
 
 #define _GNU_SOURCE     /* REG_EIP, REG_RIP */
-#include <execinfo.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ucontext.h>
+#ifdef __GLIBC__        /* (defined by the headers above) */
+#include <execinfo.h>
+#endif
 #include "l2.h"
 #include "l1.h"
 #include "smp.h"
@@ -33,6 +35,7 @@
 #include "../sys/syslogLib.h"
 #include "../../common/sys/syslog.h"
 #include "../../common/sys/l3paths.h"   /* configurable paths (new) */
+#include "stdbuf.h"   /* (new) */
 
 /* the network ports, plus IR_PORT_BIAS */
 #define L3_CMD_PORT         8000
@@ -81,7 +84,12 @@ void oops_handler(int sig, siginfo_t *info, void *raw_uc)
   int bt_size;
   int i;
 
+#ifdef __GLIBC__
   bt_size = backtrace(bt,128);
+#else
+  bt_size = 2;      /* (musl has no backtrace(): the faulting instruction alone) */
+  bt[1] = NULL;
+#endif
   sprintf(rbuf,"L2 %d.%d.%d received fatal signal %d\n",L2_REV_MAJOR,L2_REV_MINOR,L2_REV_PATCH,sig);
   rptr = rbuf + strlen(rbuf);
   /* bt[1] is the signal trampoline: the faulting instruction instead */
@@ -178,6 +186,7 @@ int main(int argc, char **argv, char **envp)
   char *myhost;
   int i;
 
+  stdout_buffered();
   syslogLibInit(syslog_msg);
   l2_myname = argv[0];
   if (SocketGetHostName(&myhost) == -1)

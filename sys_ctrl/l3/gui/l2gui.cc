@@ -17,6 +17,7 @@ extern "C" {
 #include "l2gui.h"
 #include "config.h"
 #include "l2comm.h"
+#include "stdbuf.h"   /* (new) */
 
 Fl_Window *mainwin;
 Fl_Window *logowin;
@@ -37,6 +38,7 @@ int main(int argc, char **argv)
 {
   struct sigaction sa;
 
+  stdout_buffered();
   myname = argv[0];
   sigaction(SIGSEGV, NULL, &sa);
   sa.sa_handler = oops_handler;

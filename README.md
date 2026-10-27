@@ -26,6 +26,7 @@ The vast majority of this content has been written by an LLM (Claude Opus 5.5).
 ## Build
 
     make            # build/bin/{l2,l2term,l2cmd,l2api,l2gui}
+    make STATIC=yes CC=musl-gcc       # static, with musl: runs on any Linux
 
 Needs gcc, make and libusb (Debian: `libusb-1.0-0-dev`); without libusb
 the build fails, and `make USB=no` builds an `l2` with no USB L1s

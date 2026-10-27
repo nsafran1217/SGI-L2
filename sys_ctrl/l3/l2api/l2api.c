@@ -44,6 +44,7 @@
 #include "../../common/Router/Socket.h"
 #include "../../common/sys/Logger.h"
 #include "../../common/sys/brick_types.h"
+#include "stdbuf.h"   /* (new) */
 
 #define SMP_PORT        8001    /* the L2's console, plus IR_PORT_BIAS */
 #define L3_TASK         4       /* as l2term: configuration events come */
@@ -702,6 +703,7 @@ int main(int argc, char **argv)
   int lfd;
   int i;
 
+  stdout_buffered();
   myname = argv[0];
   signal(SIGPIPE,SIG_IGN);
   if (sn1SCParseCmdline(&argc,argv) < 0)

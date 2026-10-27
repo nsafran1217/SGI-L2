@@ -11,6 +11,7 @@
  */
 
 #include <string.h>
+#include "stdbuf.h"
 
 int main(int argc, char **argv)
 {
@@ -23,6 +24,7 @@ int main(int argc, char **argv)
   int status;
   int i;
 
+  stdout_buffered();
   myname = argv[0];
   if (sn1SCParseCmdline(&argc,argv) < 0) {
     fprintf(stderr,"%s: error while parsing library command arguments\n",myname);

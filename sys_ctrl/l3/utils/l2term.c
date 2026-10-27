@@ -24,6 +24,7 @@
 #include "../../common/Router/RouterMsg.h"
 #include "../../common/Router/Socket.h"
 #include "../../common/sys/Logger.h"
+#include "stdbuf.h"   /* (new) */
 
 #define SMP_PORT        8001    /* plus IR_PORT_BIAS (smp.h) */
 #define SMP_QUIET_PORT  8003
@@ -150,8 +151,14 @@ void tty_debug(void)
   fprintf(stderr,"oflag:  0%08o\n",termios.c_oflag);
   fprintf(stderr,"cflag:  0%08o\n",termios.c_cflag);
   fprintf(stderr,"lflag:  0%08o\n",termios.c_lflag);
+#ifdef __GLIBC__
   fprintf(stderr,"ispeed:  %8d\n",termios.c_ispeed);
   fprintf(stderr,"ospeed:  %8d\n",termios.c_ospeed);
+#else
+  /* (musl has no c_ispeed, c_ospeed) */
+  fprintf(stderr,"ispeed:  %8d\n",(int)cfgetispeed(&termios));
+  fprintf(stderr,"ospeed:  %8d\n",(int)cfgetospeed(&termios));
+#endif
   for (i = 0; i < 8; i++)
     fprintf(stderr,"cc_c[%d]: %8o\n",i,(unsigned int)termios.c_cc[i]);
 }
@@ -253,6 +260,7 @@ int main(int argc, char **argv, char **envp)
 {
   int i;
 
+  stdout_buffered();
   myname = argv[0];
   if (sn1SCParseCmdline(&argc,argv) < 0) {
     fprintf(stderr,"ERROR: command line parse problems\n");

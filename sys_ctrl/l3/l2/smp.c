@@ -1187,8 +1187,14 @@ void smp_tty_debug(int fd)
   fprintf(stderr,"oflag:  0x%04x\n",termios.c_oflag);
   fprintf(stderr,"cflag:  0x%04x\n",termios.c_cflag);
   fprintf(stderr,"lflag:  0x%04x\n",termios.c_lflag);
+#ifdef __GLIBC__
   fprintf(stderr,"ispeed: 0x%08x\n",termios.c_ispeed);
   fprintf(stderr,"ospeed: 0x%08x\n",termios.c_ospeed);
+#else
+  /* (musl has no c_ispeed, c_ospeed) */
+  fprintf(stderr,"ispeed: 0x%08x\n",(unsigned int)cfgetispeed(&termios));
+  fprintf(stderr,"ospeed: 0x%08x\n",(unsigned int)cfgetospeed(&termios));
+#endif
   for (i = 0; i < 0x20; i++) {
     sprintf(index,"0x%02x",i);
     fprintf(stderr,"%2d cc_c[%-8s]: 0x%04x\n",fd,smp_cc[i] != NULL ? smp_cc[i] : index,
