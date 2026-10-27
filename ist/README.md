@@ -33,26 +33,54 @@ How the tools talk to the L2 is described in
 
 ## Running the original tools
 
+All that's needed are the IST CD's RPMs. Point the build at the directory
+holding them:
+
 ```sh
-make -C ist/orig                       # unpacks ../ist's RPM payloads into ist/orig/build
-ist/orig/run errdmp --l2 <l2-host>     # any tool from /stand/sysco/bin
+make ist-orig RPMS=/path/to/ist        # unpacks the RPMs into ist/orig/build/root
+ist/orig/run errdmp --l2 <l2-host>     # any tool from /stand/sysco/bin or /usr/sbin
 ist/orig/run superscope --l2 <l2-host> # Tk GUIs need $DISPLAY
+ist/orig/run flashsc -v /usr/cpu/firmware/l2.bin
 ist/orig/run perl -v                   # the shipped perl 5.6.1
+ist/orig/run man sgidmp                # SGI's man pages
 ```
 
-The tools hardcode `/stand` and `/usr/people/sgidiag`. `run` maps those
-paths with an `LD_PRELOAD` shim (`orig/stand_shim.c`) instead of needing root:
+The directory needs five RPMs; the newest version of each is used:
 
-- `/stand` is mapped to `ist/orig/build/stand`.
+| RPM | Needed for |
+| --- | --- |
+| `sysco_tools-*.i386.rpm` | perl 5.6.1 |
+| `sscope-*.i386.rpm` | errdmp, sgidmp, superscope, ... |
+| `snxscan-*.i386.rpm` | the scan tools |
+| `snxsc_l3-*.i386.rpm` | the L3 tools |
+| `snxsc_firmware-*.i386.rpm` | firmware images and flash tools |
+
+The other RPMs on the CD aren't used: `sgidiag` is only a profile, which
+`run` replaces, and the `kernel_*` RPMs are the sgil1 driver.
+
+The build re-unpacks only when an RPM or the Makefile changes, so it is
+safe to rerun. `make -C ist/orig clean` removes the unpacked tree. That
+tree is about 370 MB, and it's gitignored.
+
+The tools hardcode `/stand`, `/usr/cpu/firmware` and `/usr/people/sgidiag`.
+`run` maps those paths with an `LD_PRELOAD` shim (`orig/stand_shim.c`)
+instead of needing root:
+
+- `/stand` and `/usr/cpu/firmware` are mapped into
+  `ist/orig/build/root`. The RPMs' absolute symlinks are rewritten to
+  point within that tree.
 - `/usr/people/sgidiag`, where errdmp and friends write their logs (for
   example `sn2/dumps/errdmp/`), is mapped to `$SGIDIAG_HOME`, default
   `~/sgidiag`.
 
 Requirements:
 
-- An x86 host with i386 multilib: `gcc -m32`, `/lib/ld-linux.so.2`, and the
-  i386 libc, libnsl and libcrypt.
-- For the GUIs, `libX11:i386`.
+- To unpack: `rpm2cpio` and `cpio` (Debian: `apt install rpm2cpio cpio`),
+  or else `bsdtar` (`libarchive-tools`).
+- An x86 host with i386 multilib: `gcc -m32` (`gcc-multilib`, for the
+  shim), and the i386 libc (which includes libnsl on Debian 13) and
+  libcrypt (`libc6:i386`, `libcrypt1:i386`).
+- For the GUIs, `libx11-6:i386`.
 - For the `scan_*` wrappers, a ksh (`apt install ksh`, or `KSH=<path>`).
 
 Tested on Debian 13 against this repository's `l2` on a Raspberry Pi. The
@@ -94,9 +122,6 @@ These are SGI's bugs, present on a real L3 as well:
 - Perl/Tk's `ptked`, `ptksh` and `widget` have `#!` lines naming SGI's build
   tree (`/work/ssh/sn1/sys_ctrl/tools/local.linux/bin/perl`). Run them as
   `ist/orig/run perl /stand/sysco/tools/bin/widget`.
-- `/stand/sysco/tools/bin/perl` is an empty file in the RPM payload as
-  extracted (it should be a hard link to `perl5.6.1`). `orig/Makefile`
-  replaces it with a symlink.
 - errdmp's exit status is a bitmask (`lib/sscope/err_codes.pm`). The NL4
   router and TIO bits are above bit 7, so the exit status loses them.
 - `run_diag` runs errdmp from a developer path

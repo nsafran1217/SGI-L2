@@ -1,27 +1,38 @@
 #!/bin/sh
-# Run one of SGI's original IST tools from ist/orig/build (make -C ist/orig).
+# Run one of SGI's original IST tools from ist/orig/build
+# (make ist-orig RPMS=<dir> first).
 #
 #   ist/orig/run errdmp --l2 <host> ...
+#   ist/orig/run flashsc -v /usr/cpu/firmware/l2.bin
 #   ist/orig/run perl -e '...'        the shipped perl 5.6.1
+#   ist/orig/run man sgidmp           SGI's man pages
 #
-# /stand is mapped to ist/orig/build/stand, and sgidiag's home
-# (/usr/people/sgidiag, where errdmp and friends write their logs) to
-# $SGIDIAG_HOME, default ~/sgidiag.
+# /stand and /usr/cpu/firmware are mapped into ist/orig/build/root, and
+# sgidiag's home (/usr/people/sgidiag, where errdmp and friends write their
+# logs) to $SGIDIAG_HOME, default ~/sgidiag.
 here=$(cd "$(dirname "$0")" && pwd)
-root=$here/build
-[ -f "$root/stand/.done" ] || { echo "run: make -C $here first" >&2; exit 1; }
-[ $# -ge 1 ] || { sed -n '2,9s/^# \{0,1\}//p' "$0" >&2; exit 2; }
+build=$here/build
+root=$build/root
+[ -f "$root/.done" ] || { echo "run: make ist-orig RPMS=<dir with the IST RPMs> first" >&2; exit 1; }
+[ $# -ge 1 ] || { sed -n '2,12s/^# \{0,1\}//p' "$0" >&2; exit 2; }
+
+if [ "$1" = man ]; then
+  [ $# -eq 2 ] || { echo "usage: run man <page>" >&2; exit 2; }
+  page=$(ls "$root"/usr/man/man*/"$2".* 2>/dev/null | head -n 1)
+  [ -n "$page" ] || { echo "run: no man page for $2" >&2; exit 2; }
+  exec man -l "$page"
+fi
 
 SGIDIAG_HOME=${SGIDIAG_HOME:-$HOME/sgidiag}
 mkdir -p "$SGIDIAG_HOME"
-IST_PATH_MAP="/stand=$root/stand:/usr/people/sgidiag=$SGIDIAG_HOME"
+IST_PATH_MAP="/stand=$root/stand:/usr/cpu/firmware=$root/usr/cpu/firmware:/usr/people/sgidiag=$SGIDIAG_HOME"
 # the scan_* scripts are ksh (#!/bin/ksh); without one there, use $KSH or
 # one on PATH (Debian: apt install ksh)
 if [ ! -x /bin/ksh ]; then
   KSH=${KSH:-$(command -v ksh93 || command -v ksh || command -v mksh)}
   [ -n "$KSH" ] && IST_PATH_MAP="$IST_PATH_MAP:/bin/ksh=$KSH:/usr/bin/ksh=$KSH"
 fi
-LD_PRELOAD="$root/\$LIB/stand_shim.so${LD_PRELOAD:+ $LD_PRELOAD}"
+LD_PRELOAD="$build/\$LIB/stand_shim.so${LD_PRELOAD:+ $LD_PRELOAD}"
 LD_LIBRARY_PATH="$root/stand/sysco/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 # the sgidiag account's environment (sgidiag/.sgi_env)
 PATH=$PATH:/stand/sysco/bin:/stand/sysco/usr/bin
@@ -43,8 +54,10 @@ shift
 case $tool in
 perl) exec "$root/stand/sysco/tools/bin/perl5.6.1" "$@" ;;
 */*)  prog=$tool ;;
-*)    prog=$root/stand/sysco/bin/$tool
-      [ -e "$prog" ] || prog=$root/stand/sysco/tools/bin/$tool ;;
+*)    prog=
+      for d in stand/sysco/bin stand/sysco/tools/bin usr/sbin; do
+        [ -e "$root/$d/$tool" ] && { prog=$root/$d/$tool; break; }
+      done ;;
 esac
 [ -e "$prog" ] || { echo "run: no such tool: $tool" >&2; exit 2; }
 # the kernel would look the "#!" interpreter up unmapped

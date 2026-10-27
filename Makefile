@@ -13,6 +13,9 @@
 #                   rule and its group sgi-l2 (GID 1234); install-service: all of these
 #                   and the systemd units (contrib/)
 #   make clean
+#   make ist-orig RPMS=<dir>  SGI's original IST tools (errdmp, superscope, scantest, ...)
+#                   unpacked from the IST CD's RPMs in <dir>, to run with ist/orig/run
+#                   (ist/README.md)
 #
 # l2gui also needs FLTK, built from ../refs/fltk by ../retools/setup_fltk.sh
 # (32 or 64 to match ARCH); without it l2gui is skipped. FLTK_CONFIG=<fltk-config>
@@ -46,7 +49,7 @@ PKG_CONFIG ?= pkg-config
 USB        ?= $(if $(filter-out -m64,$(ARCH))$(QEMU),no,yes)
 ifeq ($(USB),yes)
 ifneq ($(shell $(PKG_CONFIG) --exists libusb-1.0 && echo yes),yes)
-ifneq ($(MAKECMDGOALS),clean)
+ifneq ($(if $(MAKECMDGOALS),$(filter-out clean ist-orig,$(MAKECMDGOALS)),all),)
 $(error pkg-config finds no libusb-1.0 (Debian: libusb-1.0-0-dev); make USB=no builds l2 without USB L1s)
 endif
 endif
@@ -164,7 +167,7 @@ else ifeq ($(QEMU),)
 $(info l2gui skipped: no $(FLTK_CONFIG) (run ../retools/setup_fltk.sh $(FLTK_BITS)))
 endif
 
-.PHONY: all test check check-all check-s390x difftest golden interop install install-udev install-service clean
+.PHONY: all test check check-all check-s390x difftest golden interop install install-udev install-service clean ist-orig
 all: $(TOOLS:%=$(B)/bin/%)
 
 $(B)/%.o: %.c Makefile
@@ -316,3 +319,7 @@ install-service: install install-udev
 
 clean:
 	rm -rf $(B)
+
+# SGI's original IST tools from the CD's RPMs (RPMS=<dir>; ist/orig/Makefile)
+ist-orig:
+	$(MAKE) -C ist/orig $(if $(RPMS),RPMS=$(abspath $(RPMS)))
