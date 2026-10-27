@@ -59,6 +59,7 @@ As a service: `sudo make install-service` installs the tools, the udev rule
 and its group, and a systemd unit (`contrib/systemd/sgi-l2.service`, which says how to
 create its user); settings are then in `/var/lib/sgi-l2/l2.conf`.
 `contrib/docker/README.md` runs it in a container.
+
     l2term --l2 localhost             # its console; CTRL-] q quits
     l2cmd --l2 localhost version
 

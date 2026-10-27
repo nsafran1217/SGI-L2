@@ -1,0 +1,9 @@
+# the Docker build (contrib/docker/Dockerfile) needs only the sources
+.git
+build
+build*
+tests
+ist
+**/__pycache__
+l2.conf*
+l2.log*

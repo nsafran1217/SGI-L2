@@ -1,0 +1,4 @@
+#!/bin/sh
+# Telnet's login program (telnetd -l): the console of the l2 on this
+# host, as nobody, whatever telnetd passes. CTRL-] q quits.
+exec setpriv --reuid=nobody --regid=nobody --clear-groups /usr/local/bin/l2term --l2 localhost
