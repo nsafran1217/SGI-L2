@@ -9,8 +9,9 @@
 #   make interop    the session tests with SGI's original binaries as well (needs
 #                   ../ist or ORIG_BIN): old clients against this l2, and the reverse
 #   make check-all  check for the native, 32-bit and ASan builds (check-s390x: big-endian)
-#   make install    the tools into $(BINDIR) (PREFIX=/usr/local); install-service: and the
-#                   udev rule and systemd unit (contrib/)
+#   make install    the tools into $(BINDIR) (PREFIX=/usr/local); install-udev: the udev
+#                   rule and its group sgi-l2 (GID 1234); install-service: all of these
+#                   and the systemd units (contrib/)
 #   make clean
 #
 # l2gui also needs FLTK, built from ../refs/fltk by ../retools/setup_fltk.sh
@@ -163,7 +164,7 @@ else ifeq ($(QEMU),)
 $(info l2gui skipped: no $(FLTK_CONFIG) (run ../retools/setup_fltk.sh $(FLTK_BITS)))
 endif
 
-.PHONY: all test check check-all check-s390x difftest golden interop install install-service clean
+.PHONY: all test check check-all check-s390x difftest golden interop install install-udev install-service clean
 all: $(TOOLS:%=$(B)/bin/%)
 
 $(B)/%.o: %.c Makefile
@@ -273,24 +274,44 @@ check-s390x:
 	    CC=s390x-linux-gnu-gcc-14 AR=s390x-linux-gnu-ar ARCH= B=builds390x \
 	    QEMU="$(S390X)/bin/qemu-s390x -L $(S390X)/s390x-linux-gnu"
 
-# make install: the tools into $(BINDIR). make install-service (as root):
-# also the udev rule and the systemd unit; see contrib/systemd/sgi-l2.service
+# make install: the tools into $(BINDIR). make install-udev (as root): the
+# udev rule and its group. make install-service (as root): all of these and
+# the systemd units; see contrib/systemd/sgi-l2.service
 # for the user it runs as.
 PREFIX     ?= /usr/local
 BINDIR     ?= $(PREFIX)/bin
 UDEVDIR    ?= /etc/udev/rules.d
 SYSTEMDDIR ?= /etc/systemd/system
+# the group the udev rule gives the L1s to (the l2 service's)
+L1_GROUP   := sgi-l2
+L1_GID     ?= 1234
 install: all
 	install -d $(DESTDIR)$(BINDIR)
 	install -m 755 $(TOOLS:%=$(B)/bin/%) $(DESTDIR)$(BINDIR)
 
-install-service: install
-	install -d $(DESTDIR)$(UDEVDIR) $(DESTDIR)$(SYSTEMDDIR)
+# the group is made on this system only when not installing into a DESTDIR
+install-udev:
+	install -d $(DESTDIR)$(UDEVDIR)
 	install -m 644 contrib/udev/60-sgi-l1.rules $(DESTDIR)$(UDEVDIR)
+ifeq ($(DESTDIR),)
+	@gid=$$(getent group $(L1_GROUP) | cut -d: -f3); \
+	if [ -z "$$gid" ]; then \
+	    echo "groupadd --system --gid $(L1_GID) $(L1_GROUP)"; \
+	    groupadd --system --gid $(L1_GID) $(L1_GROUP); \
+	elif [ "$$gid" != "$(L1_GID)" ]; then \
+	    echo "group $(L1_GROUP) exists with GID $$gid, not $(L1_GID)" >&2; exit 1; \
+	fi
+	-udevadm control --reload && udevadm trigger --subsystem-match=usb --attr-match=idVendor=065e
+else
+	@echo "next: groupadd --system --gid $(L1_GID) $(L1_GROUP), then udevadm control --reload && udevadm trigger"
+endif
+
+install-service: install install-udev
+	install -d $(DESTDIR)$(SYSTEMDDIR)
 	sed 's|@BINDIR@|$(BINDIR)|g' contrib/systemd/sgi-l2.service > $(DESTDIR)$(SYSTEMDDIR)/sgi-l2.service
 	sed 's|@BINDIR@|$(BINDIR)|g' contrib/systemd/sgi-l2api.service > $(DESTDIR)$(SYSTEMDDIR)/sgi-l2api.service
 	@echo "next: create the sgi-l2 user (see $(SYSTEMDDIR)/sgi-l2.service), then"
-	@echo "      udevadm control --reload && udevadm trigger && systemctl daemon-reload && systemctl enable --now sgi-l2"
+	@echo "      systemctl daemon-reload && systemctl enable --now sgi-l2"
 	@echo "      (and for the HTTP API: systemctl enable --now sgi-l2api)"
 
 clean:

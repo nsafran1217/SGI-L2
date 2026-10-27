@@ -1,8 +1,9 @@
 # l2, the SGI L2 system controller, as a service (make install-service
 # installs it with @BINDIR@ filled in). It runs as the system user sgi-l2,
-# whose group the udev rule (60-sgi-l1.rules) gives the L1s; create it once:
+# in the group sgi-l2 the udev rule (60-sgi-l1.rules) gives the L1s, which
+# make install-udev creates (GID 1234); create the user once:
 #
-#   sudo useradd --system --user-group --no-create-home --shell /usr/sbin/nologin sgi-l2
+#   sudo useradd --system --gid sgi-l2 --no-create-home --shell /usr/sbin/nologin sgi-l2
 #
 # Settings: /var/lib/sgi-l2/l2.conf (its log: l2.log there). Consoles:
 # l2term --l2 <host>, or telnet <host> 8001. Options for l2 go in

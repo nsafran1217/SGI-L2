@@ -2,7 +2,8 @@
 # them through libusb, so it needs no kernel driver and no root. This gives
 # the group sgi-l2 (the l2 service's) and the user at the console access.
 #
+#   sudo make install-udev             # does all three:
 #   sudo cp 60-sgi-l1.rules /etc/udev/rules.d/
-#   sudo groupadd --system sgi-l2      # (if it is not there)
+#   sudo groupadd --system --gid 1234 sgi-l2      # (if it is not there)
 #   sudo udevadm control --reload && sudo udevadm trigger
 SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ATTR{idVendor}=="065e", ATTR{idProduct}=="1234", MODE="0660", GROUP="sgi-l2", TAG+="uaccess"
