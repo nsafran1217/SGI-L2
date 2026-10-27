@@ -12,6 +12,8 @@
 #   make install    the tools into $(BINDIR) (PREFIX=/usr/local); install-udev: the udev
 #                   rule and its group sgi-l2 (GID 1234); install-service: all of these
 #                   and the systemd units (contrib/)
+#   make dist       a release archive of this build: $(B)/dist/sgi-l2-<VERSION>-linux-<arch>.tar.gz
+#                   (the tools, the web l2gui, contrib/dist/install.sh; VERSION=, DIST_ARCH=)
 #   make clean
 #   make ist-orig RPMS=<dir>  SGI's original IST tools (errdmp, superscope, scantest, ...)
 #                   unpacked from the IST CD's RPMs in <dir>, to run with ist/orig/run
@@ -183,7 +185,7 @@ WWW_SRCS := $(wildcard sys_ctrl/l3/webgui/*.html sys_ctrl/l3/webgui/*.js sys_ctr
 WWW      := $(WWW_SRCS:sys_ctrl/l3/webgui/%=$(B)/www/%) \
             $(patsubst sys_ctrl/l3/gui/ui/%,$(B)/www/%,$(wildcard sys_ctrl/l3/gui/ui/images/*.xpm))
 
-.PHONY: all test check check-all check-s390x difftest golden interop install install-udev install-service clean ist-orig
+.PHONY: all test check check-all check-s390x difftest golden interop install install-udev install-service dist clean ist-orig
 all: $(TOOLS:%=$(B)/bin/%) $(WWW)
 
 $(B)/www/%: sys_ctrl/l3/webgui/%
@@ -345,6 +347,29 @@ install-service: install install-udev
 	@echo "next: create the sgi-l2 user (see $(SYSTEMDDIR)/sgi-l2.service), then"
 	@echo "      systemctl daemon-reload && systemctl enable --now sgi-l2"
 	@echo "      (and for the HTTP API: systemctl enable --now sgi-l2api)"
+
+# make dist: this build as a release archive (contrib/dist/INSTALL.md). The
+# tools are stripped; contrib/dist/install.sh installs them where make
+# install-service would.
+VERSION   ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+DIST_ARCH ?= $(shell dpkg --print-architecture 2>/dev/null || uname -m)
+DIST_NAME := sgi-l2-$(VERSION)-linux-$(DIST_ARCH)
+DIST_DIR  := $(B)/dist/$(DIST_NAME)
+STRIP     ?= strip
+dist: all
+	rm -rf $(DIST_DIR) $(DIST_DIR).tar.gz
+	install -d $(DIST_DIR)/bin $(DIST_DIR)/share/sgi-l2/www/images $(DIST_DIR)/systemd $(DIST_DIR)/udev
+	install -m 755 $(TOOLS:%=$(B)/bin/%) $(DIST_DIR)/bin
+	$(STRIP) $(TOOLS:%=$(DIST_DIR)/bin/%)
+	install -m 644 $(filter-out $(B)/www/images/%,$(WWW)) $(DIST_DIR)/share/sgi-l2/www
+	install -m 644 $(filter $(B)/www/images/%,$(WWW)) $(DIST_DIR)/share/sgi-l2/www/images
+	install -m 644 contrib/systemd/sgi-l2.service contrib/systemd/sgi-l2api.service $(DIST_DIR)/systemd
+	install -m 644 contrib/udev/60-sgi-l1.rules $(DIST_DIR)/udev
+	install -m 755 contrib/dist/install.sh $(DIST_DIR)
+	install -m 644 contrib/dist/INSTALL.md README.md $(DIST_DIR)
+	echo $(VERSION) > $(DIST_DIR)/VERSION
+	tar -C $(B)/dist --owner=0 --group=0 -czf $(DIST_DIR).tar.gz $(DIST_NAME)
+	@echo $(DIST_DIR).tar.gz
 
 clean:
 	rm -rf $(B)
