@@ -73,6 +73,18 @@ instead of needing root:
   example `sn2/dumps/errdmp/`), is mapped to `$SGIDIAG_HOME`, default
   `~/sgidiag`.
 
+`run` prints the mapping on stderr before the tool starts, so the tool's
+own output can still be redirected cleanly:
+
+```
+run: path mapping (IST_QUIET=1 to hide):
+  /stand               -> .../ist/orig/build/root/stand
+  /usr/cpu/firmware    -> .../ist/orig/build/root/usr/cpu/firmware
+  /usr/people/sgidiag  -> /home/<you>/sgidiag
+```
+
+Set `IST_QUIET=1` to leave it out.
+
 Requirements:
 
 - To unpack: `rpm2cpio` and `cpio` (Debian: `apt install rpm2cpio cpio`),

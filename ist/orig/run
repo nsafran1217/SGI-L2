@@ -9,12 +9,13 @@
 #
 # /stand and /usr/cpu/firmware are mapped into ist/orig/build/root, and
 # sgidiag's home (/usr/people/sgidiag, where errdmp and friends write their
-# logs) to $SGIDIAG_HOME, default ~/sgidiag.
+# logs) to $SGIDIAG_HOME, default ~/sgidiag. The mapping is printed on
+# stderr before the tool starts; IST_QUIET=1 leaves it out.
 here=$(cd "$(dirname "$0")" && pwd)
 build=$here/build
 root=$build/root
 [ -f "$root/.done" ] || { echo "run: make ist-orig RPMS=<dir with the IST RPMs> first" >&2; exit 1; }
-[ $# -ge 1 ] || { sed -n '2,12s/^# \{0,1\}//p' "$0" >&2; exit 2; }
+[ $# -ge 1 ] || { sed -n '2,13s/^# \{0,1\}//p' "$0" >&2; exit 2; }
 
 if [ "$1" = man ]; then
   [ $# -eq 2 ] || { echo "usage: run man <page>" >&2; exit 2; }
@@ -60,6 +61,12 @@ perl) exec "$root/stand/sysco/tools/bin/perl5.6.1" "$@" ;;
       done ;;
 esac
 [ -e "$prog" ] || { echo "run: no such tool: $tool" >&2; exit 2; }
+if [ -z "$IST_QUIET" ]; then
+  echo "run: path mapping (IST_QUIET=1 to hide):" >&2
+  echo "$IST_PATH_MAP" | tr ':' '\n' | while IFS='=' read -r from to; do
+    printf '  %-20s -> %s\n' "$from" "$to" >&2
+  done
+fi
 # the kernel would look the "#!" interpreter up unmapped
 read -r first < "$prog" || true
 case $first in
