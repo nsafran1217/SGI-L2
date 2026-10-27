@@ -387,6 +387,13 @@ int libusb_bulk_transfer(libusb_device_handle *h, unsigned char endpoint, unsign
   return 0;
 }
 
+int libusb_control_transfer(libusb_device_handle *h, uint8_t request_type, uint8_t request,
+                            uint16_t value, uint16_t index, unsigned char *data, uint16_t length,
+                            unsigned int timeout)
+{
+  return 0;
+}
+
 int libusb_clear_halt(libusb_device_handle *h, unsigned char endpoint)
 {
   return 0;

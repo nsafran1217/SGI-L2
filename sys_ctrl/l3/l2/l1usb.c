@@ -9,7 +9,8 @@
  *    IN endpoint and each write() one frame to its bulk OUT endpoint, the
  *    first two bytes replaced by the frame's length, big-endian
  *    (l1usb_open(), l1usb_read(), l1usb_write());
- *  - ioctls to clear a halted pipe or reset the device (l1usb_reset()) and
+ *  - ioctls to reset a pipe (halt it, then clear the halt) or the device
+ *    (l1usb_reset()) and
  *    to tell where it is on the bus (l1usb_cfg()).
  * A thread runs libusb's events, as the driver ran in the kernel: hotplug
  * (or, where libusb has none, a rescan every RESCAN_SECS) fills the slots,
@@ -673,8 +674,24 @@ int l1usb_write(int slot, const unsigned char *buf, int len)
   return -1;
 }
 
-/* the driver's resets: a pipe's halt cleared (L1USB_RESET_READ, _WRITE,
- * _PIPES), or the device reset; 0 or -1 with errno set */
+/* a pipe's reset as the driver did it: halt the endpoint, then clear the
+ * halt. (The L1 refuses to clear a halt it does not have: "Clear/set halt
+ * error error: endpoint is not stalled".) */
+static int reset_pipe(libusb_device_handle *h, unsigned char ep)
+{
+  struct timespec pause = { 0, 20000000 };   /* the driver's 20 ms */
+  int rc;
+
+  rc = libusb_control_transfer(h,LIBUSB_ENDPOINT_OUT | LIBUSB_REQUEST_TYPE_STANDARD | LIBUSB_RECIPIENT_ENDPOINT,
+                               LIBUSB_REQUEST_SET_FEATURE,0 /* ENDPOINT_HALT */,ep,NULL,0,WR_TIMEOUT);
+  if (rc < 0)
+    return rc;
+  nanosleep(&pause,NULL);
+  return libusb_clear_halt(h,ep);
+}
+
+/* the driver's resets: a pipe's halt set and cleared (L1USB_RESET_READ,
+ * _WRITE, _PIPES), or the device reset; 0 or -1 with errno set */
 int l1usb_reset(int slot, int what)
 {
   libusb_device_handle *h;
@@ -701,9 +718,9 @@ int l1usb_reset(int slot, int what)
     rc = libusb_reset_device(h);
   else {
     if (what & L1USB_RESET_WRITE)
-      rc = libusb_clear_halt(h,s->ep_out);
+      rc = reset_pipe(h,s->ep_out);
     if (rc == 0 && (what & L1USB_RESET_READ))
-      rc = libusb_clear_halt(h,s->ep_in);
+      rc = reset_pipe(h,s->ep_in);
   }
   pthread_mutex_lock(&lock);
   s->busy = 0;
