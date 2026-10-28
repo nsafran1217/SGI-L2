@@ -103,7 +103,7 @@ void oops_handler(int sig, siginfo_t *info, void *raw_uc)
             i % 8 == 0 || i == bt_size - 1 ? "\n" : " ");
     rptr += strlen(rptr);
   }
-  syslog(9,"l2.c",153,0,rbuf);
+  syslog(9,"l2.c",153,0,"%s",rbuf);
   exit(1);
 }
 

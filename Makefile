@@ -40,8 +40,9 @@ ifeq ($(ARCH),-m32)
 ISYSTEM := $(ISYSTEM32)
 CFLAGS  += $(ISYSTEM)
 endif
-# the tree builds warning-free with gcc 14; WERROR= for other compilers
-WERROR  ?= -Werror
+# the tree builds warning-free with gcc 14; WERROR= for other compilers.
+# (-Wformat-security: Ubuntu's gcc has it on by default, Debian's not)
+WERROR  ?= -Werror -Wformat-security
 CFLAGS  += $(WERROR)
 LDFLAGS += $(ARCH) $(EXTRA_LDFLAGS)
 CFLAGS  += $(EXTRA_CFLAGS)   # e.g. EXTRA_CFLAGS=-fsanitize=address EXTRA_LDFLAGS=-fsanitize=address
