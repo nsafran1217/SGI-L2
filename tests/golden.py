@@ -18,7 +18,8 @@ What depends on the host is normalized: the tests run with TZ=UTC, and
 before comparing, the user's name
 and GECOS field where a connection is announced, and the address l2 takes
 from the host name (<L2IP>; on hosts where that is 127.0.0.1 the goldens
-cannot tell it apart from the loopback address the tests connect to).
+cannot tell it apart from the loopback address the tests connect to), and
+its forms in IR addresses and packet dumps.
 """
 
 import difflib
@@ -51,10 +52,27 @@ def _host_ip():
 HOST_IP = _host_ip()
 
 
+# The address also shows inside IR addresses ("(IR 80000101": its low three
+# bytes) and IR packet dumps ("IP f 0b 1010000": those bytes after a 0,
+# printed as a little-endian word). The goldens were recorded on a host
+# whose name is 127.0.1.1 (Debian's /etc/hosts); elsewhere (GitHub's
+# runners) these are rewritten to that host's.
+GOLDEN_IP = "127.0.1.1"
+
+
+def _ir_forms(ip):
+    low = socket.inet_aton(ip)[1:]
+    return low.hex(), format(int.from_bytes(b"\0" + low, "little"), "x")
+
+
 def normalize(t):
     t = re.sub(r"\S+ \([^()\n]*\) @ (\S+) running", r"<USER> (<GECOS>) @ \1 running", t)
     if HOST_IP:
         t = re.sub(r"(?<![\d.])" + re.escape(HOST_IP) + r"(?!\d)", "<L2IP>", t)
+        if HOST_IP != GOLDEN_IP:
+            (ir, pkt), (gir, gpkt) = _ir_forms(HOST_IP), _ir_forms(GOLDEN_IP)
+            t = re.sub(r"(\(IR [0-9a-f]{2})" + ir + r"(?![0-9a-f])", r"\g<1>" + gir, t)
+            t = re.sub(r"(IP [0-9a-f]+ [0-9a-f]+ )" + pkt + r"(?![0-9a-f])", r"\g<1>" + gpkt, t)
     return t
 
 
