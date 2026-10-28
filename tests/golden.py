@@ -18,8 +18,9 @@ What depends on the host is normalized: the tests run with TZ=UTC, and
 before comparing, the user's name
 and GECOS field where a connection is announced, and the address l2 takes
 from the host name (<L2IP>; on hosts where that is 127.0.0.1 the goldens
-cannot tell it apart from the loopback address the tests connect to), and
-its forms in IR addresses and packet dumps.
+cannot tell it apart from the loopback address the tests connect to), with
+the padding of a column after it, and its forms in IR addresses and packet
+dumps.
 """
 
 import difflib
@@ -68,6 +69,12 @@ def _ir_forms(ip):
 def normalize(t):
     t = re.sub(r"\S+ \([^()\n]*\) @ (\S+) running", r"<USER> (<GECOS>) @ \1 running", t)
     if HOST_IP:
+        # (a column padded after the address, as config's "L1 <ip>:0:0      -":
+        # as many spaces as after 127.0.1.1)
+        delta = len(HOST_IP) - len(GOLDEN_IP)
+        if delta:
+            t = re.sub(r"(?<![\d.])(" + re.escape(HOST_IP) + r"(?::\d+)*)( {2,})",
+                       lambda m: m[1] + " " * max(1, len(m[2]) + delta), t)
         t = re.sub(r"(?<![\d.])" + re.escape(HOST_IP) + r"(?!\d)", "<L2IP>", t)
         if HOST_IP != GOLDEN_IP:
             (ir, pkt), (gir, gpkt) = _ir_forms(HOST_IP), _ir_forms(GOLDEN_IP)
