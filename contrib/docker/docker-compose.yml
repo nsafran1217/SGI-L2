@@ -1,28 +1,28 @@
-# The SGI L2 in Docker (README.md): l2, its console on telnet port 23,
-# and, with the profile webgui, the web l2gui on port 8080.
+# The SGI L2 in Docker (README.md): one container with l2, its console on
+# telnet port 23, and with WEBGUI=1 the web l2gui on port 8080.
 #
 #   docker compose up -d                      # the image from ghcr.io
-#   docker compose --profile webgui up -d     # with the web l2gui
 #   docker compose build                      # or the image from this checkout
 #
-# Settings in .env (.env.example). Every container is on the host's network:
+# Settings in .env (.env.example). The container is on the host's network:
 # discovery is a UDP broadcast, other L2s connect back, and SGI's L3 and IST
 # tools reach l2 on its usual ports.
 
-x-sgi-l2: &sgi-l2
-  image: ghcr.io/nsafran1217/sgi-l2:${SGI_L2_TAG:-latest}
-  network_mode: host
-  restart: always
-
 services:
-  l2:
-    <<: *sgi-l2
+  sgi-l2:
+    image: ghcr.io/nsafran1217/sgi-l2:${SGI_L2_TAG:-latest}
     build:
       context: ../..
       dockerfile: contrib/docker/Dockerfile
-    command: l2
+    container_name: sgi-l2
+    network_mode: host
+    # (quit on the console ends l2, and the container: it comes back)
+    restart: always
     environment:
       L2_OPTIONS: ${L2_OPTIONS--discover}
+      TELNET_PORT: ${TELNET_PORT:-23}
+      WEBGUI: ${WEBGUI:-0}
+      WEBGUI_LISTEN: ${WEBGUI_LISTEN:-0.0.0.0:8080}
     # the L1s on USB, plugged in now or later (USB devices are major 189);
     # /run/udev for libusb's hotplug
     device_cgroup_rules:
@@ -31,19 +31,6 @@ services:
       - /dev/bus/usb:/dev/bus/usb
       - /run/udev:/run/udev:ro
       - l2-state:/var/lib/sgi-l2
-
-  telnet:
-    <<: *sgi-l2
-    command: telnet
-    environment:
-      TELNET_PORT: ${TELNET_PORT:-23}
-
-  webgui:
-    <<: *sgi-l2
-    command: webgui
-    profiles: [webgui]
-    environment:
-      WEBGUI_LISTEN: ${WEBGUI_LISTEN:-0.0.0.0:8080}
 
 volumes:
   l2-state:

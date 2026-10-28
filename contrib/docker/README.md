@@ -8,41 +8,47 @@ kernel driver, no 32-bit libraries. It is built for x86-64 (`amd64`),
 ARM (`arm/v7`: a Pi 2 or later on 32-bit Raspberry Pi OS; not the Pi 1 or
 Zero).
 
-`docker-compose.yml` runs three containers from the same image:
+One container runs:
 
 | | |
 |---|---|
 | `l2` | the L2, with the L1s on the host's USB; its settings (`l2.conf`) and log are in the volume `l2-state` |
-| `telnet` | the L2's console on telnet port 23, with no login: `telnet <host>`, CTRL-] then `q` to leave |
-| `webgui` | (only with the profile `webgui`) the web l2gui and the HTTP API, `l2api`, on port 8080 |
+| telnet | the L2's console on telnet port 23, with no login: `telnet <host>`, CTRL-] then `q` to leave |
+| `l2api` | (with `WEBGUI=1`) the web l2gui and the HTTP API on port 8080 |
 
-All three are on the host's network, so `l2` is reached as if it ran on
-the host: SGI's `l2term`, `l2cmd`, `l2gui` and IST tools with `--l2 <host>`
-(ports 8000-8003, 9002), other L2s (9001), discovery (UDP 10000), and the
-console on `telnet <host> 8001` too.
+It is on the host's network, so `l2` is reached as if it ran on the host:
+SGI's `l2term`, `l2cmd`, `l2gui` and IST tools with `--l2 <host>` (ports
+8000-8003, 9002), other L2s (9001), discovery (UDP 10000), and the console
+on `telnet <host> 8001` too.
 
 ## Run
 
-    git clone https://github.com/nsafran1217/SGI-L2.git
-    cd SGI-L2/contrib/docker
+`docker-compose.yml` is all it takes, no checkout:
+
+    mkdir sgi-l2 && cd sgi-l2
+    curl -LO https://raw.githubusercontent.com/nsafran1217/SGI-L2/main/contrib/docker/docker-compose.yml
     docker compose up -d                      # pulls ghcr.io/nsafran1217/sgi-l2
     telnet localhost
 
-With the web l2gui (http://\<host\>:8080/):
+Settings go in `.env` next to `docker-compose.yml` (`.env.example` lists
+them):
 
-    docker compose --profile webgui up -d
+| | |
+|---|---|
+| `WEBGUI=1` | the web l2gui, at http://\<host\>:8080/ |
+| `WEBGUI_LISTEN` | where it listens (default `0.0.0.0:8080`) |
+| `L2_OPTIONS` | `l2`'s options (default `-discover`) |
+| `TELNET_PORT` | the console's telnet port, if the host has a telnetd on 23 |
+| `SGI_L2_TAG` | the image's tag: a release, such as `1.0.0`, or `latest` (the default) |
 
-or `COMPOSE_PROFILES=webgui` in `.env`. Settings go in `.env` next to
-`docker-compose.yml` (`.env.example` lists them): `l2`'s options
-(`L2_OPTIONS`, default `-discover`), the telnet port (`TELNET_PORT`, if the
-host has a telnetd on 23), where the web l2gui listens (`WEBGUI_LISTEN`),
-the image's tag (`SGI_L2_TAG`, a release such as `1.0.0`, default `latest`).
+Then:
 
-    docker compose logs -f l2                 # l2's messages
-    docker compose exec l2 l2cmd --l2 localhost cfg
+    docker compose logs -f                    # l2's messages
+    docker exec sgi-l2 l2cmd --l2 localhost cfg
     docker compose pull && docker compose up -d     # a new release
 
-`quit` on the console ends `l2`; Docker starts it again.
+`quit` on the console ends `l2`, and with it the container (dropping any
+other telnet sessions); Docker starts it again.
 
 ## Build it yourself
 
@@ -63,22 +69,21 @@ target also builds FLTK, which the image doesn't need.
 
 ## Without compose
 
-    docker volume create l2-state
-    docker run -d --name l2 --network host --restart always \
+    docker run -d --name sgi-l2 --network host --restart always \
         --device-cgroup-rule 'c 189:* rmw' -v /dev/bus/usb:/dev/bus/usb \
         -v /run/udev:/run/udev:ro -v l2-state:/var/lib/sgi-l2 \
-        ghcr.io/nsafran1217/sgi-l2 l2 -discover
-    docker run -d --name l2-telnet --network host --restart always \
-        ghcr.io/nsafran1217/sgi-l2 telnet
-    docker run -d --name l2-webgui --network host --restart always \
-        ghcr.io/nsafran1217/sgi-l2 webgui
+        -e WEBGUI=1 ghcr.io/nsafran1217/sgi-l2
+
+`l2`'s options can follow as arguments (`... ghcr.io/nsafran1217/sgi-l2
+all -noconn`). The image also runs each part alone, for one container
+each: `l2 [options]`, `telnet` and `webgui` in place of `all`.
 
 ## USB
 
 `l2` opens the L1s (USB `065e:1234`) through libusb. The container sees
 the host's `/dev/bus/usb`, and the device cgroup rule lets it open USB
 devices plugged in after it started; `/run/udev` gives libusb the host's
-hotplug events. `l2` runs as root in its container, so the host needs no
+hotplug events. `l2` runs as root in the container, so the host needs no
 udev rule.
 
 In a VM (Proxmox and the like), pass the L1 through to the VM first, by

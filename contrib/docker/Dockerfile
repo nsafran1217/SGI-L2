@@ -83,4 +83,4 @@ VOLUME /var/lib/sgi-l2
 EXPOSE 23 8000 8001 8002 8003 9001 9002 10000/udp 8080
 # (-g: docker stop's SIGTERM to the whole process group)
 ENTRYPOINT ["/sbin/tini", "-g", "--", "/usr/local/bin/sgi-l2-entry"]
-CMD ["l2"]
+CMD ["all"]
