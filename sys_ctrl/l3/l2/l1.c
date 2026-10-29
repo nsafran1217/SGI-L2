@@ -34,6 +34,8 @@
 
 #define MAX_FDS         64      /* lasterr[] and the like, by descriptor */
 #define READ_ERRORS     3       /* a device is closed after this many in a row */
+#define ACCESS_TRIES    20      /* a new device's open denied: tried again this often, */
+#define ACCESS_USECS    250000  /* this far apart (udev may not have run its rule yet) */
 
 static char *l1_usb_path_str(l1usb_cfg_t *cfg, int format);
 
@@ -47,6 +49,7 @@ EventID l1_throttle_timerid;
 static int lasterr[MAX_FDS];
 static int lastcnt[MAX_FDS];
 static char lastdev[MAX_FDS][60];
+static int access_tries[L2_L1_PORTS];
 
 /* (the original indexed these by any descriptor) */
 static int fd_ok(int fd)
@@ -189,6 +192,15 @@ int l1_open_usb_device(int device)
   if (l1usb_cfg(device,&cfg) == 0)
     snprintf(usbpath,sizeof(usbpath),"%s",l1_usb_path_str(&cfg,0));
   fd = l1usb_open(device);
+  if (fd < 0 && errno == EACCES && access_tries[device]++ < ACCESS_TRIES) {
+    /* (plugged in just now: libusb can tell of a device before udev has given
+     * it to the rule's group; l1_service_usb() opens it again, as it is
+     * present again) */
+    l2_l1_ports[device].status = 0;
+    EventAddTimeOut(0,ACCESS_USECS,l1_service_usb,NULL,"l1_open_usb_device");
+    return 0;
+  }
+  access_tries[device] = 0;
   if (fd < 0) {
     fprintf(stderr,"ERROR: can\'t open USB device at %s, %s%s\n",usbpath,strerror(errno),
             errno == EACCES ? " (a udev rule for 065e:1234 lets l2 run as a user)" : "");
@@ -269,6 +281,8 @@ void l1_service_usb(int data, int fd)
   l1usb_drain();
   devices = l1usb_status(status,sizeof(status));
   for (device = 0; device < devices; device++) {
+    if (status[device] == 0)
+      access_tries[device] = 0;
     if (status[device] != l2_l1_ports[device].status && status[device] == 0) {
       l2_l1_ports[device].status = status[device];
       l1_close_usb_device(device,0,"[driver]");
