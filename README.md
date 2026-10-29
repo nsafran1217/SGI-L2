@@ -30,7 +30,8 @@ Raspberry Pi OS). They are static, so they run on any Linux:
 
     tar -xzf sgi-l2-<version>-linux-<arch>.tar.gz
     cd sgi-l2-<version>-linux-<arch>
-    sudo ./install.sh                         # the tools, the udev rule, the systemd units
+    sudo ./install.sh                         # the tools, the udev rule and its group
+    sudo ./install.sh --service               # these and the systemd units, then:
     sudo systemctl enable --now sgi-l2
 
 (`INSTALL.md` in the archive says more). The same release is a Docker
@@ -58,7 +59,8 @@ Other builds:
 ## Run
 
 `l2` reaches the L1s on USB itself, through libusb: no kernel driver.
-To run it as a user rather than root, `sudo make install-udev` installs
+To run it as a user rather than root, `sudo make install` (or just
+`sudo make install-udev`; `make install-tools` installs only the tools) installs
 the udev rule (`contrib/udev/60-sgi-l1.rules`), which gives the L1s to the
 group `sgi-l2`, and creates that group with GID 1234 (`L1_GID=` for
 another); add yourself to it (the user at the console has access anyway). With SGI's `sgil1`
@@ -70,8 +72,8 @@ driver loaded, `l2` detaches it from the L1s it opens.
     l2 -console                       # also a console on stdin (on by default on a terminal)
 
 As a service: `sudo make install-service` installs the tools, the udev rule
-and its group, and a systemd unit (`contrib/systemd/sgi-l2.service`, which says how to
-create its user); settings are then in `/var/lib/sgi-l2/l2.conf`.
+and its group, the systemd units (`contrib/systemd/sgi-l2.service`) and
+the user `sgi-l2` they run as; settings are then in `/var/lib/sgi-l2/l2.conf`.
 `contrib/docker/README.md` runs it in a container.
 
     l2term --l2 localhost             # its console; CTRL-] q quits

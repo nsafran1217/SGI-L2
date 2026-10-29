@@ -9,9 +9,10 @@
 #   make interop    the session tests with SGI's original binaries as well (needs
 #                   ../ist or ORIG_BIN): old clients against this l2, and the reverse
 #   make check-all  check for the native, 32-bit and ASan builds (check-s390x: big-endian)
-#   make install    the tools into $(BINDIR) (PREFIX=/usr/local); install-udev: the udev
-#                   rule and its group sgi-l2 (GID 1234); install-service: all of these
-#                   and the systemd units (contrib/)
+#   make install    the tools into $(BINDIR) (PREFIX=/usr/local), the udev rule and its
+#                   group sgi-l2 (GID 1234); install-tools: only the tools; install-udev:
+#                   only the udev rule; install-service: all of these, the systemd units
+#                   and their user sgi-l2 (contrib/)
 #   make dist       a release archive of this build: $(B)/dist/sgi-l2-<VERSION>-linux-<arch>.tar.gz
 #                   (the tools, the web l2gui, contrib/dist/install.sh; VERSION=, DIST_ARCH=)
 #   make clean
@@ -186,7 +187,7 @@ WWW_SRCS := $(wildcard sys_ctrl/l3/webgui/*.html sys_ctrl/l3/webgui/*.js sys_ctr
 WWW      := $(WWW_SRCS:sys_ctrl/l3/webgui/%=$(B)/www/%) \
             $(patsubst sys_ctrl/l3/gui/ui/%,$(B)/www/%,$(wildcard sys_ctrl/l3/gui/ui/images/*.xpm))
 
-.PHONY: all test check check-all check-s390x difftest golden interop install install-udev install-service dist clean ist-orig
+.PHONY: all test check check-all check-s390x difftest golden interop install install-tools install-udev install-service dist clean ist-orig
 all: $(TOOLS:%=$(B)/bin/%) $(WWW)
 
 $(B)/www/%: sys_ctrl/l3/webgui/%
@@ -305,10 +306,10 @@ check-s390x:
 	    CC=s390x-linux-gnu-gcc-14 AR=s390x-linux-gnu-ar ARCH= B=builds390x \
 	    QEMU="$(S390X)/bin/qemu-s390x -L $(S390X)/s390x-linux-gnu"
 
-# make install: the tools into $(BINDIR). make install-udev (as root): the
-# udev rule and its group. make install-service (as root): all of these and
-# the systemd units; see contrib/systemd/sgi-l2.service
-# for the user it runs as.
+# make install (as root): the tools into $(BINDIR), the udev rule and its
+# group. make install-tools: only the tools (no root needed for a PREFIX of
+# one's own). make install-service (as root): all of these, the systemd
+# units and the user they run as (contrib/systemd/sgi-l2.service).
 PREFIX     ?= /usr/local
 BINDIR     ?= $(PREFIX)/bin
 WWWDIR     ?= $(PREFIX)/share/sgi-l2/www
@@ -317,7 +318,9 @@ SYSTEMDDIR ?= /etc/systemd/system
 # the group the udev rule gives the L1s to (the l2 service's)
 L1_GROUP   := sgi-l2
 L1_GID     ?= 1234
-install: all
+install: install-tools install-udev
+
+install-tools: all
 	install -d $(DESTDIR)$(BINDIR) $(DESTDIR)$(WWWDIR)/images
 	install -m 755 $(TOOLS:%=$(B)/bin/%) $(DESTDIR)$(BINDIR)
 	install -m 644 $(filter-out $(B)/www/images/%,$(WWW)) $(DESTDIR)$(WWWDIR)
@@ -340,18 +343,28 @@ else
 	@echo "next: groupadd --system --gid $(L1_GID) $(L1_GROUP), then udevadm control --reload && udevadm trigger"
 endif
 
-install-service: install install-udev
+# (the user, like the group, only when not installing into a DESTDIR)
+install-service: install
 	install -d $(DESTDIR)$(SYSTEMDDIR)
 	sed 's|@BINDIR@|$(BINDIR)|g' contrib/systemd/sgi-l2.service > $(DESTDIR)$(SYSTEMDDIR)/sgi-l2.service
 	sed 's|@BINDIR@|$(BINDIR)|g; s|@WWWDIR@|$(WWWDIR)|g' contrib/systemd/sgi-l2api.service \
 	    > $(DESTDIR)$(SYSTEMDDIR)/sgi-l2api.service
-	@echo "next: create the sgi-l2 user (see $(SYSTEMDDIR)/sgi-l2.service), then"
-	@echo "      systemctl daemon-reload && systemctl enable --now sgi-l2"
+ifeq ($(DESTDIR),)
+	@if ! getent passwd $(L1_GROUP) >/dev/null; then \
+	    echo "useradd --system --gid $(L1_GROUP) --no-create-home --shell /usr/sbin/nologin $(L1_GROUP)"; \
+	    useradd --system --gid $(L1_GROUP) --no-create-home --shell /usr/sbin/nologin $(L1_GROUP); \
+	fi
+	-systemctl daemon-reload
+	@echo "next: systemctl enable --now sgi-l2"
+else
+	@echo "next: useradd --system --gid $(L1_GROUP) --no-create-home --shell /usr/sbin/nologin $(L1_GROUP),"
+	@echo "      then systemctl daemon-reload && systemctl enable --now sgi-l2"
+endif
 	@echo "      (and for the HTTP API: systemctl enable --now sgi-l2api)"
 
 # make dist: this build as a release archive (contrib/dist/INSTALL.md). The
 # tools are stripped; contrib/dist/install.sh installs them where make
-# install-service would.
+# install (and with --service, make install-service) would.
 VERSION   ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 DIST_ARCH ?= $(shell dpkg --print-architecture 2>/dev/null || uname -m)
 DIST_NAME := sgi-l2-$(VERSION)-linux-$(DIST_ARCH)

@@ -21,14 +21,22 @@ for the look of SGI's, Helvetica from `xfonts-75dpi` or `xfonts-100dpi`
 ## Install
 
     sudo ./install.sh
-    sudo systemctl enable --now sgi-l2        # l2, settings in /var/lib/sgi-l2/l2.conf
-    sudo systemctl enable --now sgi-l2api     # optional: http://127.0.0.1:8080/
 
 `install.sh` puts the tools in `/usr/local/bin` (`PREFIX=` for another
 place), installs the udev rule that gives the L1s (USB `065e:1234`) to
-the group `sgi-l2` (GID 1234), creates that group and the user `sgi-l2`,
-and installs the systemd units; it enables nothing.
-`./install.sh --tools-only` installs only the tools. Options for `l2` go
+the group `sgi-l2` (GID 1234), and creates that group. Add yourself to it
+(`sudo usermod -aG sgi-l2 $USER`; the user at the console has access
+anyway) to run `l2` as yourself. `./install.sh --tools-only` installs
+only the tools.
+
+To run `l2` as a service instead:
+
+    sudo ./install.sh --service
+    sudo systemctl enable --now sgi-l2        # l2, settings in /var/lib/sgi-l2/l2.conf
+    sudo systemctl enable --now sgi-l2api     # optional: http://127.0.0.1:8080/
+
+`--service` also installs the systemd units and creates the user
+`sgi-l2` they run as; it enables nothing. Options for `l2` go
 in `/etc/default/sgi-l2` (`L2_OPTIONS=-discover` is the default), and for
 `l2api` in `/etc/default/sgi-l2api` (`L2API_OPTIONS=--listen 0.0.0.0:8080`
 to reach it from other machines: it has no authentication).
