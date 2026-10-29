@@ -101,8 +101,9 @@ scripts and for a web interface:
 
 `--www <dir>` also serves the files in a directory (a web interface).
 `l2api` has no authentication: it listens on 127.0.0.1 only, unless
-`--listen 0.0.0.0:8080`. To reach it from elsewhere, put a web server with
-TLS and a password in front of it. With Caddy:
+`--listen 0.0.0.0:8080` (as `sgi-l2api.service` and the Docker image run
+it). To reach it safely from elsewhere, keep it on 127.0.0.1 and put a web
+server with TLS and a password in front of it. With Caddy:
 
     l2.example.net {
         basic_auth { admin <hash from caddy hash-password> }

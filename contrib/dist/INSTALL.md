@@ -34,16 +34,18 @@ To run `l2` as a service instead:
 
     sudo ./install.sh --service
     sudo systemctl enable --now sgi-l2        # l2, settings in /var/lib/sgi-l2/l2.conf
-    sudo systemctl enable --now sgi-l2api     # optional: http://127.0.0.1:8080/
+    sudo systemctl enable --now sgi-l2api     # optional: http://<host>:8080/
     sudo systemctl enable --now sgi-l2-telnet.socket   # optional: the console on telnet port 23
 
 `--service` also installs the systemd units and creates the user
 `sgi-l2` they run as; it enables nothing. Options for `l2` go
 in `/etc/default/sgi-l2` (`L2_OPTIONS=-discover` is the default), and for
-`l2api` in `/etc/default/sgi-l2api` (`L2API_OPTIONS=--listen 0.0.0.0:8080`
-to reach it from other machines: it has no authentication). The telnet
-console has no login either: whoever reaches port 23 can power the system
-up and down. Another port: `sudo systemctl edit sgi-l2-telnet.socket`
+`l2api` in `/etc/default/sgi-l2api`. The web l2gui and the API listen on
+port 8080 of every interface and have no authentication, nor has the telnet
+console a login: whoever reaches port 8080 or 23 can power the system up
+and down. `L2API_OPTIONS=--listen 127.0.0.1:8080` keeps `l2api` to this
+host (behind a reverse proxy with a password: README.md). The telnet
+console on another port: `sudo systemctl edit sgi-l2-telnet.socket`
 (`contrib/systemd/sgi-l2-telnet.socket` shows how).
 
 Then:

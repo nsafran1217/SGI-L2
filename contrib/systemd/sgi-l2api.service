@@ -1,9 +1,10 @@
 # l2api, the HTTP API to an L2, and the web l2gui at its / (make
-# install-service installs it with @BINDIR@ and @WWWDIR@ filled in). It listens on 127.0.0.1:8080 and has no
-# authentication of its own: to reach it from other machines, put a reverse
-# proxy with TLS and a password in front of it (README.md), or set
-# L2API_OPTIONS=--listen 0.0.0.0:8080 in /etc/default/sgi-l2api on a
-# network you trust.
+# install-service installs it with @BINDIR@ and @WWWDIR@ filled in). It
+# listens on port 8080 of every interface, as the Docker image does, and has
+# no authentication of its own: whoever reaches the port can power the
+# system up and down, so only on a network you trust. To keep it to this
+# host (behind a reverse proxy with TLS and a password, README.md), set
+# L2API_OPTIONS=--listen 127.0.0.1:8080 in /etc/default/sgi-l2api.
 
 [Unit]
 Description=SGI L2 HTTP API (l2api)
@@ -15,7 +16,8 @@ Type=simple
 DynamicUser=yes
 Environment=L2API_OPTIONS=
 EnvironmentFile=-/etc/default/sgi-l2api
-ExecStart=@BINDIR@/l2api --l2 localhost --www @WWWDIR@ $L2API_OPTIONS
+# (a --listen in L2API_OPTIONS comes later, and wins)
+ExecStart=@BINDIR@/l2api --l2 localhost --www @WWWDIR@ --listen 0.0.0.0:8080 $L2API_OPTIONS
 Restart=always
 RestartSec=2
 NoNewPrivileges=yes
