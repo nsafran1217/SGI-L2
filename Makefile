@@ -129,6 +129,9 @@ L2TERM_SRCS := \
 L2CMD_SRCS := \
 	sys_ctrl/l3/utils/l2cmd.c
 
+L2TELNETD_SRCS := \
+	sys_ctrl/l3/utils/l2telnetd.c
+
 L2API_SRCS := \
 	sys_ctrl/l3/l2api/l2api.c \
 	sys_ctrl/l3/l2api/http.c \
@@ -175,7 +178,7 @@ CXXFLAGS += $(ARCH) -fno-strict-aliasing -fsigned-char -Icompat -Wall -Wextra -W
 
 
 LIB_OBJS := $(LIB_SRCS:%.c=$(B)/%.o)
-TOOLS    := l2 l2term l2cmd l2api
+TOOLS    := l2 l2term l2cmd l2api l2telnetd
 ifneq ($(WITH_L2GUI),)
 TOOLS    += l2gui
 else ifeq ($(QEMU),)
@@ -243,6 +246,10 @@ $(B)/bin/l2api: $(L2API_SRCS:%.c=$(B)/%.o) $(B)/libsgi.a
 	@mkdir -p $(dir $@)
 	$(CC) $(LDFLAGS) $^ $(LDLIBS) -o $@
 
+$(B)/bin/l2telnetd: $(L2TELNETD_SRCS:%.c=$(B)/%.o)
+	@mkdir -p $(dir $@)
+	$(CC) $(LDFLAGS) $^ $(LDLIBS) -o $@
+
 $(B)/bin/l2gui: $(L2GUI_SRCS:%.cc=$(B)/%.o) $(L2GUI_CSRCS:%.c=$(B)/%.o) $(B)/libsgi.a
 	@mkdir -p $(dir $@)
 	$(CXX) $(LDFLAGS) $^ $(LDLIBS) $(FLTK_LDFLAGS) -o $@
@@ -275,7 +282,7 @@ UNIT_LIBSGI = $(if $(ARCH)$(EXTRA_CFLAGS),,LIBSGI=$(abspath $(B))/libsgi.a)
 SESSION_TESTS = tests/difftest.sh tests/l2term_test.py tests/smp_test.py \
 	tests/l1net_test.py tests/l1_test.py tests/l1usb_test.py tests/options_test.sh \
 	tests/l2_options_test.py tests/l2api_test.py $(if $(filter l2gui,$(TOOLS)),tests/l2gui_test.py) \
-	tests/webgui_test.py
+	tests/webgui_test.py tests/l2telnetd_test.py
 check: all
 	$(if $(QEMU),,@if git rev-parse -q --verify $(RECON_REF) >/dev/null; then \
 	    for t in tests/unit/*_test.sh; do RECON_REF=$(RECON_REF) $(UNIT_LIBSGI) $$t || exit 1; done; \
@@ -349,6 +356,8 @@ install-service: install
 	sed 's|@BINDIR@|$(BINDIR)|g' contrib/systemd/sgi-l2.service > $(DESTDIR)$(SYSTEMDDIR)/sgi-l2.service
 	sed 's|@BINDIR@|$(BINDIR)|g; s|@WWWDIR@|$(WWWDIR)|g' contrib/systemd/sgi-l2api.service \
 	    > $(DESTDIR)$(SYSTEMDDIR)/sgi-l2api.service
+	sed 's|@BINDIR@|$(BINDIR)|g' 'contrib/systemd/sgi-l2-telnet@.service' > '$(DESTDIR)$(SYSTEMDDIR)/sgi-l2-telnet@.service'
+	install -m 644 contrib/systemd/sgi-l2-telnet.socket $(DESTDIR)$(SYSTEMDDIR)
 ifeq ($(DESTDIR),)
 	@if ! getent passwd $(L1_GROUP) >/dev/null; then \
 	    echo "useradd --system --gid $(L1_GROUP) --no-create-home --shell /usr/sbin/nologin $(L1_GROUP)"; \
@@ -360,7 +369,8 @@ else
 	@echo "next: useradd --system --gid $(L1_GROUP) --no-create-home --shell /usr/sbin/nologin $(L1_GROUP),"
 	@echo "      then systemctl daemon-reload && systemctl enable --now sgi-l2"
 endif
-	@echo "      (and for the HTTP API: systemctl enable --now sgi-l2api)"
+	@echo "      (and for the HTTP API: systemctl enable --now sgi-l2api;"
+	@echo "      for the console on telnet port 23: systemctl enable --now sgi-l2-telnet.socket)"
 
 # make dist: this build as a release archive (contrib/dist/INSTALL.md). The
 # tools are stripped; contrib/dist/install.sh installs them where make
@@ -377,7 +387,8 @@ dist: all
 	$(STRIP) $(TOOLS:%=$(DIST_DIR)/bin/%)
 	install -m 644 $(filter-out $(B)/www/images/%,$(WWW)) $(DIST_DIR)/share/sgi-l2/www
 	install -m 644 $(filter $(B)/www/images/%,$(WWW)) $(DIST_DIR)/share/sgi-l2/www/images
-	install -m 644 contrib/systemd/sgi-l2.service contrib/systemd/sgi-l2api.service $(DIST_DIR)/systemd
+	install -m 644 contrib/systemd/sgi-l2.service contrib/systemd/sgi-l2api.service \
+	    'contrib/systemd/sgi-l2-telnet@.service' contrib/systemd/sgi-l2-telnet.socket $(DIST_DIR)/systemd
 	install -m 644 contrib/udev/60-sgi-l1.rules $(DIST_DIR)/udev
 	install -m 755 contrib/dist/install.sh $(DIST_DIR)
 	install -m 644 contrib/dist/INSTALL.md README.md $(DIST_DIR)

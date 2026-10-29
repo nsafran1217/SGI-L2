@@ -1,0 +1,20 @@
+# One telnet connection to the L2's console (sgi-l2-telnet.socket starts it;
+# make install-service installs it with @BINDIR@ filled in). Options for
+# l2telnetd go in /etc/default/sgi-l2-telnet as L2TELNETD_OPTIONS=... (such
+# as --l2 <host> for an L2 elsewhere).
+
+[Unit]
+Description=SGI L2 console on telnet, a connection (l2telnetd)
+After=sgi-l2.service
+
+[Service]
+DynamicUser=yes
+Environment=L2TELNETD_OPTIONS=
+EnvironmentFile=-/etc/default/sgi-l2-telnet
+ExecStart=@BINDIR@/l2telnetd $L2TELNETD_OPTIONS
+StandardInput=socket
+StandardError=journal
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes

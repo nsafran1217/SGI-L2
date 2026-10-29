@@ -74,6 +74,8 @@ driver loaded, `l2` detaches it from the L1s it opens.
 As a service: `sudo make install-service` installs the tools, the udev rule
 and its group, the systemd units (`contrib/systemd/sgi-l2.service`) and
 the user `sgi-l2` they run as; settings are then in `/var/lib/sgi-l2/l2.conf`.
+`sgi-l2-telnet.socket` puts the console on telnet port 23 with no login
+(`l2telnetd` for each connection), as the Docker image does.
 `contrib/docker/README.md` runs it in a container.
 
     l2term --l2 localhost             # its console; CTRL-] q quits

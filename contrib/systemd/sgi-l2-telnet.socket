@@ -1,0 +1,22 @@
+# The L2's console on telnet port 23, with no login, as SGI-L2-Docker and the
+# Docker image have it: telnet <host>, then CTRL-] and quit to leave. Each
+# connection starts sgi-l2-telnet@.service (l2telnetd), which connects to
+# l2's console port (8001). Whoever reaches port 23 has the console, which
+# can power the system up and down: only on a network you trust.
+#
+#   sudo systemctl enable --now sgi-l2-telnet.socket
+#
+# Another port: sudo systemctl edit sgi-l2-telnet.socket, with
+#   [Socket]
+#   ListenStream=
+#   ListenStream=2323
+
+[Unit]
+Description=SGI L2 console on telnet (l2telnetd)
+
+[Socket]
+ListenStream=23
+Accept=yes
+
+[Install]
+WantedBy=sockets.target

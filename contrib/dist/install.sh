@@ -51,6 +51,8 @@ if [ -n "$service" ]; then
     sed "s|@BINDIR@|$BINDIR|g" systemd/sgi-l2.service > "$D$SYSTEMDDIR/sgi-l2.service"
     sed "s|@BINDIR@|$BINDIR|g; s|@WWWDIR@|$WWWDIR|g" systemd/sgi-l2api.service \
         > "$D$SYSTEMDDIR/sgi-l2api.service"
+    sed "s|@BINDIR@|$BINDIR|g" systemd/sgi-l2-telnet@.service > "$D$SYSTEMDDIR/sgi-l2-telnet@.service"
+    install -m 644 systemd/sgi-l2-telnet.socket "$D$SYSTEMDDIR"
 fi
 
 if [ -n "$D" ]; then
@@ -80,4 +82,5 @@ fi
 systemctl daemon-reload || true
 
 echo "next: systemctl enable --now sgi-l2"
-echo "      (the HTTP API and web l2gui: systemctl enable --now sgi-l2api)"
+echo "      (the HTTP API and web l2gui: systemctl enable --now sgi-l2api;"
+echo "      the console on telnet port 23: systemctl enable --now sgi-l2-telnet.socket)"
