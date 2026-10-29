@@ -136,13 +136,19 @@ int RouterInit(int max_in_args, int use_unix, char *process_name, int process_id
   signal(SIGPIPE,SIG_IGN);      /* write errors come back as EPIPE */
   memset(UserName,0,sizeof(UserName));
   memset(FullName,0,sizeof(FullName));
+  /* (the name only tells the L2 who connected. A user with no entry for a
+   * static build, which reads /etc/passwd alone, such as systemd's
+   * DynamicUser= or a container's --user, goes by $USER or its uid: the
+   * original failed) */
   pw = getpwuid(getuid());
-  if (pw == NULL) {
-    LogError(ROUTER_ERR_NO_PASSWD,"",0,"");
-    return -1;
+  if (pw != NULL) {
+    strncpy(UserName,pw->pw_name,sizeof(UserName) - 1);
+    strncpy(FullName,pw->pw_gecos,sizeof(FullName) - 1);
   }
-  strncpy(UserName,pw->pw_name,sizeof(UserName) - 1);
-  strncpy(FullName,pw->pw_gecos,sizeof(FullName) - 1);
+  else if (getenv("USER") != NULL && *getenv("USER") != '\0')
+    strncpy(UserName,getenv("USER"),sizeof(UserName) - 1);
+  else
+    snprintf(UserName,sizeof(UserName),"uid%u",(unsigned int)getuid());
   if (SocketGetHostName(&myhost) == -1)
     myhost = "localhost";
   SocketGetAddr(myhost,&IPAddress);
