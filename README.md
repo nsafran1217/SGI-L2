@@ -5,38 +5,58 @@ and its clients `l2term`, `l2cmd` and `l2gui`, rebuilt from source for
 current Linux. The source was reconstructed from SGI's snxsc_l3 1.62.0
 binaries (IST 3.24).
 
-This repo will have improvments and bug fixes to the original tools, 
+This repo will have improvements and bug fixes to the original tools, 
 as well as fixes to allow them to compile on modern hosts and architectures.
 
-The biggest improvment is the removing the need for a kernel driver for `sgil1`.   
+The biggest improvement is the removing the need for a kernel driver for `sgil1`.   
 Just run the `l2` binary with a L1 connected to your computer.
 
-TODO:  
-Better Readme  
-test the IST tools (`errdump`, etc.) and fix if broken
+The vast majority of this repo's content has been written by an LLM (Claude Opus 5.5).
 
-The vast majority of this content has been written by an LLM (Claude Opus 5.5).
+## Quick Start
 
-### Branches
- - decomp - ghidra and claude decomp of original binaries with changes to allow it to build on 64 bit hosts  
-- rewrite-decomp - Claude rewritten to be more readable. Matches behavior of original totols
-- main - Modernized as needed, removes the requirement for the `sgil1` driver
+### Bare Metal
+To run the binaries directly on your computer:
 
-## Prebuilt
-
-Each [release](https://github.com/nsafran1217/SGI-L2/releases) has the
-tools built for `amd64`, `arm64` and `armv7` (32-bit ARM, such as 32-bit
-Raspberry Pi OS). They are static, so they run on any Linux:
+[Download the latest release](https://github.com/nsafran1217/SGI-L2/releases) 
+for the appropriate architecture.
 
     tar -xzf sgi-l2-<version>-linux-<arch>.tar.gz
     cd sgi-l2-<version>-linux-<arch>
-    sudo ./install.sh                         # the tools, the udev rule and its group
-    sudo ./install.sh --service               # these and the systemd units, then:
-    sudo systemctl enable --now sgi-l2
+    sudo ./install.sh                         # the tools, the udev USB rule and its group
 
-(`INSTALL.md` in the archive says more). The same release is a Docker
-image, `ghcr.io/nsafran1217/sgi-l2`, with the console on telnet and the
-web l2gui: `contrib/docker/README.md`.
+After, add yourself to the `sgi-l2` group so you can run it without sudo
+    
+    sudo usermod -aG sgi-l2 <username>
+
+If you want `l2` 5o start automatically, you can install the services:
+
+
+    sudo ./install.sh --service                        # systemd units, then:
+    sudo systemctl enable --now sgi-l2                 # l2 process only. Connect with l2term or l2gui
+    sudo systemctl enable --now sgi-l2api              # l2 webgui and API hosted on port 8080
+    sudo systemctl enable --now sgi-l2-telnet.socket   # l2 console on telnet port 23 (no login)
+
+See [INSTALL.md](https://github.com/nsafran1217/SGI-L2/blob/main/contrib/dist/INSTALL.md) 
+for more details
+
+### Docker
+This is also available as a docker image from: `ghcr.io/nsafran1217/sgi-l2`  
+See instructions here: [contrib/docker/README.md](https://github.com/nsafran1217/SGI-L2/blob/main/contrib/docker/README.md)
+
+TL;DR
+
+    mkdir sgi-l2 && cd sgi-l2
+    curl -LO https://raw.githubusercontent.com/nsafran1217/SGI-L2/main/contrib/docker/docker-compose.yml
+    docker compose up -d                      # pulls ghcr.io/nsafran1217/sgi-l2
+    telnet localhost
+
+TODO:  
+
+test the IST tools (`errdump`, etc.) and fix if broken
+
+
+
 
 ## Build
 
@@ -140,6 +160,27 @@ it). Each module is a port of the `gui/*.cc` file of the same name. It
 follows the L2 through `/api/v1/events` and sends its commands to
 `/api/v1/command`, so it works wherever the API does, behind a proxy too.
 
+### Branches
+ - decomp - ghidra and claude decomp of original binaries with changes to allow it to build on 64 bit hosts  
+- rewrite-decomp - Claude rewritten to be more readable. Matches behavior of original totols
+- main - Modernized as needed, removes the requirement for the `sgil1` driver
+
+## Configurable paths
+
+| Variable | What | Default |
+|---|---|---|
+| `SGI_L2_CONFIG` | `l2`'s settings file (`.N` appended with `--copy N`; `l2 -c <file>` overrides); its log, `l2.log`, is in the same directory | `$STATE_DIRECTORY/l2.conf` under systemd, else `./l2.conf` |
+| `SGI_L3_SOCKET_DIR` | local `UNIX_xxxx` sockets | `/usr/tmp`, or `/tmp` if `/usr/tmp` does not exist |
+
+## Documents
+
+- MODERN.md: the plan and its progress.
+- DEVIATIONS.md: every way the tools differ from SGI's 1.62.0.
+- ORIGINAL_BUGS.md: SGI's bugs found in the reconstruction, kept or fixed.
+
+The SGI code is SGI's; this is a reconstruction for running and preserving
+their hardware.
+
 ## Test
 
     make check      # unit tests, then every session test against tests/golden/
@@ -167,19 +208,3 @@ it is not in git.
 `l2gui_test.py` needs Xvfb, xdotool, ImageMagick and strace;
 `webgui_test.py` needs Chrome or Chromium (it runs l2gui's session in the
 web l2gui, headless).
-
-## Configurable paths
-
-| Variable | What | Default |
-|---|---|---|
-| `SGI_L2_CONFIG` | `l2`'s settings file (`.N` appended with `--copy N`; `l2 -c <file>` overrides); its log, `l2.log`, is in the same directory | `$STATE_DIRECTORY/l2.conf` under systemd, else `./l2.conf` |
-| `SGI_L3_SOCKET_DIR` | local `UNIX_xxxx` sockets | `/usr/tmp`, or `/tmp` if `/usr/tmp` does not exist |
-
-## Documents
-
-- MODERN.md: the plan and its progress.
-- DEVIATIONS.md: every way the tools differ from SGI's 1.62.0.
-- ORIGINAL_BUGS.md: SGI's bugs found in the reconstruction, kept or fixed.
-
-The SGI code is SGI's; this is a reconstruction for running and preserving
-their hardware.
