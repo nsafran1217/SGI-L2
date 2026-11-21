@@ -112,7 +112,9 @@ scripts and for a web interface:
 
 | Endpoint | |
 |---|---|
-| `GET /api/v1/l2` | the L2s of the system (address, rack, serial, system name, whether the display is locked) and whether `l2api` is connected |
+| `GET /api/v1/l2` | the L2 `l2api` is connected (or connecting) to as `host`, whether it is connected, and the L2s of its system (address, rack, serial, system name, whether the display is locked) |
+| `POST /api/v1/l2` | `{"host": "<name or address>"}`: drop the L2 and connect to that one instead; answers as `GET` does |
+| `GET /api/v1/discover` | the L2s on the network (address, rack, serial, system name, version), as `l2find` finds them; takes about two seconds |
 | `GET /api/v1/config` | the bricks: name (`001c07`), rack, slot, type, partition, power, serial numbers |
 | `POST /api/v1/command` | an L2 command, as `l2cmd` runs it: `{"command": "..."}` or plain text; answers `{"status": 0, "output": "..."}` (and a `"message"` for a status other than 0) |
 | `POST /api/v1/power` | `{"action": "up\|down\|reset\|status", "target": "r 1 s 7"}` (target optional: the L2's destination) |
@@ -143,6 +145,13 @@ or Apache (mod_proxy, mod_proxy_http, mod_proxy_wstunnel):
 Requests are served one at a time: a command holds the others up for as
 long as the L2 takes to answer it.
 
+`l2api` has one connection, to one L2: `--l2`'s, or the one discovery
+finds. `POST /api/v1/l2` moves it, and with it every client of that
+`l2api` (web pages, console WebSockets, scripts); the console WebSockets
+to the old L2 are closed. A host that does not answer holds `l2api` up
+for as long as the connection attempt takes, every five seconds until it
+answers or `l2api` is moved again.
+
 ## Web l2gui
 
 `sys_ctrl/l3/webgui` is `l2gui` as a web page: plain JavaScript modules,
@@ -159,6 +168,11 @@ palette; `tools/mkwebdata.py` takes those from the original binary into
 it). Each module is a port of the `gui/*.cc` file of the same name. It
 follows the L2 through `/api/v1/events` and sends its commands to
 `/api/v1/command`, so it works wherever the API does, behind a proxy too.
+
+A bar above the panel names the L2 and whether `l2api` is connected to
+it; its "Change L2..." button lists the L2s discovery finds and moves
+`l2api` to the one chosen, or to a host typed in (`POST /api/v1/l2`).
+The destination goes back to `r * s *` when the L2 changes.
 
 ### Branches
  - decomp - ghidra and claude decomp of original binaries with changes to allow it to build on 64 bit hosts  

@@ -8,7 +8,29 @@
 <script type="module" src="l2gui.js"></script>
 </head>
 <body>
+<header id="l2bar" class="down">
+  <span>L2 <strong id="l2host">&hellip;</strong> <span id="l2state">connecting&hellip;</span></span>
+  <button id="l2change" type="button">Change L2&hellip;</button>
+</header>
+<main>
 <canvas id="screen" width="320" height="240" aria-label="L2 controller touch screen"></canvas>
+</main>
+<dialog id="l2dialog" aria-labelledby="l2title">
+  <form id="l2form">
+    <h2 id="l2title">Connect to another L2</h2>
+    <p class="note">Every page and script using this l2api moves with it.</p>
+    <label for="l2input">Host name or address</label>
+    <input id="l2input" autocomplete="off" spellcheck="false" required>
+    <div class="found-head"><span>On the network</span>
+      <button id="l2find" type="button">Search again</button></div>
+    <div id="l2list"></div>
+    <p id="l2msg" role="status"></p>
+    <div class="actions">
+      <button id="l2cancel" type="button">Cancel</button>
+      <button id="l2connect" type="submit">Connect</button>
+    </div>
+  </form>
+</dialog>
 <script src="scale.js"></script>
 </body>
 </html>

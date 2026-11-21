@@ -8,7 +8,9 @@ connects to it. Each request below goes to l2api; the status and body of
 each answer must match tests/golden/l2api/, and a command's output must be
 what l2cmd prints for it. The console (a WebSocket relayed to the L2's SMP
 port) gets a command typed and must show its answer; the event stream must
-start with the configuration.
+start with the configuration. Last, l2api is moved to the same L2 by
+another name (POST /api/v1/l2): it must reconnect, fetch the bricks
+again and take commands, and refuse hosts it can't use.
 """
 
 import base64
@@ -46,6 +48,16 @@ REQUESTS = [
     ("GET", "/api/v1/nothing", None),
     ("GET", "/", None),
     ("GET", "/api/v1/console", None),       # (no upgrade: refused)
+]
+# moving l2api to another L2 (the same one, as "localhost")
+SWITCH = [
+    ("POST", "/api/v1/l2", '{"nothing": 1}'),
+    ("POST", "/api/v1/l2", '{"host": "a;b"}'),
+    ("POST", "/api/v1/l2", '{"host": "no-such-l2.invalid"}'),
+    ("PUT", "/api/v1/l2", '{"host": "localhost"}'),
+    ("POST", "/api/v1/l2", '{"host": "localhost"}'),
+    ("GET", "/api/v1/config", None),
+    ("POST", "/api/v1/command", '{"command": "r 1 s 2 l1 serial"}'),
 ]
 
 
@@ -173,6 +185,11 @@ def main():
         print(f"{'PASS' if ok else 'FAIL'}  l2api console: WebSocket handshake")
         g.check("console", transcript)
         g.check("events", first_event())
+        out = []
+        for method, path, body in SWITCH:
+            status, ctype, data = request(method, path, body)
+            out.append(f"=== {method} {path} {body!r}\n{status} {ctype}\n{data}")
+        g.check("switch", "".join(out))
         l1.close()
     finally:
         for p in procs:

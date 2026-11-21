@@ -6,6 +6,8 @@
  * like l2term (SCapi.c, SysCfg.c), and serves
  *
  *   GET  /api/v1/l2        the L2s of the system, and whether l2api is connected (JSON)
+ *   POST /api/v1/l2        {"host": "<name or address>"}: leave the L2 for another
+ *   GET  /api/v1/discover  the L2s on the network, as l2find finds them (JSON)
  *   GET  /api/v1/config    the bricks: rack, slot, type, partition, power (JSON)
  *   POST /api/v1/command   an L2 command, as l2cmd runs it: {"command": "..."}
  *                          or the command as plain text; {"status", "output"}
@@ -23,6 +25,9 @@
  * because the system controller API runs that loop while it waits for a
  * response; requests are therefore served one at a time, a command for as
  * long as the L2 takes to answer it.
+ *
+ * There is one connection to one L2 (SCapi.c keeps one client), so a
+ * POST /api/v1/l2 moves every client of l2api to the new L2.
  */
 
 #include <errno.h>
@@ -38,6 +43,7 @@
 #include <unistd.h>
 #include "http.h"
 #include "../api/SCapi.h"
+#include "../api/SCapiL2.h"
 #include "../main/SysCfg.h"
 #include "../../common/IRouter/IRouter.h"
 #include "../../common/Router/Router.h"
@@ -207,6 +213,7 @@ static void l2_connect(void)
 
 static void config_json(jbuf *b);
 static void l2s_json(jbuf *b);
+static void drop(http_conn *c);
 
 /* b (malloc()ed JSON) to the event streams as event, if it is not what
  * *last holds; *last keeps it */
@@ -276,8 +283,9 @@ static void l2s_json(jbuf *b)
   SysCfgL2 *l2;
   int i;
 
+  /* (the L2 connected to, or being connected to; "" until discovery finds one) */
   jb_lit(b,"{\"host\": ");
-  jb_str(b,sn1SCHost() != NULL ? sn1SCHost() : "");
+  jb_str(b,sn1SCGetL2Host() != NULL ? sn1SCGetL2Host() : "");
   jb_printf(b,", \"connected\": %s, \"l2s\": [",l2_up ? "true" : "false");
   for (i = 0; l2_up && i < SysCfgL2Count; i++) {
     l2 = SysCfgL2List[i];
@@ -400,6 +408,93 @@ static void do_power(http_conn *c)
   command_reply(c,cmd);
 }
 
+/* the new state of the connection and its configuration to the event streams */
+static void announce(void)
+{
+  jbuf b = { 0 }, l = { 0 };
+
+  l2s_json(&l);
+  event_if_new("l2",&l,&last_l2s);
+  config_json(&b);
+  event_if_new("config",&b,&last_config);
+}
+
+/*
+ * POST /api/v1/l2: {"host": "<name or address>"}: drop the L2 and connect
+ * to the one at host now (and every RECONNECT_SECS after, until it
+ * answers). Answers as GET /api/v1/l2, whether or not it is connected
+ * yet. Console WebSockets, being the old L2's, are closed.
+ */
+static void do_select(http_conn *c)
+{
+  const char *body = http_body(c);
+  char host[64];
+  uint32_t addr;
+  http_conn *o;
+  jbuf b = { 0 };
+
+  if (!json_member(body,"host",host,sizeof(host)) || host[0] == '\0') {
+    reply_error(c,400,"no \"host\"");
+    return;
+  }
+  if (strspn(host,"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-_") != strlen(host)) {
+    reply_error(c,400,"a host is a name or an IPv4 address");
+    return;
+  }
+  /* (an unknown name would be retried for ever) */
+  if (SocketGetAddr(host,&addr) != 0) {
+    reply_error(c,400,"no such host");
+    return;
+  }
+  if (sn1SCClient() != NULL)
+    sn1SCDisconnect();
+  l2_up = 0;
+  SysCfgReset();
+  for (o = conns; o != NULL; o = o->next)
+    if (o->relay >= 0 && o->state == HTTP_WEBSOCKET) {
+      ws_send(o,WS_CLOSE,"",0);
+      drop(o);
+    }
+  sn1SCSetL2Host(host);
+  fprintf(stderr,"%s: switching to the L2 at %s\n",myname,host);
+  next_connect = 0;
+  l2_connect();
+  announce();
+  l2s_json(&b);
+  reply_json(c,200,&b);
+}
+
+/* GET /api/v1/discover: the L2s answering discovery on --interface's
+ * network (or every interface's), as l2find lists them; it takes the
+ * discovery's two rounds of a second */
+static void do_discover(http_conn *c)
+{
+  sn1SC_L2 *list = NULL;
+  jbuf b = { 0 };
+  int n = 0, i;
+
+  if (sn1SCDiscoverL2(sn1SCGetInterface(),NULL,&list,&n,1) < 0 && n == 0) {
+    free(list);
+    reply_error(c,502,"L2 discovery failed");
+    return;
+  }
+  jb_lit(&b,"{\"l2s\": [");
+  for (i = 0; i < n; i++) {
+    jb_printf(&b,"%s\n  {\"ip\": ",i == 0 ? "" : ",");
+    jb_str(&b,SocketAddrStr(list[i].ip_addr));
+    jb_printf(&b,", \"rack\": %d, \"serial\": ",list[i].rack);
+    jb_str(&b,list[i].ssn);
+    jb_lit(&b,", \"sysname\": ");
+    jb_str(&b,list[i].sysname);
+    jb_lit(&b,", \"version\": ");
+    jb_str(&b,list[i].version);
+    jb_lit(&b,"}");
+  }
+  jb_lit(&b,"]}");
+  free(list);
+  reply_json(c,200,&b);
+}
+
 /* GET /api/v1/console: a WebSocket to the L2's console */
 static void do_console(http_conn *c)
 {
@@ -478,21 +573,25 @@ static void do_file(http_conn *c)
   fclose(fp);
 }
 
+#define M_GET   1
+#define M_POST  2
+
 /* the endpoints: whether path is one, and if so whether method suits it */
 static int endpoint(const char *path, int get, int post, int *allowed)
 {
   static const struct {
     const char *path;
-    int post;
+    int methods;
   } api[] = {
-    { "/api/v1/l2", 0 }, { "/api/v1/config", 0 }, { "/api/v1/command", 1 },
-    { "/api/v1/power", 1 }, { "/api/v1/console", 0 }, { "/api/v1/events", 0 },
+    { "/api/v1/l2", M_GET | M_POST }, { "/api/v1/config", M_GET }, { "/api/v1/command", M_POST },
+    { "/api/v1/power", M_POST }, { "/api/v1/console", M_GET }, { "/api/v1/events", M_GET },
+    { "/api/v1/discover", M_GET },
   };
   size_t i;
 
   for (i = 0; i < sizeof(api) / sizeof(api[0]); i++)
     if (strcmp(path,api[i].path) == 0) {
-      *allowed = api[i].post ? post : get;
+      *allowed = ((api[i].methods & M_GET) && get) || ((api[i].methods & M_POST) && post);
       return 1;
     }
   return 0;
@@ -511,6 +610,10 @@ static void route(http_conn *c)
     l2s_json(&b);
     reply_json(c,200,&b);
   }
+  else if (strcmp(c->path,"/api/v1/l2") == 0 && post)
+    do_select(c);
+  else if (strcmp(c->path,"/api/v1/discover") == 0 && get)
+    do_discover(c);
   else if (strcmp(c->path,"/api/v1/config") == 0 && get) {
     config_json(&b);
     reply_json(c,200,&b);
@@ -534,7 +637,7 @@ static void route(http_conn *c)
   }
   else if (strncmp(c->path,"/api/",5) == 0)
     reply_error(c,404,"no such endpoint (see /api/v1/l2, /config, /command, /power, /console, "
-                      "/events)");
+                      "/events, /discover)");
   else if (www != NULL && get)
     do_file(c);
   else if (strcmp(c->path,"/") == 0 && get) {

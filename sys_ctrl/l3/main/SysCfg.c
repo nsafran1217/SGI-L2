@@ -73,6 +73,24 @@ void SysCfgConnInit(sn1SCConn *conn, char *user)
     syslog(3,"SysCfg.c",89,0,"%s: SysCfgConnInit: error updating System Configuration!\n",user);
 }
 
+/*
+ * (new) Forget the configuration, as before the first one: for a client
+ * that leaves one L2 for another. The old L2's tree goes (its peers and
+ * their fields would otherwise outlive it, as L2CfgMInitL3() resets only
+ * the local node's addresses), and so does its query string, lest the new
+ * one's first configuration be taken as "unchanged".
+ */
+void SysCfgReset(void)
+{
+  L2CfgMClear(SysCfgFull);
+  free(SysCfgQuery);
+  SysCfgQuery = NULL;
+  SysCfgL1Count = 0;
+  SysCfgL2Count = 0;
+  SysCfgL1List[0] = NULL;
+  SysCfgL2List[0] = NULL;
+}
+
 /* ask for the configuration; it comes as an event */
 void SysCfgConnRequest(sn1SCConn *conn, char *user)
 {

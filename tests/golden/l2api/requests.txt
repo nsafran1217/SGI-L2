@@ -39,7 +39,7 @@
 {"error": "wrong method for this endpoint"}
 === GET /api/v1/nothing None
 404 application/json
-{"error": "no such endpoint (see /api/v1/l2, /config, /command, /power, /console, /events)"}
+{"error": "no such endpoint (see /api/v1/l2, /config, /command, /power, /console, /events, /discover)"}
 === GET / None
 200 application/json
 {"api": "/api/v1"}

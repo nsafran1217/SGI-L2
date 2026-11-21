@@ -1,14 +1,63 @@
-/* the L2's 320x240 panel, scaled up by a whole number (scale.js) */
+/* the L2's 320x240 panel, scaled up by a whole number (scale.js), under
+ * the bar naming its L2 (l2select.js) */
+:root {
+  --bg: #202020;
+  --bar: #2c2c2c;
+  --text: #d8d8d8;
+  --muted: #9a9a9a;
+  --line: #444;
+  --accent: #5b9bd5;
+  --ok: #6cbf6c;
+  --wait: #e0b050;
+  --field: #181818;
+}
+
 html, body {
   margin: 0;
   height: 100%;
-  background: #202020;
+  background: var(--bg);
+  color: var(--text);
+  font: 13px/1.4 system-ui, sans-serif;
 }
 
 body {
   display: flex;
+  flex-direction: column;
+}
+
+#l2bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 32px;
+  padding: 0 16px;
+  background: var(--bar);
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+#l2bar > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#l2state {
+  color: var(--ok);
+  margin-left: 6px;
+}
+
+#l2bar.down #l2state {
+  color: var(--wait);
+}
+
+main {
+  flex: 1;
+  display: flex;
   align-items: center;
   justify-content: center;
+  min-height: 0;
 }
 
 #screen {
@@ -16,4 +65,113 @@ body {
   image-rendering: crisp-edges;
   touch-action: none;
   cursor: default;
+}
+
+button {
+  font: inherit;
+  color: var(--text);
+  background: #3a3a3a;
+  border: 1px solid #555;
+  border-radius: 4px;
+  padding: 3px 10px;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  background: #464646;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+button[type="submit"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+dialog {
+  width: min(420px, calc(100vw - 32px));
+  box-sizing: border-box;
+  padding: 16px;
+  background: var(--bar);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+dialog::backdrop {
+  background: rgba(0, 0, 0, 0.5);
+}
+
+dialog h2 {
+  margin: 0 0 4px;
+  font-size: 15px;
+}
+
+.note {
+  margin: 0 0 12px;
+  color: var(--muted);
+}
+
+dialog label {
+  display: block;
+  margin-bottom: 4px;
+}
+
+#l2input {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  padding: 5px 8px;
+  color: var(--text);
+  background: var(--field);
+  border: 1px solid #555;
+  border-radius: 4px;
+}
+
+.found-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 14px 0 6px;
+  color: var(--muted);
+}
+
+#l2list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.l2found {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  background: var(--field);
+}
+
+.l2found span {
+  color: var(--muted);
+}
+
+.l2found.current {
+  border-color: var(--accent);
+}
+
+#l2msg {
+  min-height: 1.4em;
+  margin: 10px 0;
+  color: var(--muted);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }

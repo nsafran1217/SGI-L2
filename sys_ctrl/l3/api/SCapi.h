@@ -40,6 +40,7 @@ void sn1SCSetSysName(char *sysname);
 char *sn1SCGetSysName(void);
 void sn1SCSetSSN(char *ssn);
 char *sn1SCGetSSN(void);
+char *sn1SCGetInterface(void);   /* (new) */
 int sn1SCInitPortAddr(char *cname, char *host, int task, int port, IRAddress addr);
 int sn1SCInit(char *cname, char *host, int task);
 int sn1SCInitL2App(char *cname, char *host, int task);

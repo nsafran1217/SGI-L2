@@ -280,6 +280,12 @@ char *sn1SCGetSSN(void)
   return l2_ssn[0] == '\0' ? NULL : l2_ssn;
 }
 
+/* (new) --interface's, NULL for every interface */
+char *sn1SCGetInterface(void)
+{
+  return l2_iface[0] == '\0' ? NULL : l2_iface;
+}
+
 /*
  * Connect as cname (task, port, our IRouter address addr) to host, or the
  * L2 sn1SCFindL2() picks, or as sn1SCParseCmdline() chose. 0 or an error;

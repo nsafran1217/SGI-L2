@@ -1,0 +1,24 @@
+=== POST /api/v1/l2 '{"nothing": 1}'
+400 application/json
+{"error": "no \"host\""}
+=== POST /api/v1/l2 '{"host": "a;b"}'
+400 application/json
+{"error": "a host is a name or an IPv4 address"}
+=== POST /api/v1/l2 '{"host": "no-such-l2.invalid"}'
+400 application/json
+{"error": "no such host"}
+=== PUT /api/v1/l2 '{"host": "localhost"}'
+405 application/json
+{"error": "wrong method for this endpoint"}
+=== POST /api/v1/l2 '{"host": "localhost"}'
+200 application/json
+{"host": "localhost", "connected": true, "l2s": [
+  {"ip": "127.0.0.1", "rack": 0, "serial": "", "sysname": "", "mode": "none", "display_disabled": false},
+  {"ip": "<L2IP>", "rack": 0, "serial": "", "sysname": "", "mode": "none", "display_disabled": false}]}
+=== GET /api/v1/config None
+200 application/json
+{"bricks": [
+  {"name": "001c02", "rack": 1, "slot": 2, "type": "C (IP35)", "partition": 0, "power": false, "console": true, "brick_serial": "FAKE0001", "system_serial": ""}]}
+=== POST /api/v1/command '{"command": "r 1 s 2 l1 serial"}'
+200 application/json
+{"status": 0, "output": "001c02:\nfake L1 001C02: serial\n"}

@@ -24,6 +24,7 @@ extern SysCfgL1 *SysCfgL1List[1024];
 extern SysCfgL2 *SysCfgL2List[128];
 void SysCfgConnInit(sn1SCConn *conn, char *user);
 void SysCfgConnRequest(sn1SCConn *conn, char *user);
+void SysCfgReset(void);   /* (new) */
 int SysCfgConnProcessEvent(sn1SCConn *conn, char *user, IRPacket *pkt);
 void SysCfgConnPrintL1(sn1SCConn *conn, int fd);
 void SysCfgConnPrintL2(sn1SCConn *conn, int fd);

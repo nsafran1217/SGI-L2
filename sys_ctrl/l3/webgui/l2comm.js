@@ -10,11 +10,14 @@
 
 import { mainwin_actions, mainwin_update_config, mainwin_update_status } from "./mainwin.js";
 import { destwin_update_config } from "./destwin.js";
+import { config_set_command_dest } from "./config.js";
+import { l2select_update } from "./l2select.js";
 
 /* SysCfgL2List (GET /api/v1/l2's "l2s") and SysCfgL1List ("bricks") */
 export const syscfg = { l2s: [], bricks: [], connected: false };
 
 let first = true;
+let host = "";         /* the L2 l2api is connected (or connecting) to */
 
 /* waiting for the L2, as when (re)connecting */
 function connecting() {
@@ -40,6 +43,11 @@ export function l2comm_init() {
   events.addEventListener("l2", e => {
     const l2 = JSON.parse(e.data);
 
+    l2select_update(l2);
+    /* (another L2, through l2select.js: its bricks are not the last one's) */
+    if (host !== "" && l2.host !== host)
+      config_set_command_dest("r * s *");
+    host = l2.host;
     syscfg.l2s = l2.l2s;
     if (!l2.connected) {
       connecting();

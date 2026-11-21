@@ -11,6 +11,7 @@ import { config_init } from "./config.js";
 import { cmdwin_init } from "./cmdwin.js";
 import { destwin_init } from "./destwin.js";
 import { l2comm_init } from "./l2comm.js";
+import { l2select_init } from "./l2select.js";
 import { logowin_init } from "./logowin.js";
 import { mainwin_init } from "./mainwin.js";
 
@@ -30,6 +31,7 @@ async function main() {
   attach(document.getElementById("screen"));
   gui_init();
   config_init("r * s *");
+  l2select_init();
   l2comm_init();
 }
 

@@ -113,6 +113,7 @@ L2CfgPort *L2CfgMFindPort(L2Cfg *head, int fd);
 L2CfgPort *L2CfgMGetPort(L2Cfg *head, int port);
 char *L2CfgMDeviceName(L2Cfg *head, int fd);
 int L2CfgMDeleteL2Peer(L2Cfg *head, L2CfgNode *peer);
+void L2CfgMClear(L2Cfg *head);   /* (new) */
 int L2CfgDeleteL2Client(L2CfgNode **list, L2CfgNode *client);
 void L2CfgMEventRack(L2Cfg *head);
 void L2CfgMEventSystemSN(L2Cfg *head);

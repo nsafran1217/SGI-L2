@@ -507,6 +507,29 @@ int L2CfgMDeleteL2Peer(L2Cfg *head, L2CfgNode *peer)
   return 0;
 }
 
+/*
+ * (new) An L3 tool's configuration back to nothing, as before
+ * L2CfgMInitL3(): the peer L2s, client lists and ports freed and head
+ * zeroed, so that a tool moving to another L2 keeps none of the old one's
+ * (its L2s, rack, serial number, system name, L1s).
+ */
+void L2CfgMClear(L2Cfg *head)
+{
+  L2CfgNode *n;
+  int port;
+
+  while (head->net.next != NULL)
+    L2CfgMDeleteL2Peer(head,head->net.next);
+  while ((n = head->l2_clients) != NULL)
+    L2CfgDeleteL2Client(&head->l2_clients,n);
+  while ((n = head->l3_clients) != NULL)
+    L2CfgDeleteL2Client(&head->l3_clients,n);
+  for (port = 0; port < L2CFG_PORTS; port++)
+    free_port(&head->port_list[port]);
+  free(head->syscon);
+  memset(head,0,sizeof(*head));
+}
+
 /* drop a client node from a list */
 int L2CfgDeleteL2Client(L2CfgNode **list, L2CfgNode *client)
 {
