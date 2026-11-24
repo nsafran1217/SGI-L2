@@ -191,6 +191,8 @@ The destination goes back to `r * s *` when the L2 changes.
 - MODERN.md: the plan and its progress.
 - DEVIATIONS.md: every way the tools differ from SGI's 1.62.0.
 - ORIGINAL_BUGS.md: SGI's bugs found in the reconstruction, kept or fixed.
+- PROTOCOL.md: the L2's network protocol, for writing other clients
+  (`contrib/l2client.py` is a small reference client in Python).
 
 The SGI code is SGI's; this is a reconstruction for running and preserving
 their hardware.

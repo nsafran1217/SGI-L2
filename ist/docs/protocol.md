@@ -38,7 +38,8 @@ console a person would see:
 
 `JTAGAccess.so`, and every scan program, connects to port 8000 like
 `l2cmd`. It speaks the same Router protocol, which the code in
-`sys_ctrl/common/Router` implements. It registers as application `scan`,
+`sys_ctrl/common/Router` implements and [PROTOCOL.md](../../PROTOCOL.md)
+describes. It registers as application `scan`,
 with the user's name and GECOS. IRouter frames then travel as Router events:
 the argument `"IR"` followed by one argument per frame (see
 `IRouter2Router.c`). The frames use the standard 20-byte IRouter header
